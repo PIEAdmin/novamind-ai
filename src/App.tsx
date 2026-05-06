@@ -1,0 +1,155 @@
+import React, { useState, useEffect } from 'react';
+import { auth, db } from './firebase-config';
+import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
+import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { generateContent } from './api-service';
+import { Capacitor } from '@capacitor/core';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import './styles.css';
+
+type Tab = 'home' | 'create' | 'gallery' | 'crm' | 'projects';
+
+const App: React.FC = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<Tab>('home');
+  const [showAuth, setShowAuth] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState<any>(null);
+  const [model, setModel] = useState('deepseek');
+  const [contentType, setContentType] = useState('text');
+  const [usage, setUsage] = useState({ used: 0, limit: 15, plan: 'free' });
+  const [creations, setCreations] = useState<any[]>([]);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      setUser(u); setLoading(false);
+      if (u) {
+        const usageDoc = await getDoc(doc(db, 'users', u.uid));
+        if (usageDoc.exists()) {
+          const data = usageDoc.data();
+          const plan = data.plan || 'free';
+          const limits: Record<string, number> = { free: 15, pro: 100, business: 999999 };
+          setUsage({ used: data.monthlyUsage || 0, limit: limits[plan] || 15, plan });
+        }
+        try {
+          const q = query(collection(db, 'creations'), where('userId', '==', u.uid), orderBy('createdAt', 'desc'));
+          const snap = await getDocs(q);
+          setCreations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch {}
+      }
+    });
+    return unsub;
+  }, []);
+
+  const handleAuth = async () => {
+    setAuthError('');
+    try {
+      if (authMode === 'login') await signInWithEmailAndPassword(auth, email, password);
+      else await createUserWithEmailAndPassword(auth, email, password);
+      setShowAuth(false);
+      if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {} }
+    } catch (e: any) { setAuthError(e.message?.replace('Firebase: ', '') || 'Auth failed'); }
+  };
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() || generating) return;
+    if (!user) { setShowAuth(true); return; }
+    setGenerating(true); setResult(null);
+    try {
+      const res = await generateContent(prompt, contentType, model);
+      setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
+      if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
+    } catch (e: any) { setResult({ error: e.message }); }
+    setGenerating(false);
+  };
+
+  const switchTab = (t: Tab) => setTab(t);
+  if (loading) return null;
+  const pct = Math.min((usage.used / usage.limit) * 100, 100);
+
+  return (
+    <div className="app-container">
+      <nav className="navbar">
+        <div className="logo-section">
+          <div className="logo-icon">{String.fromCodePoint(0x1F48E)}</div>
+          <span className="logo-text">NovaMind AI</span>
+        </div>
+        {user ? <button className="nav-btn btn-outline" onClick={() => signOut(auth)}>Sign Out</button> : <button className="nav-btn btn-primary" onClick={() => setShowAuth(true)}>Sign In</button>}
+      </nav>
+      <div className="main-content">
+        {tab === 'home' && (<>
+          <div className="hero-section">
+            <h1 className="hero-title">Create Amazing Content with AI</h1>
+            <p className="hero-subtitle">Text, images, code and more \u2014 powered by premium AI at a fraction of the cost.</p>
+            <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
+          </div>
+          <div className="stats-row">
+            <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
+            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' ? '\u221E' : usage.limit}</div><div className="stat-label">Limit</div></div>
+            <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
+          </div>
+          <div className="usage-bar-container">
+            <div className="usage-label"><span>Monthly Usage</span><span>{usage.used}/{usage.plan === 'business' ? '\u221E' : usage.limit}</span></div>
+            <div className="usage-bar"><div className={`usage-fill ${pct > 80 ? 'warning' : ''}`} style={{ width: `${pct}%` }} /></div>
+          </div>
+          <h3 className="section-title">Quick Tools</h3>
+          <div className="tool-grid">
+            {[{ icon: '\u270D\uFE0F', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '\uD83C\uDFA8', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '\uD83D\uDCBB', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '\uD83D\uDCE7', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '\uD83D\uDCC4', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '\uD83D\uDCA1', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
+              <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'dall-e-3' : 'deepseek'); switchTab('create'); }}>
+                <div className="tool-icon">{t.icon}</div><div className="tool-name">{t.name}</div><div className="tool-desc">{t.desc}</div>
+              </div>
+            ))}
+          </div>
+        </>)}
+        {tab === 'create' && (
+          <div className="create-area">
+            <h3 className="section-title">Create Something Amazing</h3>
+            <div className="model-selector">
+              {[{ id: 'deepseek', l: 'DeepSeek' }, { id: 'dall-e-3', l: 'DALL-E 3' }, { id: 'gpt-4o', l: 'GPT-4o' }].map(m => (
+                <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'dall-e-3' ? 'image' : 'text'); }}>{m.l}</button>
+              ))}
+            </div>
+            <textarea className="prompt-input" placeholder={contentType === 'image' ? 'Describe the image...' : 'What to create?'} value={prompt} onChange={e => setPrompt(e.target.value)} />
+            <button className="generate-btn" onClick={handleGenerate} disabled={generating || !prompt.trim()}>{generating ? 'Generating...' : 'Generate'}</button>
+            {result && <div className="result-area">{result.error ? <div className="error-text">{result.error}</div> : result.imageUrl ? <img className="result-image" src={result.imageUrl} alt="" /> : <div>{result.content || result.text}</div>}</div>}
+          </div>
+        )}
+        {tab === 'gallery' && (<>
+          <h3 className="section-title">My Creations</h3>
+          {creations.length === 0 ? <div className="empty-state"><p>No creations yet</p></div> : <div className="gallery-grid">{creations.map((c, i) => (<div key={i} className="gallery-card">{c.imageUrl && <img src={c.imageUrl} alt="" />}<div className="gallery-card-body"><div className="gallery-card-title">{c.prompt?.substring(0, 60)}</div><div className="gallery-card-meta">{c.model}</div></div></div>))}</div>}
+        </>)}
+        {tab === 'crm' && <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Business Suite</p></div>}
+        {tab === 'projects' && <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Business Suite</p></div>}
+      </div>
+      <nav className="bottom-nav">
+        {(['home','create','gallery','crm','projects'] as Tab[]).map(id => (
+          <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
+            <span className="bottom-nav-icon">{{ home: '\uD83C\uDFE0', create: '\u2728', gallery: '\uD83D\uDDBC\uFE0F', crm: '\uD83D\uDCC7', projects: '\uD83D\uDCCB' }[id]}</span>
+            {{ home: 'Home', create: 'Create', gallery: 'Gallery', crm: 'CRM', projects: 'Projects' }[id]}
+          </button>
+        ))}
+      </nav>
+      {showAuth && (
+        <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowAuth(false)}>
+          <div className="auth-modal">
+            <h2>{authMode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
+            <p style={{ color: 'var(--text-secondary)', margin: '8px 0 20px', fontSize: 14 }}>{authMode === 'login' ? 'Sign in to NovaMind AI' : 'Start creating with NovaMind AI'}</p>
+            {authError && <div className="auth-error">{authError}</div>}
+            <input className="auth-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+            <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} />
+            <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
+            <p className="auth-toggle">{authMode === 'login' ? "No account? " : "Have account? "}<span onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}>{authMode === 'login' ? 'Sign Up' : 'Sign In'}</span></p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
