@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users — owners can read, create, and update their own doc
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+
+      // Brand Voice profiles — subcollection
+      match /brandVoices/{voiceId} {
+        allow read, create, update, delete: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // Agent usage tracking — subcollection
+      match /agentUsage/{agentType} {
+        allow read, create, update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if false;
+      }
+
+      // Any other user subcollections (profile data, settings, etc.)
+      match /{subcollection}/{docId} {
+        allow read, create, update: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Creations — owners can read, create, update, and delete their own
+    match /creations/{creationId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Top-up purchases — owners can read; only Cloud Functions write
+    match /topup_purchases/{purchaseId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow write: if false;
+    }
+  }
+}
