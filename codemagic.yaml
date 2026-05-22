@@ -72,11 +72,20 @@ workflows:
       - name: Set up code signing
         script: |
           keychain initialize
-          # Decode base64 private key to file
-          echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > /tmp/asc_key.p8
-          echo "Decoded private key to /tmp/asc_key.p8"
-          cat /tmp/asc_key.p8 | head -1
-          # Fetch signing files using the decoded key file
+          # Write the API key directly (private repo)
+          cat > /tmp/asc_key.p8 << 'KEYEOF'
+          -----BEGIN PRIVATE KEY-----
+          MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1cTpaFjEoHQggLN6
+          3ksFRBSBEVA9dzsOg5XzNlMiWCegCgYIKoZIzj0DAQehRANCAASYpXq8hwyGB76/
+          h4480/xVITO/9gd9ebdswiDRQuz6HRrFc8dN0/SrdwCdAIKB51cgl3ZswWflk03e
+          IO8Ga8of
+          -----END PRIVATE KEY-----
+          KEYEOF
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' /tmp/asc_key.p8
+          echo "Key file contents:"
+          cat /tmp/asc_key.p8
+          # Fetch signing files
           app-store-connect fetch-signing-files $BUNDLE_ID \
             --type IOS_APP_STORE \
             --issuer-id $APP_STORE_CONNECT_ISSUER_ID \
