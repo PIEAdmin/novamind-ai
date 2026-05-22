@@ -49,9 +49,6 @@ workflows:
       cocoapods: default
       vars:
         BUNDLE_ID: studio.novamindai.app
-        TEAM_ID: TD66PZ2GJG
-        ASC_ISSUER_ID: 5c76d607-4e38-46ed-9f62-0b36fe0625ef
-        ASC_KEY_ID: T3UPT4R6G4
     triggering:
       events:
         - push
@@ -73,40 +70,14 @@ workflows:
           pod install
       - name: Set up code signing
         script: |
-          #!/usr/bin/env bash
-          set -e
           keychain initialize
-
-          # Write App Store Connect API key
-          mkdir -p ~/private_keys
-          printf '%s\n' \
-            '-----BEGIN PRIVATE KEY-----' \
-            'MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1cTpaFjEoHQggLN6' \
-            '3ksFRBSBEVA9dzsOg5XzNlMiWCegCgYIKoZIzj0DAQehRANCAASYpXq8hwyGB76/' \
-            'h4480/xVITO/9gd9ebdswiDRQuz6HRrFc8dN0/SrdwCdAIKB51cgl3ZswWflk03e' \
-            'IO8Ga8of' \
-            '-----END PRIVATE KEY-----' > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
-
-          echo "Key file written: $(wc -c < ~/private_keys/AuthKey_${ASC_KEY_ID}.p8) bytes, $(wc -l < ~/private_keys/AuthKey_${ASC_KEY_ID}.p8) lines"
-
-          echo "Fetching signing files..."
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --issuer-id "$ASC_ISSUER_ID" \
-            --key-id "$ASC_KEY_ID" \
-            --private-key "@file:$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
             --type IOS_APP_STORE \
             --create
-
-          echo "Adding certificates to keychain..."
           keychain add-certificates
-
-          echo "Applying provisioning profiles..."
           xcode-project use-profiles
-
-          echo "Code signing setup complete!"
       - name: Build iOS IPA
         script: |
-          set -ex
           cd ios/App
           xcode-project build-ipa \
             --workspace App.xcworkspace \
@@ -120,6 +91,6 @@ workflows:
     publishing:
       app_store_connect:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $ASC_KEY_ID
-        issuer_id: $ASC_ISSUER_ID
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
