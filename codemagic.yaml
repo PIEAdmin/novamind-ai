@@ -16,7 +16,7 @@ workflows:
           include: true
     scripts:
       - name: Install dependencies
-        script: npm ci
+        script: npm ci || npm install
       - name: Build web app
         script: npm run build
       - name: Add Android platform
@@ -55,7 +55,7 @@ workflows:
           include: true
     scripts:
       - name: Install dependencies
-        script: npm ci
+        script: npm ci || npm install
       - name: Build web app
         script: npm run build
       - name: Add iOS platform
@@ -67,7 +67,13 @@ workflows:
           cd ios/App
           pod install
       - name: Set up code signing
-        script: xcode-project use-profiles
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files studio.novamindai.app \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Build iOS IPA
         script: |
           cd ios/App
