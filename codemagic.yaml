@@ -72,16 +72,19 @@ workflows:
       - name: Set up code signing
         script: |
           keychain initialize
+          # Decode base64 private key to file
+          echo "$APP_STORE_CONNECT_PRIVATE_KEY" | base64 --decode > /tmp/asc_key.p8
+          echo "Decoded private key to /tmp/asc_key.p8"
+          cat /tmp/asc_key.p8 | head -1
+          # Fetch signing files using the decoded key file
           app-store-connect fetch-signing-files $BUNDLE_ID \
             --type IOS_APP_STORE \
+            --issuer-id $APP_STORE_CONNECT_ISSUER_ID \
+            --key-id $APP_STORE_CONNECT_KEY_IDENTIFIER \
+            --private-key @/tmp/asc_key.p8 \
             --create
           keychain add-certificates
-          xcode-project use-profiles --warn-only
-      - name: Configure Xcode signing
-        script: |
-          cd ios/App
-          # Force manual signing with the fetched profiles
-          xcode-project use-profiles --project App.xcodeproj --warn-only
+          xcode-project use-profiles
       - name: Build iOS IPA
         script: |
           cd ios/App
