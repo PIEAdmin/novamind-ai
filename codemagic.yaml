@@ -47,6 +47,9 @@ workflows:
       node: 20.11.0
       xcode: latest
       cocoapods: default
+      vars:
+        BUNDLE_ID: studio.novamindai.app
+        APP_STORE_CONNECT_TEAM_ID: TD66PZ2GJG
     triggering:
       events:
         - push
@@ -69,18 +72,28 @@ workflows:
       - name: Set up code signing
         script: |
           keychain initialize
-          app-store-connect fetch-signing-files studio.novamindai.app \
+          app-store-connect fetch-signing-files $BUNDLE_ID \
             --type IOS_APP_STORE \
             --create
           keychain add-certificates
-          xcode-project use-profiles
+          xcode-project use-profiles --warn-only
+      - name: Configure Xcode signing
+        script: |
+          cd ios/App
+          # Force manual signing with the fetched profiles
+          xcode-project use-profiles --project App.xcodeproj --warn-only
       - name: Build iOS IPA
         script: |
           cd ios/App
-          xcode-project build-ipa --workspace App.xcworkspace --scheme App
+          xcode-project build-ipa \
+            --workspace App.xcworkspace \
+            --scheme App \
+            --archive-flags="-destination 'generic/platform=iOS'"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
+      - ios/App/build/ios/ipa/*.ipa
+      - "**/*.ipa"
     publishing:
       app_store_connect:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
