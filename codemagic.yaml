@@ -43,13 +43,14 @@ workflows:
     environment:
       groups:
         - novamind_keys
-        - appstore_credentials
       node: 20.11.0
       xcode: latest
       cocoapods: default
       vars:
         BUNDLE_ID: studio.novamindai.app
-        APP_STORE_CONNECT_TEAM_ID: TD66PZ2GJG
+        TEAM_ID: TD66PZ2GJG
+        ASC_ISSUER_ID: 5c76d607-4e38-46ed-9f62-0b36fe0625ef
+        ASC_KEY_ID: T3UPT4R6G4
     triggering:
       events:
         - push
@@ -72,25 +73,27 @@ workflows:
       - name: Set up code signing
         script: |
           keychain initialize
-          # Write the API key directly (private repo)
-          cat > /tmp/asc_key.p8 << 'KEYEOF'
+          cat << 'PEMEOF' > /tmp/asc_key.p8
           -----BEGIN PRIVATE KEY-----
           MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1cTpaFjEoHQggLN6
           3ksFRBSBEVA9dzsOg5XzNlMiWCegCgYIKoZIzj0DAQehRANCAASYpXq8hwyGB76/
           h4480/xVITO/9gd9ebdswiDRQuz6HRrFc8dN0/SrdwCdAIKB51cgl3ZswWflk03e
           IO8Ga8of
           -----END PRIVATE KEY-----
-          KEYEOF
-          # Remove leading whitespace from heredoc
-          sed -i 's/^          //' /tmp/asc_key.p8
-          echo "Key file contents:"
+          PEMEOF
+          echo "--- Key file raw bytes ---"
+          xxd /tmp/asc_key.p8 | head -5
+          echo "--- Key file cat ---"
           cat /tmp/asc_key.p8
-          # Fetch signing files
-          app-store-connect fetch-signing-files $BUNDLE_ID \
+          echo "--- Setting env vars ---"
+          export APP_STORE_CONNECT_PRIVATE_KEY="$(cat /tmp/asc_key.p8)"
+          export APP_STORE_CONNECT_ISSUER_ID="$ASC_ISSUER_ID"
+          export APP_STORE_CONNECT_KEY_IDENTIFIER="$ASC_KEY_ID"
+          echo "Issuer: $APP_STORE_CONNECT_ISSUER_ID"
+          echo "Key ID: $APP_STORE_CONNECT_KEY_IDENTIFIER"
+          echo "Key length: ${#APP_STORE_CONNECT_PRIVATE_KEY}"
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --issuer-id $APP_STORE_CONNECT_ISSUER_ID \
-            --key-id $APP_STORE_CONNECT_KEY_IDENTIFIER \
-            --private-key @/tmp/asc_key.p8 \
             --create
           keychain add-certificates
           xcode-project use-profiles
@@ -109,6 +112,6 @@ workflows:
     publishing:
       app_store_connect:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
-        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
-        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
+        key_id: $ASC_KEY_ID
+        issuer_id: $ASC_ISSUER_ID
         submit_to_testflight: true
