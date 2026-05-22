@@ -72,32 +72,33 @@ workflows:
           pod install
       - name: Set up code signing
         script: |
+          set -ex
           keychain initialize
-          # Write key to auto-discovery path
+          # Write key using printf for exact byte control
           mkdir -p ~/private_keys
-          cat << 'PEMEOF' > ~/private_keys/AuthKey_T3UPT4R6G4.p8
-          -----BEGIN PRIVATE KEY-----
-          MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1cTpaFjEoHQggLN6
-          3ksFRBSBEVA9dzsOg5XzNlMiWCegCgYIKoZIzj0DAQehRANCAASYpXq8hwyGB76/
-          h4480/xVITO/9gd9ebdswiDRQuz6HRrFc8dN0/SrdwCdAIKB51cgl3ZswWflk03e
-          IO8Ga8of
-          -----END PRIVATE KEY-----
-          PEMEOF
-          echo "--- Key file verification ---"
-          cat ~/private_keys/AuthKey_T3UPT4R6G4.p8
-          echo "--- File size ---"
-          wc -c ~/private_keys/AuthKey_T3UPT4R6G4.p8
-          # Set env vars for issuer and key ID (CLI reads these automatically)
-          export APP_STORE_CONNECT_ISSUER_ID="$ASC_ISSUER_ID"
-          export APP_STORE_CONNECT_KEY_IDENTIFIER="$ASC_KEY_ID"
-          # Fetch signing files - CLI auto-discovers key from ~/private_keys/
+          printf '%s\n' '-----BEGIN PRIVATE KEY-----' 'MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1cTpaFjEoHQggLN6' '3ksFRBSBEVA9dzsOg5XzNlMiWCegCgYIKoZIzj0DAQehRANCAASYpXq8hwyGB76/' 'h4480/xVITO/9gd9ebdswiDRQuz6HRrFc8dN0/SrdwCdAIKB51cgl3ZswWflk03e' 'IO8Ga8of' '-----END PRIVATE KEY-----' > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          echo "=== Key file debug ==="
+          echo "File size: $(wc -c < ~/private_keys/AuthKey_${ASC_KEY_ID}.p8) bytes"
+          echo "Line count: $(wc -l < ~/private_keys/AuthKey_${ASC_KEY_ID}.p8) lines"
+          echo "MD5: $(md5 -q ~/private_keys/AuthKey_${ASC_KEY_ID}.p8)"
+          xxd ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 | head -20
+          echo "=== Hex of first and last bytes ==="
+          xxd ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 | tail -5
+          echo "=== Attempting fetch-signing-files ==="
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --issuer-id "$ASC_ISSUER_ID" \
+            --key-id "$ASC_KEY_ID" \
+            --private-key "@file:$HOME/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
             --type IOS_APP_STORE \
             --create
+          echo "=== fetch-signing-files SUCCEEDED ==="
           keychain add-certificates
+          echo "=== add-certificates SUCCEEDED ==="
           xcode-project use-profiles
+          echo "=== use-profiles SUCCEEDED ==="
       - name: Build iOS IPA
         script: |
+          set -ex
           cd ios/App
           xcode-project build-ipa \
             --workspace App.xcworkspace \
