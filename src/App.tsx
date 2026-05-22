@@ -101,7 +101,7 @@ const App: React.FC = () => {
           <h3 className="section-title">Quick Tools</h3>
           <div className="tool-grid">
             {[{ icon: '\u270D\uFE0F', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '\uD83C\uDFA8', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '\uD83D\uDCBB', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '\uD83D\uDCE7', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '\uD83D\uDCC4', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '\uD83D\uDCA1', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
-              <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'dall-e-3' : 'deepseek'); switchTab('create'); }}>
+              <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); switchTab('create'); }}>
                 <div className="tool-icon">{t.icon}</div><div className="tool-name">{t.name}</div><div className="tool-desc">{t.desc}</div>
               </div>
             ))}
@@ -111,8 +111,8 @@ const App: React.FC = () => {
           <div className="create-area">
             <h3 className="section-title">Create Something Amazing</h3>
             <div className="model-selector">
-              {[{ id: 'deepseek', l: 'DeepSeek' }, { id: 'dall-e-3', l: 'DALL-E 3' }, { id: 'gpt-4o', l: 'GPT-4o' }].map(m => (
-                <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'dall-e-3' ? 'image' : 'text'); }}>{m.l}</button>
+              {[{ id: 'deepseek', l: 'DeepSeek' }, { id: 'gpt-image-1', l: 'GPT Image' }, { id: 'gpt-4o', l: 'GPT-4o' }].map(m => (
+                <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
               ))}
             </div>
             <textarea className="prompt-input" placeholder={contentType === 'image' ? 'Describe the image...' : 'What to create?'} value={prompt} onChange={e => setPrompt(e.target.value)} />
