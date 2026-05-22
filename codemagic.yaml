@@ -73,7 +73,9 @@ workflows:
       - name: Set up code signing
         script: |
           keychain initialize
-          cat << 'PEMEOF' > /tmp/asc_key.p8
+          # Write key to auto-discovery path
+          mkdir -p ~/private_keys
+          cat << 'PEMEOF' > ~/private_keys/AuthKey_T3UPT4R6G4.p8
           -----BEGIN PRIVATE KEY-----
           MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg1cTpaFjEoHQggLN6
           3ksFRBSBEVA9dzsOg5XzNlMiWCegCgYIKoZIzj0DAQehRANCAASYpXq8hwyGB76/
@@ -81,17 +83,14 @@ workflows:
           IO8Ga8of
           -----END PRIVATE KEY-----
           PEMEOF
-          echo "--- Key file raw bytes ---"
-          xxd /tmp/asc_key.p8 | head -5
-          echo "--- Key file cat ---"
-          cat /tmp/asc_key.p8
-          echo "--- Setting env vars ---"
-          export APP_STORE_CONNECT_PRIVATE_KEY="$(cat /tmp/asc_key.p8)"
+          echo "--- Key file verification ---"
+          cat ~/private_keys/AuthKey_T3UPT4R6G4.p8
+          echo "--- File size ---"
+          wc -c ~/private_keys/AuthKey_T3UPT4R6G4.p8
+          # Set env vars for issuer and key ID (CLI reads these automatically)
           export APP_STORE_CONNECT_ISSUER_ID="$ASC_ISSUER_ID"
           export APP_STORE_CONNECT_KEY_IDENTIFIER="$ASC_KEY_ID"
-          echo "Issuer: $APP_STORE_CONNECT_ISSUER_ID"
-          echo "Key ID: $APP_STORE_CONNECT_KEY_IDENTIFIER"
-          echo "Key length: ${#APP_STORE_CONNECT_PRIVATE_KEY}"
+          # Fetch signing files - CLI auto-discovers key from ~/private_keys/
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create
