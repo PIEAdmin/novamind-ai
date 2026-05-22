@@ -2,9 +2,10 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'studio.novamindai.app',
-  appName: 'NovaMind AI',
+  appName: 'NovaMind AI Hub',
   webDir: 'dist',
   server: {
+    url: 'https://novamindai.studio',
     androidScheme: 'https',
     iosScheme: 'https',
   },
@@ -40,7 +41,7 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'automatic',
     preferredContentMode: 'mobile',
-    scheme: 'NovaMind AI',
+    scheme: 'NovaMind AI Hub',
   },
 };
 
