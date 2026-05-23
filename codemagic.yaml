@@ -49,6 +49,7 @@ workflows:
       cocoapods: default
       vars:
         BUNDLE_ID: studio.novamindai.app
+        TEAM_ID: TD66PZ2GJG
     triggering:
       events:
         - push
@@ -75,14 +76,26 @@ workflows:
             --type IOS_APP_STORE \
             --create
           keychain add-certificates
-          xcode-project use-profiles --project ios/App/App.xcodeproj
+
+          # Extract provisioning profile name (use-profiles fails silently on Capacitor)
+          PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
+          for f in "$PROFILES_HOME"/*.mobileprovision; do
+            PLIST=$(/usr/bin/security cms -D -i "$f" 2>/dev/null)
+            PNAME=$(/usr/libexec/PlistBuddy -c "Print Name" /dev/stdin <<< "$PLIST" 2>/dev/null)
+            PUUID=$(/usr/libexec/PlistBuddy -c "Print UUID" /dev/stdin <<< "$PLIST" 2>/dev/null)
+            if [ ! -z "$PNAME" ]; then
+              echo "Found profile: $PNAME ($PUUID)"
+              echo "CM_PROVISIONING_PROFILE=$PNAME" >> $CM_ENV
+              break
+            fi
+          done
       - name: Build iOS IPA
         script: |
           cd ios/App
           xcode-project build-ipa \
             --workspace App.xcworkspace \
             --scheme App \
-            --archive-flags="-destination 'generic/platform=iOS'"
+            --archive-flags="DEVELOPMENT_TEAM=$TEAM_ID PROVISIONING_PROFILE_SPECIFIER='$CM_PROVISIONING_PROFILE' CODE_SIGN_IDENTITY='iPhone Distribution'"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
