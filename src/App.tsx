@@ -308,7 +308,6 @@ const App: React.FC = () => {
     setLastPrompt(prompt);
     setLastContentType(contentType);
     setLastModel(model);
-    setLastSystemPrompt(systemPrefix || '');
     setGenerating(true); setResult(null);
     try {
       const industryObj = INDUSTRIES.find(i => i.id === industry);
@@ -323,6 +322,7 @@ const App: React.FC = () => {
         systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals.`;
       }
       
+      setLastSystemPrompt(systemPrefix || '');
       const res = await generateContent(prompt, contentType, model, systemPrefix || undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
