@@ -424,7 +424,7 @@ const App: React.FC = () => {
           <div className="create-area">
             <div className="agent-selector-bar">
               {AGENTS.map(agent => (
-                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1' && agent.id !== 'logo-maker') { setModel('deepseek'); setContentType('text'); } }}>
+                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } }}>
                   <span className="agent-tab-icon">{agent.icon}</span>
                   <span className="agent-tab-name">{agent.name}</span>
                   {agent.badge && <span className="agent-tab-badge">{agent.badge}</span>}
