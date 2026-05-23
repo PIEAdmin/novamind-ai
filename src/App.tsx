@@ -9,6 +9,34 @@ import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'crm' | 'projects';
 
+const INDUSTRIES = [
+  { id: 'general', name: 'General', icon: '🌐' },
+  { id: 'real-estate', name: 'Real Estate', icon: '🏠' },
+  { id: 'restaurant', name: 'Restaurant & Food', icon: '🍽️' },
+  { id: 'fitness', name: 'Fitness & Wellness', icon: '💪' },
+  { id: 'legal', name: 'Legal', icon: '⚖️' },
+  { id: 'healthcare', name: 'Healthcare', icon: '🏥' },
+  { id: 'ecommerce', name: 'E-Commerce', icon: '🛒' },
+  { id: 'salon', name: 'Salon & Beauty', icon: '💇' },
+  { id: 'automotive', name: 'Automotive', icon: '🚗' },
+  { id: 'education', name: 'Education', icon: '🎓' },
+  { id: 'finance', name: 'Finance & Accounting', icon: '💰' },
+  { id: 'construction', name: 'Construction', icon: '🏗️' },
+  { id: 'photography', name: 'Photography', icon: '📸' },
+  { id: 'nonprofit', name: 'Nonprofit', icon: '❤️' },
+  { id: 'tech-startup', name: 'Tech Startup', icon: '🚀' },
+  { id: 'travel', name: 'Travel & Tourism', icon: '✈️' },
+  { id: 'insurance', name: 'Insurance', icon: '🛡️' },
+  { id: 'marketing', name: 'Marketing Agency', icon: '📣' },
+  { id: 'retail', name: 'Retail', icon: '🏪' },
+  { id: 'dental', name: 'Dental', icon: '🦷' },
+  { id: 'veterinary', name: 'Veterinary', icon: '🐾' },
+  { id: 'cleaning', name: 'Cleaning Service', icon: '🧹' },
+  { id: 'consulting', name: 'Consulting', icon: '📊' },
+  { id: 'plumbing', name: 'Plumbing & HVAC', icon: '🔧' },
+  { id: 'church', name: 'Church & Ministry', icon: '⛪' }
+];
+
 const renderMarkdown = (text: string): string => {
   if (!text) return '';
   let html = text
@@ -30,7 +58,7 @@ const renderMarkdown = (text: string): string => {
   html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
   // Horizontal rules
-  html = html.replace(/^(---|(\*\*\*))$/gm, '<hr>');
+  html = html.replace(/^(---|(\\*\\*\\*))$/gm, '<hr>');
 
   // Bold and italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -97,6 +125,7 @@ const App: React.FC = () => {
   const [lastPrompt, setLastPrompt] = useState('');
   const [lastContentType, setLastContentType] = useState('text');
   const [lastModel, setLastModel] = useState('deepseek');
+  const [industry, setIndustry] = useState('general');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -137,7 +166,11 @@ const App: React.FC = () => {
     setLastModel(model);
     setGenerating(true); setResult(null);
     try {
-      const res = await generateContent(prompt, contentType, model);
+      const industryObj = INDUSTRIES.find(i => i.id === industry);
+      const systemPrefix = industry !== 'general' && contentType === 'text'
+        ? `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals. `
+        : '';
+      const res = await generateContent(systemPrefix + prompt, contentType, model);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
     } catch (e: any) { setResult({ error: e.message }); }
@@ -175,7 +208,7 @@ const App: React.FC = () => {
     <div className="app-container">
       <nav className="navbar">
         <div className="logo-section">
-          <div className="logo-icon">{String.fromCodePoint(0x1F48E)}</div>
+          <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI" />
           <span className="logo-text">NovaMind AI</span>
         </div>
         {user ? <button className="nav-btn btn-outline" onClick={() => signOut(auth)}>Sign Out</button> : <button className="nav-btn btn-primary" onClick={() => setShowAuth(true)}>Sign In</button>}
@@ -204,10 +237,23 @@ const App: React.FC = () => {
               </div>
             ))}
           </div>
+          <div className="powered-footer">
+            <span>A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">Contact</a>
+          </div>
         </>)}
         {tab === 'create' && (
           <div className="create-area">
             <h3 className="section-title">Create Something Amazing</h3>
+            <div className="industry-selector">
+              <label className="selector-label">Industry</label>
+              <div className="industry-chips">
+                {INDUSTRIES.map(ind => (
+                  <button key={ind.id} className={`industry-chip ${industry === ind.id ? 'active' : ''}`} onClick={() => setIndustry(ind.id)}>
+                    <span>{ind.icon}</span> {ind.name}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="model-selector">
               {[{ id: 'deepseek', l: 'DeepSeek' }, { id: 'gpt-image-1', l: 'GPT Image' }, { id: 'gpt-4o', l: 'GPT-4o' }].map(m => (
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
@@ -237,6 +283,7 @@ const App: React.FC = () => {
             {!result && !generating && !prompt && (
               <div className="prompt-suggestions">
                 <p className="suggestions-label">Try one of these:</p>
+                {/* TODO: Make suggestions dynamic based on selected industry */}
                 <div className="suggestions-grid">
                   {[
                     { icon: '📧', text: 'Write a professional follow-up email to a potential client' },
