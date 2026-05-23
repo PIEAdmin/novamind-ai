@@ -9,6 +9,74 @@ import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'crm' | 'projects';
 
+const renderMarkdown = (text: string): string => {
+  if (!text) return '';
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Code blocks
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
+    return `<pre><code>${code.trim()}</code></pre>`;
+  });
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  // Headings
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+
+  // Horizontal rules
+  html = html.replace(/^(---|(\*\*\*))$/gm, '<hr>');
+
+  // Bold and italic
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Process lines for lists and paragraphs
+  const lines = html.split('\n');
+  let result = '';
+  let inUl = false;
+  let inOl = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const ulMatch = line.match(/^[\-\*] (.+)/);
+    const olMatch = line.match(/^\d+\. (.+)/);
+
+    if (ulMatch) {
+      if (!inUl) { result += '<ul>'; inUl = true; }
+      result += `<li>${ulMatch[1]}</li>`;
+      continue;
+    } else if (inUl) {
+      result += '</ul>'; inUl = false;
+    }
+
+    if (olMatch) {
+      if (!inOl) { result += '<ol>'; inOl = true; }
+      result += `<li>${olMatch[1]}</li>`;
+      continue;
+    } else if (inOl) {
+      result += '</ol>'; inOl = false;
+    }
+
+    if (line.startsWith('<h') || line.startsWith('<hr') || line.startsWith('<pre>') || line.startsWith('<ul>') || line.startsWith('<ol>')) {
+      result += line;
+    } else if (line.trim() === '') {
+      result += '<br>';
+    } else {
+      result += `<p>${line}</p>`;
+    }
+  }
+  if (inUl) result += '</ul>';
+  if (inOl) result += '</ol>';
+
+  return result;
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -25,6 +93,10 @@ const App: React.FC = () => {
   const [contentType, setContentType] = useState('text');
   const [usage, setUsage] = useState({ used: 0, limit: 15, plan: 'free' });
   const [creations, setCreations] = useState<any[]>([]);
+  const [copied, setCopied] = useState(false);
+  const [lastPrompt, setLastPrompt] = useState('');
+  const [lastContentType, setLastContentType] = useState('text');
+  const [lastModel, setLastModel] = useState('deepseek');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -60,11 +132,37 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
     if (!user) { setShowAuth(true); return; }
+    setLastPrompt(prompt);
+    setLastContentType(contentType);
+    setLastModel(model);
     setGenerating(true); setResult(null);
     try {
       const res = await generateContent(prompt, contentType, model);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
+    } catch (e: any) { setResult({ error: e.message }); }
+    setGenerating(false);
+  };
+
+  const handleCopy = () => {
+    const text = result?.content || result?.text || '';
+    navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
+  };
+
+  const handleDownload = () => {
+    if (!result?.imageUrl) return;
+    const a = document.createElement('a');
+    a.href = result.imageUrl;
+    a.download = 'novamind-creation.png';
+    a.click();
+  };
+
+  const handleRegenerate = async () => {
+    if (!lastPrompt || generating) return;
+    setGenerating(true); setResult(null);
+    try {
+      const res = await generateContent(lastPrompt, lastContentType, lastModel);
+      setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
     } catch (e: any) { setResult({ error: e.message }); }
     setGenerating(false);
   };
@@ -86,21 +184,21 @@ const App: React.FC = () => {
         {tab === 'home' && (<>
           <div className="hero-section">
             <h1 className="hero-title">Create Amazing Content with AI</h1>
-            <p className="hero-subtitle">Text, images, code and more \u2014 powered by premium AI at a fraction of the cost.</p>
+            <p className="hero-subtitle">Text, images, code and more — powered by premium AI at a fraction of the cost.</p>
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
           <div className="stats-row">
             <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
-            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' ? '\u221E' : usage.limit}</div><div className="stat-label">Limit</div></div>
+            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
             <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
           </div>
           <div className="usage-bar-container">
-            <div className="usage-label"><span>Monthly Usage</span><span>{usage.used}/{usage.plan === 'business' ? '\u221E' : usage.limit}</span></div>
+            <div className="usage-label"><span>Monthly Usage</span><span>{usage.used}/{usage.plan === 'business' ? '∞' : usage.limit}</span></div>
             <div className="usage-bar"><div className={`usage-fill ${pct > 80 ? 'warning' : ''}`} style={{ width: `${pct}%` }} /></div>
           </div>
           <h3 className="section-title">Quick Tools</h3>
           <div className="tool-grid">
-            {[{ icon: '\u270D\uFE0F', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '\uD83C\uDFA8', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '\uD83D\uDCBB', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '\uD83D\uDCE7', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '\uD83D\uDCC4', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '\uD83D\uDCA1', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
+            {[{ icon: '✍️', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '🎨', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '💻', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '📧', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '📄', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '💡', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
               <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); switchTab('create'); }}>
                 <div className="tool-icon">{t.icon}</div><div className="tool-name">{t.name}</div><div className="tool-desc">{t.desc}</div>
               </div>
@@ -117,7 +215,42 @@ const App: React.FC = () => {
             </div>
             <textarea className="prompt-input" placeholder={contentType === 'image' ? 'Describe the image...' : 'What to create?'} value={prompt} onChange={e => setPrompt(e.target.value)} />
             <button className="generate-btn" onClick={handleGenerate} disabled={generating || !prompt.trim()}>{generating ? 'Generating...' : 'Generate'}</button>
-            {result && <div className="result-area">{result.error ? <div className="error-text">{result.error}</div> : result.imageUrl ? <img className="result-image" src={result.imageUrl} alt="" /> : <div>{result.content || result.text}</div>}</div>}
+            {generating && (
+              <div className="generating-animation">
+                <div className="typing-dots"><span></span><span></span><span></span></div>
+                <p>AI is crafting your content...</p>
+              </div>
+            )}
+            {result && !result.error && (
+              <div className="result-container">
+                <div className="result-actions">
+                  {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
+                  {result.imageUrl && <button className="action-btn" onClick={handleDownload}>⬇️ Download</button>}
+                  <button className="action-btn" onClick={handleRegenerate}>🔄 Regenerate</button>
+                </div>
+                <div className="result-area">
+                  {result.imageUrl ? <img className="result-image" src={result.imageUrl} alt="" /> : <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content || result.text || '') }} />}
+                </div>
+              </div>
+            )}
+            {result?.error && <div className="result-area"><div className="error-text">{result.error}</div></div>}
+            {!result && !generating && !prompt && (
+              <div className="prompt-suggestions">
+                <p className="suggestions-label">Try one of these:</p>
+                <div className="suggestions-grid">
+                  {[
+                    { icon: '📧', text: 'Write a professional follow-up email to a potential client' },
+                    { icon: '📱', text: 'Create an Instagram caption for a product launch' },
+                    { icon: '📝', text: 'Write a compelling "About Us" page for my business' },
+                    { icon: '🎨', text: 'Design a modern logo for a tech startup called "NexGen"' }
+                  ].map((s, i) => (
+                    <button key={i} className="suggestion-chip" onClick={() => { setPrompt(s.text); if (s.icon === '🎨') { setModel('gpt-image-1'); setContentType('image'); } }}>
+                      <span>{s.icon}</span> {s.text}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
         {tab === 'gallery' && (<>
@@ -130,7 +263,7 @@ const App: React.FC = () => {
       <nav className="bottom-nav">
         {(['home','create','gallery','crm','projects'] as Tab[]).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
-            <span className="bottom-nav-icon">{{ home: '\uD83C\uDFE0', create: '\u2728', gallery: '\uD83D\uDDBC\uFE0F', crm: '\uD83D\uDCC7', projects: '\uD83D\uDCCB' }[id]}</span>
+            <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', crm: '📇', projects: '📋' }[id]}</span>
             {{ home: 'Home', create: 'Create', gallery: 'Gallery', crm: 'CRM', projects: 'Projects' }[id]}
           </button>
         ))}
