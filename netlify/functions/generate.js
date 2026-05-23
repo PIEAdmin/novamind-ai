@@ -30,7 +30,7 @@ function callAPI(hostname, path, apiKey, body) {
       });
     });
     req.on('error', reject);
-    req.setTimeout(55000, () => { req.destroy(); reject(new Error('API timeout')); });
+    req.setTimeout(25000, () => { req.destroy(); reject(new Error('API timeout')); });
     req.write(data);
     req.end();
   });
@@ -72,15 +72,13 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { type, prompt, model, files } = JSON.parse(event.body || '{}');
+    const { type, prompt, model, files, systemPrompt } = JSON.parse(event.body || '{}');
 
     if (!prompt || !type) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing prompt or type' }) };
     }
 
     // IMAGE GENERATION — OpenAI GPT Image (gpt-image-1)
-    // NOTE: dall-e-3 was deprecated and shut down May 12, 2026
-    // gpt-image-1 returns base64 only (no URL), doesn't support response_format
     if (type === 'image') {
       const result = await callAPI('api.openai.com', '/v1/images/generations', OPENAI_KEY, {
         model: 'gpt-image-1',
@@ -100,7 +98,6 @@ exports.handler = async (event) => {
         };
       }
 
-      // gpt-image-1 returns b64_json instead of url
       const b64 = result.body.data[0].b64_json;
       const dataUrl = `data:image/webp;base64,${b64}`;
       return {
@@ -172,17 +169,19 @@ exports.handler = async (event) => {
     const apiKey = useOpenAI ? OPENAI_KEY : DEEPSEEK_KEY;
     const apiHost = useOpenAI ? 'api.openai.com' : 'api.deepseek.com';
     const apiModel = useOpenAI ? 'gpt-4o-mini' : 'deepseek-chat';
-    const systemPrompt = SYSTEM_PROMPTS[type] || SYSTEM_PROMPTS.text;
+    
+    // Use custom system prompt from frontend if provided, otherwise use default
+    const finalSystemPrompt = systemPrompt || SYSTEM_PROMPTS[type] || SYSTEM_PROMPTS.text;
 
     const messages = [
-      { role: 'system', content: systemPrompt },
+      { role: 'system', content: finalSystemPrompt },
       { role: 'user', content: fullPrompt },
     ];
 
     const result = await callAPI(apiHost, '/v1/chat/completions', apiKey, {
       model: apiModel,
       messages,
-      max_tokens: 4096,
+      max_tokens: systemPrompt ? 2048 : 4096,
       temperature: 0.7,
     });
 

@@ -267,6 +267,7 @@ const App: React.FC = () => {
   const [lastPrompt, setLastPrompt] = useState('');
   const [lastContentType, setLastContentType] = useState('text');
   const [lastModel, setLastModel] = useState('deepseek');
+  const [lastSystemPrompt, setLastSystemPrompt] = useState('');
   const [industry, setIndustry] = useState('general');
   const [agentMode, setAgentMode] = useState<AgentMode>('general');
 
@@ -307,21 +308,22 @@ const App: React.FC = () => {
     setLastPrompt(prompt);
     setLastContentType(contentType);
     setLastModel(model);
+    setLastSystemPrompt(systemPrefix || '');
     setGenerating(true); setResult(null);
     try {
       const industryObj = INDUSTRIES.find(i => i.id === industry);
       let systemPrefix = '';
       
       if (agentMode !== 'general') {
-        systemPrefix = AGENT_SYSTEM_PROMPTS[agentMode] + '\n\n';
+        systemPrefix = AGENT_SYSTEM_PROMPTS[agentMode];
         if (industry !== 'general') {
-          systemPrefix += `The user is in the ${industryObj?.name} industry. Tailor your analysis specifically for this industry. `;
+          systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your analysis specifically for this industry.`;
         }
       } else if (industry !== 'general' && contentType === 'text') {
-        systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals. `;
+        systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals.`;
       }
       
-      const res = await generateContent(systemPrefix + prompt, contentType, model);
+      const res = await generateContent(prompt, contentType, model, systemPrefix || undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
     } catch (e: any) { setResult({ error: e.message }); }
@@ -345,7 +347,7 @@ const App: React.FC = () => {
     if (!lastPrompt || generating) return;
     setGenerating(true); setResult(null);
     try {
-      const res = await generateContent(lastPrompt, lastContentType, lastModel);
+      const res = await generateContent(lastPrompt, lastContentType, lastModel, lastSystemPrompt || undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
     } catch (e: any) { setResult({ error: e.message }); }
     setGenerating(false);
