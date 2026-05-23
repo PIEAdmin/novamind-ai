@@ -77,7 +77,7 @@ workflows:
             --create
           keychain add-certificates
 
-          # Extract provisioning profile name (use-profiles fails silently on Capacitor)
+          # Extract provisioning profile name and UUID
           PROFILES_HOME="$HOME/Library/MobileDevice/Provisioning Profiles"
           for f in "$PROFILES_HOME"/*.mobileprovision; do
             PLIST=$(/usr/bin/security cms -D -i "$f" 2>/dev/null)
@@ -86,15 +86,45 @@ workflows:
             if [ ! -z "$PNAME" ]; then
               echo "Found profile: $PNAME ($PUUID)"
               echo "CM_PROVISIONING_PROFILE=$PNAME" >> $CM_ENV
+              echo "CM_PROVISIONING_PROFILE_UUID=$PUUID" >> $CM_ENV
               break
             fi
           done
       - name: Build iOS IPA
         script: |
+          # Create export_options.plist (use-profiles normally creates this)
+          cat > /Users/builder/export_options.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>$TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>$BUNDLE_ID</key>
+                  <string>$CM_PROVISIONING_PROFILE</string>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+
+          echo "=== Export options plist ==="
+          cat /Users/builder/export_options.plist
+
           cd ios/App
           xcode-project build-ipa \
             --workspace App.xcworkspace \
             --scheme App \
+            --export-options-plist /Users/builder/export_options.plist \
             --archive-flags="DEVELOPMENT_TEAM=$TEAM_ID PROVISIONING_PROFILE_SPECIFIER='$CM_PROVISIONING_PROFILE' CODE_SIGN_IDENTITY='iPhone Distribution'"
     artifacts:
       - build/ios/ipa/*.ipa
