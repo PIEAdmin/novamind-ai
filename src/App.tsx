@@ -104,6 +104,32 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
   ]
 };
 
+const PERSONAL_TOOLS = [
+  // Daily Life & Home
+  { id: 'fridge-chef', name: 'Fridge Chef', icon: '🍳', desc: 'Tell it what\'s in your fridge. Get a recipe in seconds.', pillar: 'home', prompt: 'I have these ingredients in my fridge: ' },
+  { id: 'day-planner', name: 'Day-Planner Tetris', icon: '📅', desc: 'Drop in your tasks, get a perfectly blocked schedule.', pillar: 'home', prompt: 'Here are my tasks for today: ' },
+  { id: 'itinerary', name: 'Budget Itinerary Builder', icon: '✈️', desc: 'Dream trip. Real budget. Every detail planned.', pillar: 'home', prompt: 'Plan a trip to ' },
+  // Education & Learning
+  { id: 'summarizer', name: 'Textbook Summarizer', icon: '📚', desc: 'Paste a chapter, get the key highlights.', pillar: 'education', prompt: 'Summarize this text into key points: ' },
+  { id: 'flashcards', name: 'Flashcard Generator', icon: '🎴', desc: 'Paste your notes, get study-ready flashcards.', pillar: 'education', prompt: 'Create flashcards from these notes: ' },
+  { id: 'essay-outline', name: 'Essay Outline Architect', icon: '📐', desc: 'From blank page to structured outline in 30 seconds.', pillar: 'education', prompt: 'Create an essay outline about: ' },
+  // Career & Money
+  { id: 'resume', name: 'Resume ATS Tailor', icon: '📄', desc: 'Paste the job listing. Get a resume that gets read.', pillar: 'career', prompt: 'Tailor my resume for this job listing: ' },
+  { id: 'interview', name: 'Interview Simulator', icon: '💬', desc: 'Practice tough questions. Get real-time coaching.', pillar: 'career', prompt: 'Simulate an interview for the position of: ' },
+  { id: 'contract', name: 'Lease/Contract Translator', icon: '📜', desc: 'Upload the fine print. Get plain English.', pillar: 'career', prompt: 'Translate this contract into plain English: ' },
+  // Creator & Social
+  { id: 'video-hook', name: 'Short-Form Video Hook', icon: '🎥', desc: 'Scroll-stopping hooks for TikTok, Reels, Shorts.', pillar: 'creator', prompt: 'Write 5 scroll-stopping hooks for a video about: ' },
+  { id: 'faceless-script', name: 'Faceless Video Scriptwriter', icon: '🎬', desc: 'Full scripts for faceless YouTube channels.', pillar: 'creator', prompt: 'Write a faceless YouTube video script about: ' },
+  { id: 'aesthetic-prompt', name: 'Aesthetic Prompt Architect', icon: '🎨', desc: 'Describe your vibe. Get AI art prompts that nail it.', pillar: 'creator', prompt: 'Create AI art prompts for this aesthetic: ' },
+];
+
+const PILLAR_INFO: Record<string, { name: string; icon: string; color: string }> = {
+  home: { name: 'Daily Life & Home', icon: '🏠', color: '#FF6B6B' },
+  education: { name: 'Education & Learning', icon: '🎓', color: '#4ECDC4' },
+  career: { name: 'Career & Money', icon: '💼', color: '#45B7D1' },
+  creator: { name: 'Creator & Social', icon: '🎬', color: '#96CEB4' },
+};
+
 const renderMarkdown = (text: string): string => {
   if (!text) return '';
   let html = text
@@ -185,6 +211,10 @@ const App: React.FC = () => {
   const [lastSystemPrompt, setLastSystemPrompt] = useState('');
   const [industry, setIndustry] = useState('general');
   const [agentMode, setAgentMode] = useState<AgentMode>('general');
+  const [isPersonalMode] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('mode') === 'personal';
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -292,12 +322,51 @@ const App: React.FC = () => {
       <nav className="navbar">
         <div className="logo-section">
           <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI" />
-          <span className="logo-text">NovaMind AI</span>
+          <span className="logo-text">{isPersonalMode ? 'NovaMind Personal' : 'NovaMind AI'}</span>
         </div>
         {user ? <button className="nav-btn btn-outline" onClick={() => signOut(auth)}>Sign Out</button> : <button className="nav-btn btn-primary" onClick={() => setShowAuth(true)}>Sign In</button>}
       </nav>
       <div className="main-content">
-        {tab === 'home' && (<>
+        {tab === 'home' && isPersonalMode && (
+          <>
+            <div className="hero-section" style={{ textAlign: 'center', padding: '20px 0' }}>
+              <h1 className="hero-title" style={{ fontSize: '1.6rem' }}>Your AI Toolkit 🛠️</h1>
+              <p className="hero-subtitle">12 tools designed for real life — not enterprise jargon.</p>
+            </div>
+            <div className="stats-row">
+              <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
+              <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
+              <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
+            </div>
+            {Object.entries(PILLAR_INFO).map(([key, pillar]) => (
+              <div key={key} style={{ marginBottom: '24px' }}>
+                <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span>{pillar.icon}</span> {pillar.name}
+                </h3>
+                <div className="tool-grid">
+                  {PERSONAL_TOOLS.filter(t => t.pillar === key).map(tool => (
+                    <div key={tool.id} className="tool-card" onClick={() => {
+                      setAgentMode('general');
+                      setModel('deepseek');
+                      setContentType('text');
+                      setPrompt(tool.prompt);
+                      setResult(null);
+                      switchTab('create');
+                    }} style={{ borderTop: `3px solid ${pillar.color}` }}>
+                      <div className="tool-icon">{tool.icon}</div>
+                      <div className="tool-name">{tool.name}</div>
+                      <div className="tool-desc">{tool.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="powered-footer">
+              <span>A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">Contact</a>
+            </div>
+          </>
+        )}
+        {tab === 'home' && !isPersonalMode && (<>
           <div className="hero-section">
             <h1 className="hero-title">Create Amazing Content with AI</h1>
             <p className="hero-subtitle">Text, images, code and more — powered by premium AI at a fraction of the cost.</p>
@@ -339,7 +408,7 @@ const App: React.FC = () => {
         </>)}
         {tab === 'create' && (
           <div className="create-area">
-            <div className="agent-selector-bar">
+            {!isPersonalMode && (<div className="agent-selector-bar">
               {AGENTS.map(agent => (
                 <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } }}>
                   <span className="agent-tab-icon">{agent.icon}</span>
@@ -347,7 +416,7 @@ const App: React.FC = () => {
                   {agent.badge && <span className="agent-tab-badge">{agent.badge}</span>}
                 </button>
               ))}
-            </div>
+            </div>)}
 
             <h3 className="section-title">{currentAgent?.icon} {currentAgent?.name || 'Create Something Amazing'}</h3>
             
@@ -376,7 +445,7 @@ const App: React.FC = () => {
               </div>
             )}
 
-            <div className="industry-selector">
+            {!isPersonalMode && (<div className="industry-selector">
               <label className="selector-label">Industry</label>
               <div className="industry-chips">
                 {INDUSTRIES.map(ind => (
@@ -385,7 +454,7 @@ const App: React.FC = () => {
                   </button>
                 ))}
               </div>
-            </div>
+            </div>)}
             <div className="model-selector">
               {[{ id: 'deepseek', l: 'DeepSeek' }, { id: 'gpt-image-1', l: 'GPT Image' }, { id: 'gpt-4o', l: 'GPT-4o' }].map(m => (
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
@@ -442,7 +511,10 @@ const App: React.FC = () => {
         {tab === 'projects' && <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Business Suite</p></div>}
       </div>
       <nav className="bottom-nav">
-        {(['home','create','gallery','crm','projects'] as Tab[]).map(id => (
+        {(isPersonalMode 
+            ? (['home','create','gallery'] as Tab[])
+            : (['home','create','gallery','crm','projects'] as Tab[])
+          ).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
             <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', crm: '📇', projects: '📋' }[id]}</span>
             {{ home: 'Home', create: 'Create', gallery: 'Gallery', crm: 'CRM', projects: 'Projects' }[id]}
