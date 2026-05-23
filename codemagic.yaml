@@ -76,8 +76,15 @@ workflows:
             --type IOS_APP_STORE \
             --create
           keychain add-certificates
-          # Apply provisioning profile directly to the Xcode project
-          xcode-project use-profiles --project ios/App/App.xcodeproj
+          
+          echo "=== Installed provisioning profiles ==="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ || true
+          
+          # Let use-profiles auto-detect the project
+          xcode-project use-profiles
+          
+          echo "=== Verifying code signing settings ==="
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -showBuildSettings 2>/dev/null | grep -E "PROVISIONING_PROFILE|CODE_SIGN|DEVELOPMENT_TEAM" || true
       - name: Build iOS IPA
         script: |
           cd ios/App
@@ -85,10 +92,10 @@ workflows:
             --workspace App.xcworkspace \
             --scheme App
     artifacts:
-      - build/ios/ipa/*.ipa
+      - "**/*.ipa"
       - /tmp/xcodebuild_logs/*.log
       - ios/App/build/ios/ipa/*.ipa
-      - "**/*.ipa"
+      - build/ios/ipa/*.ipa
     publishing:
       app_store_connect:
         api_key: $APP_STORE_CONNECT_PRIVATE_KEY
