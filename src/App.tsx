@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase-config';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp } from 'firebase/firestore';
 import { generateContent } from './api-service';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -9,6 +9,30 @@ import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'crm' | 'projects';
 type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant';
+
+interface PromptTemplate {
+  id: string;
+  prompt: string;
+  industry: string;
+  agentMode: string;
+  contentType: string;
+  model: string;
+  label: string;
+  createdAt: any;
+}
+
+interface HistoryItem {
+  id: string;
+  prompt: string;
+  contentType: string;
+  model: string;
+  agentMode: string;
+  industry: string;
+  resultPreview: string;
+  imageUrl: string | null;
+  isFavorite: boolean;
+  createdAt: any;
+}
 
 const INDUSTRIES = [
   { id: 'general', name: 'General', icon: '🌐' },
@@ -216,6 +240,85 @@ const App: React.FC = () => {
     return params.get('mode') === 'personal';
   });
 
+  // Template & History state
+  const [templates, setTemplates] = useState<PromptTemplate[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'favorites'>('all');
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const loadTemplates = async (uid: string) => {
+    try {
+      const snap = await getDocs(query(collection(db, 'users', uid, 'templates'), orderBy('createdAt', 'desc'), firestoreLimit(20)));
+      setTemplates(snap.docs.map(d => ({ id: d.id, ...d.data() } as PromptTemplate)));
+    } catch (e) { console.error('Load templates err:', e); }
+  };
+
+  const loadHistory = async (uid: string) => {
+    try {
+      const snap = await getDocs(query(collection(db, 'users', uid, 'history'), orderBy('createdAt', 'desc'), firestoreLimit(100)));
+      setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() } as HistoryItem)));
+    } catch (e) { console.error('Load history err:', e); }
+  };
+
+  const saveTemplate = async () => {
+    if (!user || !prompt.trim() || savingTemplate) return;
+    if (templates.length >= 20) { alert('Max 20 templates. Delete one first.'); return; }
+    setSavingTemplate(true);
+    try {
+      const templateData = {
+        prompt: prompt.trim(),
+        industry,
+        agentMode,
+        contentType,
+        model,
+        label: prompt.trim().substring(0, 40),
+        createdAt: Timestamp.now()
+      };
+      const docRef = await addDoc(collection(db, 'users', user.uid, 'templates'), templateData);
+      setTemplates(prev => [{ id: docRef.id, ...templateData }, ...prev].slice(0, 20));
+    } catch (e) {
+      console.error('Failed to save template:', e);
+    }
+    setSavingTemplate(false);
+  };
+
+  const deleteTemplate = async (templateId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'templates', templateId));
+      setTemplates(prev => prev.filter(t => t.id !== templateId));
+    } catch (e) {
+      console.error('Failed to delete template:', e);
+    }
+  };
+
+  const applySettings = (p: string, ind: string, am: string, ct: string, mdl: string) => {
+    setPrompt(p); setIndustry(ind || 'general'); setAgentMode((am || 'general') as AgentMode);
+    setContentType(ct || 'text'); setModel(mdl || 'deepseek'); setResult(null);
+  };
+  const loadTemplate = (t: PromptTemplate) => applySettings(t.prompt, t.industry, t.agentMode, t.contentType, t.model);
+
+  const saveHistoryItem = async (p: string, ct: string, m: string, am: string, ind: string, res: any) => {
+    if (!user) return;
+    try {
+      const d = { prompt: p, contentType: ct, model: m, agentMode: am, industry: ind, resultPreview: (res?.content || res?.text || '').substring(0, 500), imageUrl: res?.imageUrl || null, isFavorite: false, createdAt: Timestamp.now() };
+      const ref = await addDoc(collection(db, 'users', user.uid, 'history'), d);
+      setHistory(prev => [{ id: ref.id, ...d }, ...prev].slice(0, 100));
+    } catch (e) { console.error('Failed to save history:', e); }
+  };
+
+  const toggleFavorite = async (hid: string) => {
+    if (!user) return;
+    const item = history.find(h => h.id === hid);
+    if (!item) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'history', hid), { isFavorite: !item.isFavorite });
+      setHistory(prev => prev.map(h => h.id === hid ? { ...h, isFavorite: !h.isFavorite } : h));
+    } catch (e) { console.error('Failed to toggle favorite:', e); }
+  };
+
+  const loadHistoryPrompt = (h: HistoryItem) => { applySettings(h.prompt, h.industry, h.agentMode, h.contentType, h.model); setTab('create'); };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u); setLoading(false);
@@ -232,6 +335,12 @@ const App: React.FC = () => {
           const snap = await getDocs(q);
           setCreations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         } catch {}
+        // Load templates and history
+        loadTemplates(u.uid);
+        loadHistory(u.uid);
+      } else {
+        setTemplates([]);
+        setHistory([]);
       }
     });
     return unsub;
@@ -250,27 +359,34 @@ const App: React.FC = () => {
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
     if (!user) { setShowAuth(true); return; }
-    setLastPrompt(prompt);
-    setLastContentType(contentType);
-    setLastModel(model);
+    const currentPrompt = prompt;
+    const currentContentType = contentType;
+    const currentModel = model;
+    const currentAgentMode = agentMode;
+    const currentIndustry = industry;
+    setLastPrompt(currentPrompt);
+    setLastContentType(currentContentType);
+    setLastModel(currentModel);
     setGenerating(true); setResult(null);
     try {
-      const industryObj = INDUSTRIES.find(i => i.id === industry);
+      const industryObj = INDUSTRIES.find(i => i.id === currentIndustry);
       let systemPrefix = '';
       
-      if (agentMode !== 'general') {
-        systemPrefix = AGENT_SYSTEM_PROMPTS[agentMode];
-        if (industry !== 'general') {
+      if (currentAgentMode !== 'general') {
+        systemPrefix = AGENT_SYSTEM_PROMPTS[currentAgentMode];
+        if (currentIndustry !== 'general') {
           systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your analysis specifically for this industry.`;
         }
-      } else if (industry !== 'general' && contentType === 'text') {
+      } else if (currentIndustry !== 'general' && currentContentType === 'text') {
         systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals.`;
       }
       
       setLastSystemPrompt(systemPrefix || '');
-      const res = await generateContent(prompt, contentType, model, systemPrefix || undefined);
+      const res = await generateContent(currentPrompt, currentContentType, currentModel, systemPrefix || undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
+      // Save to history after successful generation
+      await saveHistoryItem(currentPrompt, currentContentType, currentModel, currentAgentMode, currentIndustry, res);
     } catch (e: any) { setResult({ error: e.message }); }
     setGenerating(false);
   };
@@ -316,6 +432,7 @@ const App: React.FC = () => {
   if (loading) return null;
   const pct = Math.min((usage.used / usage.limit) * 100, 100);
   const currentAgent = AGENTS.find(a => a.id === agentMode);
+  const filteredHistory = historyFilter === 'favorites' ? history.filter(h => h.isFavorite) : history;
 
   return (
     <div className="app-container">
@@ -445,6 +562,20 @@ const App: React.FC = () => {
               </div>
             )}
 
+            {user && templates.length > 0 && (
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>⭐ My Templates</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {templates.map(tmpl => (
+                    <div key={tmpl.id} onClick={() => loadTemplate(tmpl)} className="industry-chip" style={{ maxWidth: '220px', gap: '6px' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tmpl.label}</span>
+                      <span onClick={(e) => { e.stopPropagation(); deleteTemplate(tmpl.id); }} style={{ opacity: 0.5, cursor: 'pointer', flexShrink: 0 }}>×</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {!isPersonalMode && (<div className="industry-selector">
               <label className="selector-label">Industry</label>
               <div className="industry-chips">
@@ -467,9 +598,18 @@ const App: React.FC = () => {
               agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
               contentType === 'image' ? 'Describe the image...' : 'What to create?'
             } value={prompt} onChange={e => setPrompt(e.target.value)} />
-            <button className="generate-btn" onClick={handleGenerate} disabled={generating || !prompt.trim()}>
-              {generating ? 'Analyzing...' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? '📧 Write Email' : agentMode === 'logo-maker' ? '🎨 Design Logo' : 'Generate'}
-            </button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || !prompt.trim()}>
+                {generating ? 'Analyzing...' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? '📧 Write Email' : agentMode === 'logo-maker' ? '🎨 Design Logo' : 'Generate'}
+              </button>
+              {user && prompt.trim() && !generating && (
+                <button className="generate-btn" onClick={saveTemplate} disabled={savingTemplate}
+                  style={{ flex: 'none', width: 'auto', padding: '0 16px', background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)' }}
+                  title="Save as template">
+                  {savingTemplate ? '...' : '⭐ Save'}
+                </button>
+              )}
+            </div>
             {generating && (
               <div className="generating-animation">
                 <div className="typing-dots"><span></span><span></span><span></span></div>
@@ -505,7 +645,42 @@ const App: React.FC = () => {
         )}
         {tab === 'gallery' && (<>
           <h3 className="section-title">My Creations</h3>
-          {creations.length === 0 ? <div className="empty-state"><p>No creations yet</p></div> : <div className="gallery-grid">{creations.map((c, i) => (<div key={i} className="gallery-card">{c.imageUrl && <img src={c.imageUrl} alt="" />}<div className="gallery-card-body"><div className="gallery-card-title">{c.prompt?.substring(0, 60)}</div><div className="gallery-card-meta">{c.model}</div></div></div>))}</div>}
+          {history.length > 0 && (
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+              {(['all', 'favorites'] as const).map(f => (
+                <button key={f} onClick={() => setHistoryFilter(f)} className={`model-chip ${historyFilter === f ? 'active' : ''}`}>
+                  {f === 'favorites' ? '⭐ Favorites' : 'All'}
+                </button>
+              ))}
+            </div>
+          )}
+          {filteredHistory.length === 0 && creations.length === 0 ? (
+            <div className="empty-state"><p>{historyFilter === 'favorites' ? 'No favorites yet — star items to save them here' : 'No creations yet'}</p></div>
+          ) : (
+            <div className="gallery-grid">
+              {filteredHistory.map((h) => (
+                <div key={h.id} className="gallery-card" style={{ cursor: 'pointer', position: 'relative' }}>
+                  <div onClick={() => toggleFavorite(h.id)} style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 2, cursor: 'pointer', fontSize: '20px', filter: h.isFavorite ? 'none' : 'grayscale(1) opacity(0.4)' }}>⭐</div>
+                  <div onClick={() => loadHistoryPrompt(h)}>
+                    {h.imageUrl && <img src={h.imageUrl} alt="" />}
+                    <div className="gallery-card-body">
+                      <div className="gallery-card-title">{h.prompt?.substring(0, 60)}</div>
+                      {!h.imageUrl && h.resultPreview && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary, #999)', marginTop: '4px', lineHeight: 1.4, overflow: 'hidden', maxHeight: '3.6em' }}>{h.resultPreview.substring(0, 120)}</div>
+                      )}
+                      <div className="gallery-card-meta">{h.model} · {h.agentMode !== 'general' ? AGENTS.find(a => a.id === h.agentMode)?.name || h.agentMode : h.contentType}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {historyFilter === 'all' && creations.filter(c => !history.some(h => h.prompt === c.prompt)).map((c, i) => (
+                <div key={`l-${i}`} className="gallery-card">
+                  {c.imageUrl && <img src={c.imageUrl} alt="" />}
+                  <div className="gallery-card-body"><div className="gallery-card-title">{c.prompt?.substring(0, 60)}</div><div className="gallery-card-meta">{c.model}</div></div>
+                </div>
+              ))}
+            </div>
+          )}
         </>)}
         {tab === 'crm' && <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Business Suite</p></div>}
         {tab === 'projects' && <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Business Suite</p></div>}
