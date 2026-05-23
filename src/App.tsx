@@ -8,34 +8,186 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'crm' | 'projects';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant';
 
 const INDUSTRIES = [
-  { id: 'general', name: 'General', icon: '🌐' },
-  { id: 'real-estate', name: 'Real Estate', icon: '🏠' },
-  { id: 'restaurant', name: 'Restaurant & Food', icon: '🍽️' },
-  { id: 'fitness', name: 'Fitness & Wellness', icon: '💪' },
-  { id: 'legal', name: 'Legal', icon: '⚖️' },
-  { id: 'healthcare', name: 'Healthcare', icon: '🏥' },
-  { id: 'ecommerce', name: 'E-Commerce', icon: '🛒' },
-  { id: 'salon', name: 'Salon & Beauty', icon: '💇' },
-  { id: 'automotive', name: 'Automotive', icon: '🚗' },
-  { id: 'education', name: 'Education', icon: '🎓' },
-  { id: 'finance', name: 'Finance & Accounting', icon: '💰' },
-  { id: 'construction', name: 'Construction', icon: '🏗️' },
-  { id: 'photography', name: 'Photography', icon: '📸' },
-  { id: 'nonprofit', name: 'Nonprofit', icon: '❤️' },
-  { id: 'tech-startup', name: 'Tech Startup', icon: '🚀' },
-  { id: 'travel', name: 'Travel & Tourism', icon: '✈️' },
-  { id: 'insurance', name: 'Insurance', icon: '🛡️' },
-  { id: 'marketing', name: 'Marketing Agency', icon: '📣' },
-  { id: 'retail', name: 'Retail', icon: '🏪' },
-  { id: 'dental', name: 'Dental', icon: '🦷' },
-  { id: 'veterinary', name: 'Veterinary', icon: '🐾' },
-  { id: 'cleaning', name: 'Cleaning Service', icon: '🧹' },
-  { id: 'consulting', name: 'Consulting', icon: '📊' },
-  { id: 'plumbing', name: 'Plumbing & HVAC', icon: '🔧' },
-  { id: 'church', name: 'Church & Ministry', icon: '⛪' }
+  { id: 'general', name: 'General', icon: '\ud83c\udf10' },
+  { id: 'real-estate', name: 'Real Estate', icon: '\ud83c\udfe0' },
+  { id: 'restaurant', name: 'Restaurant & Food', icon: '\ud83c\udf7d\ufe0f' },
+  { id: 'fitness', name: 'Fitness & Wellness', icon: '\ud83d\udcaa' },
+  { id: 'legal', name: 'Legal', icon: '\u2696\ufe0f' },
+  { id: 'healthcare', name: 'Healthcare', icon: '\ud83c\udfe5' },
+  { id: 'ecommerce', name: 'E-Commerce', icon: '\ud83d\uded2' },
+  { id: 'salon', name: 'Salon & Beauty', icon: '\ud83d\udc87' },
+  { id: 'automotive', name: 'Automotive', icon: '\ud83d\ude97' },
+  { id: 'education', name: 'Education', icon: '\ud83c\udf93' },
+  { id: 'finance', name: 'Finance & Accounting', icon: '\ud83d\udcb0' },
+  { id: 'construction', name: 'Construction', icon: '\ud83c\udfd7\ufe0f' },
+  { id: 'photography', name: 'Photography', icon: '\ud83d\udcf8' },
+  { id: 'nonprofit', name: 'Nonprofit', icon: '\u2764\ufe0f' },
+  { id: 'tech-startup', name: 'Tech Startup', icon: '\ud83d\ude80' },
+  { id: 'travel', name: 'Travel & Tourism', icon: '\u2708\ufe0f' },
+  { id: 'insurance', name: 'Insurance', icon: '\ud83d\udee1\ufe0f' },
+  { id: 'marketing', name: 'Marketing Agency', icon: '\ud83d\udce3' },
+  { id: 'retail', name: 'Retail', icon: '\ud83c\udfea' },
+  { id: 'dental', name: 'Dental', icon: '\ud83e\uddb7' },
+  { id: 'veterinary', name: 'Veterinary', icon: '\ud83d\udc3e' },
+  { id: 'cleaning', name: 'Cleaning Service', icon: '\ud83e\uddf9' },
+  { id: 'consulting', name: 'Consulting', icon: '\ud83d\udcca' },
+  { id: 'plumbing', name: 'Plumbing & HVAC', icon: '\ud83d\udd27' },
+  { id: 'church', name: 'Church & Ministry', icon: '\u26ea' }
 ];
+
+const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?: string }[] = [
+  { id: 'general', name: 'AI Assistant', icon: '\u2728', desc: 'General AI content' },
+  { id: 'competitor-analysis', name: 'Competitor Analysis', icon: '\ud83d\udd0d', desc: 'SWOT & market intel', badge: 'NEW' },
+  { id: 'ad-maker', name: 'Ad Maker', icon: '\ud83d\udce2', desc: 'Ad copy & creatives' },
+  { id: 'logo-maker', name: 'Logo Maker', icon: '\ud83c\udfa8', desc: 'AI logo design' },
+  { id: 'email-assistant', name: 'Email Assistant', icon: '\ud83d\udce7', desc: 'Professional emails' },
+];
+
+const AGENT_SYSTEM_PROMPTS: Record<AgentMode, string> = {
+  'general': '',
+  'competitor-analysis': `You are a world-class business strategist and competitive intelligence analyst. When given a competitor name, business, or market, provide a comprehensive analysis using this EXACT structure:
+
+## \ud83d\udd0d Competitor Overview
+Brief summary of the competitor's business, target market, and positioning.
+
+## \ud83d\udcca SWOT Analysis
+
+### \u2705 Strengths
+- List 4-6 key strengths with explanations
+
+### \u26a0\ufe0f Weaknesses  
+- List 4-6 vulnerabilities or gaps
+
+### \ud83d\ude80 Opportunities
+- List 4-6 market opportunities you can exploit
+
+### \ud83d\uded1 Threats
+- List 3-4 competitive threats to watch
+
+## \ud83d\udca1 Market Gaps & Opportunities
+Identify 3-5 specific gaps the competitor is NOT addressing that the user could capitalize on.
+
+## \ud83c\udfaf Differentiation Strategy
+Provide 3-5 concrete ways to position AGAINST this competitor, including:
+- Messaging angles
+- Pricing strategy suggestions
+- Feature/service advantages to highlight
+
+## \ud83d\udcdd Ready-to-Use Copy
+Provide 2-3 short marketing messages/taglines that position the user's business as the better alternative.
+
+Be specific, data-driven where possible, and actionable. Use real market knowledge.`,
+  'ad-maker': `You are an expert advertising copywriter and creative director. Create compelling ad copy optimized for the specified platform. Structure your response with:
+
+## \ud83c\udfaf Ad Campaign Brief
+Brief summary of the campaign goal and target audience.
+
+## \ud83d\udcdd Headlines (3 Variations)
+1. **Option A** - [headline]
+2. **Option B** - [headline]
+3. **Option C** - [headline]
+
+## \ud83d\udcf1 Body Copy
+[Full ad body text]
+
+## \ud83d\ude80 Call-to-Action Options
+- CTA 1: [action]
+- CTA 2: [action]
+- CTA 3: [action]
+
+## #\ufe0f\u20e3 Hashtag Suggestions
+[Relevant hashtags for social media]
+
+## \ud83d\udd2c A/B Testing Recommendations
+[What to test and why]
+
+Make the copy punchy, benefit-driven, and conversion-focused.`,
+  'logo-maker': `You are a creative director specializing in brand identity and logo design. Provide detailed logo concepts with:
+
+## \ud83c\udfa8 Logo Concept
+Describe the visual concept and meaning behind the design.
+
+## \ud83c\udf08 Color Palette
+- Primary: [color with hex]
+- Secondary: [color with hex]
+- Accent: [color with hex]
+- Reasoning for color choices
+
+## \ud83d\udd24 Typography
+- Recommended fonts and why
+- Font pairing suggestions
+
+## \ud83d\udcf0 Visual Elements
+- Icon/symbol description
+- Layout recommendations
+- Variations (horizontal, stacked, icon-only)
+
+## \ud83d\udcbc Usage Guidelines
+- Where and how to use the logo
+- Do's and don'ts
+
+If the user wants an actual generated image, suggest switching to GPT Image model.`,
+  'email-assistant': `You are a professional email writer and communication specialist. Write polished, effective emails with:
+
+## \ud83d\udce7 Email
+
+**Subject:** [Compelling subject line]
+
+---
+
+[Professional greeting]
+
+[Well-structured body with clear paragraphs]
+
+[Appropriate call-to-action]
+
+[Professional sign-off]
+
+---
+
+## \ud83d\udca1 Tips
+- Best time to send
+- Follow-up timing
+- Alternative subject lines (2-3 options)
+
+Adapt tone based on context (formal, friendly, persuasive, follow-up, cold outreach, etc).`
+};
+
+const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
+  'general': [
+    { icon: '\ud83d\udce7', text: 'Write a professional follow-up email to a potential client' },
+    { icon: '\ud83d\udcf1', text: 'Create an Instagram caption for a product launch' },
+    { icon: '\ud83d\udcdd', text: 'Write a compelling "About Us" page for my business' },
+    { icon: '\ud83c\udfa8', text: 'Design a modern logo for a tech startup called "NexGen"' }
+  ],
+  'competitor-analysis': [
+    { icon: '\ud83d\udd0d', text: 'Analyze my top competitor [Company Name] in the [industry] space' },
+    { icon: '\ud83d\udcca', text: 'SWOT analysis of Starbucks for a local coffee shop owner' },
+    { icon: '\ud83d\udca1', text: 'Find market gaps in the fitness app industry that I can exploit' },
+    { icon: '\ud83c\udfaf', text: 'How should I position my cleaning service against Stanley Steemer?' }
+  ],
+  'ad-maker': [
+    { icon: '\ud83d\udcf1', text: 'Create a Facebook ad for my new fitness coaching program at $99/month' },
+    { icon: '\ud83c\udfaf', text: 'Write Google Search ad copy for a personal injury law firm' },
+    { icon: '\ud83d\udcf8', text: 'Instagram carousel ad copy for a new skincare product launch' },
+    { icon: '\ud83d\udce7', text: 'Email marketing campaign for a restaurant grand opening' }
+  ],
+  'logo-maker': [
+    { icon: '\ud83c\udfea', text: 'Design a modern minimalist logo for a boutique coffee shop called "Brew & Co"' },
+    { icon: '\ud83d\udcbc', text: 'Create a professional logo concept for a financial consulting firm' },
+    { icon: '\ud83c\udfa8', text: 'Logo ideas for a children\'s art studio called "Little Picasso"' },
+    { icon: '\ud83d\ude80', text: 'Tech startup logo for an AI-powered scheduling app called "TimeFlow"' }
+  ],
+  'email-assistant': [
+    { icon: '\ud83e\udd1d', text: 'Write a cold outreach email to pitch my marketing services to a local business' },
+    { icon: '\ud83d\udccb', text: 'Follow-up email after a sales meeting where the client seemed interested' },
+    { icon: '\ud83d\ude4f', text: 'Professional apology email for a delayed project delivery' },
+    { icon: '\ud83c\udf89', text: 'Customer welcome email sequence for new subscribers' }
+  ]
+};
 
 const renderMarkdown = (text: string): string => {
   if (!text) return '';
@@ -44,27 +196,17 @@ const renderMarkdown = (text: string): string => {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 
-  // Code blocks
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_m, _lang, code) => {
     return `<pre><code>${code.trim()}</code></pre>`;
   });
-
-  // Inline code
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-
-  // Headings
   html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
   html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
-
-  // Horizontal rules
   html = html.replace(/^(---|(\\*\\*\\*))$/gm, '<hr>');
-
-  // Bold and italic
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
-  // Process lines for lists and paragraphs
   const lines = html.split('\n');
   let result = '';
   let inUl = false;
@@ -126,6 +268,7 @@ const App: React.FC = () => {
   const [lastContentType, setLastContentType] = useState('text');
   const [lastModel, setLastModel] = useState('deepseek');
   const [industry, setIndustry] = useState('general');
+  const [agentMode, setAgentMode] = useState<AgentMode>('general');
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -135,7 +278,7 @@ const App: React.FC = () => {
         if (usageDoc.exists()) {
           const data = usageDoc.data();
           const plan = data.plan || 'free';
-          const limits: Record<string, number> = { free: 15, pro: 100, business: 999999 };
+          const limits: Record<string, number> = { free: 15, pro: 100, business: 999999, solopreneur: 999999, team: 999999, business_pro: 999999 };
           setUsage({ used: data.monthlyUsage || 0, limit: limits[plan] || 15, plan });
         }
         try {
@@ -167,9 +310,17 @@ const App: React.FC = () => {
     setGenerating(true); setResult(null);
     try {
       const industryObj = INDUSTRIES.find(i => i.id === industry);
-      const systemPrefix = industry !== 'general' && contentType === 'text'
-        ? `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals. `
-        : '';
+      let systemPrefix = '';
+      
+      if (agentMode !== 'general') {
+        systemPrefix = AGENT_SYSTEM_PROMPTS[agentMode] + '\n\n';
+        if (industry !== 'general') {
+          systemPrefix += `The user is in the ${industryObj?.name} industry. Tailor your analysis specifically for this industry. `;
+        }
+      } else if (industry !== 'general' && contentType === 'text') {
+        systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals. `;
+      }
+      
       const res = await generateContent(systemPrefix + prompt, contentType, model);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
@@ -200,9 +351,24 @@ const App: React.FC = () => {
     setGenerating(false);
   };
 
+  const selectAgent = (agentId: AgentMode) => {
+    setAgentMode(agentId);
+    setPrompt('');
+    setResult(null);
+    if (agentId === 'logo-maker') {
+      setModel('gpt-image-1');
+      setContentType('image');
+    } else {
+      setModel('deepseek');
+      setContentType('text');
+    }
+    setTab('create');
+  };
+
   const switchTab = (t: Tab) => setTab(t);
   if (loading) return null;
   const pct = Math.min((usage.used / usage.limit) * 100, 100);
+  const currentAgent = AGENTS.find(a => a.id === agentMode);
 
   return (
     <div className="app-container">
@@ -217,33 +383,82 @@ const App: React.FC = () => {
         {tab === 'home' && (<>
           <div className="hero-section">
             <h1 className="hero-title">Create Amazing Content with AI</h1>
-            <p className="hero-subtitle">Text, images, code and more — powered by premium AI at a fraction of the cost.</p>
+            <p className="hero-subtitle">Text, images, code and more \u2014 powered by premium AI at a fraction of the cost.</p>
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
           <div className="stats-row">
             <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
-            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
+            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '\u221e' : usage.limit}</div><div className="stat-label">Limit</div></div>
             <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
           </div>
           <div className="usage-bar-container">
-            <div className="usage-label"><span>Monthly Usage</span><span>{usage.used}/{usage.plan === 'business' ? '∞' : usage.limit}</span></div>
+            <div className="usage-label"><span>Monthly Usage</span><span>{usage.used}/{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '\u221e' : usage.limit}</span></div>
             <div className="usage-bar"><div className={`usage-fill ${pct > 80 ? 'warning' : ''}`} style={{ width: `${pct}%` }} /></div>
           </div>
+          
+          <h3 className="section-title">AI Agents</h3>
+          <div className="agent-grid">
+            {AGENTS.map((agent) => (
+              <div key={agent.id} className={`agent-card ${agentMode === agent.id ? 'active' : ''}`} onClick={() => selectAgent(agent.id)}>
+                {agent.badge && <span className="agent-badge">{agent.badge}</span>}
+                <div className="agent-icon">{agent.icon}</div>
+                <div className="agent-name">{agent.name}</div>
+                <div className="agent-desc">{agent.desc}</div>
+              </div>
+            ))}
+          </div>
+
           <h3 className="section-title">Quick Tools</h3>
           <div className="tool-grid">
-            {[{ icon: '✍️', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '🎨', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '💻', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '📧', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '📄', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '💡', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
-              <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); switchTab('create'); }}>
+            {[{ icon: '\u270d\ufe0f', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '\ud83c\udfa8', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '\ud83d\udcbb', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '\ud83d\udce7', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '\ud83d\udcc4', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '\ud83d\udca1', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
+              <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); setAgentMode('general'); switchTab('create'); }}>
                 <div className="tool-icon">{t.icon}</div><div className="tool-name">{t.name}</div><div className="tool-desc">{t.desc}</div>
               </div>
             ))}
           </div>
           <div className="powered-footer">
-            <span>A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">Contact</a>
+            <span>A Product of The PIE Group</span> \u00b7 <a href="mailto:admin@allexapiegroup.com">Contact</a>
           </div>
         </>)}
         {tab === 'create' && (
           <div className="create-area">
-            <h3 className="section-title">Create Something Amazing</h3>
+            <div className="agent-selector-bar">
+              {AGENTS.map(agent => (
+                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1' && agent.id !== 'logo-maker') { setModel('deepseek'); setContentType('text'); } }}>
+                  <span className="agent-tab-icon">{agent.icon}</span>
+                  <span className="agent-tab-name">{agent.name}</span>
+                  {agent.badge && <span className="agent-tab-badge">{agent.badge}</span>}
+                </button>
+              ))}
+            </div>
+
+            <h3 className="section-title">{currentAgent?.icon} {currentAgent?.name || 'Create Something Amazing'}</h3>
+            
+            {agentMode === 'competitor-analysis' && (
+              <div className="agent-info-banner">
+                <strong>\ud83d\udd0d Competitor Analysis Agent</strong>
+                <p>Enter a competitor name, website, or describe your market \u2014 get a full SWOT analysis, market gaps, and ready-to-use positioning copy.</p>
+              </div>
+            )}
+            {agentMode === 'ad-maker' && (
+              <div className="agent-info-banner">
+                <strong>\ud83d\udce2 Ad Maker Agent</strong>
+                <p>Describe your product and target platform \u2014 get headlines, body copy, CTAs, hashtags, and A/B testing tips.</p>
+              </div>
+            )}
+            {agentMode === 'email-assistant' && (
+              <div className="agent-info-banner">
+                <strong>\ud83d\udce7 Email Assistant</strong>
+                <p>Tell us the context \u2014 get a polished, ready-to-send email with subject line, body, and follow-up tips.</p>
+              </div>
+            )}
+            {agentMode === 'logo-maker' && (
+              <div className="agent-info-banner">
+                <strong>\ud83c\udfa8 Logo Maker Agent</strong>
+                <p>Describe your brand \u2014 get logo concepts with color palettes, typography, and usage guidelines. Switch to GPT Image for AI-generated visuals.</p>
+              </div>
+            )}
+
             <div className="industry-selector">
               <label className="selector-label">Industry</label>
               <div className="industry-chips">
@@ -259,20 +474,28 @@ const App: React.FC = () => {
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
               ))}
             </div>
-            <textarea className="prompt-input" placeholder={contentType === 'image' ? 'Describe the image...' : 'What to create?'} value={prompt} onChange={e => setPrompt(e.target.value)} />
-            <button className="generate-btn" onClick={handleGenerate} disabled={generating || !prompt.trim()}>{generating ? 'Generating...' : 'Generate'}</button>
+            <textarea className="prompt-input" placeholder={
+              agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
+              agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
+              agentMode === 'email-assistant' ? 'Describe the email you need (e.g., "Follow-up email after a client meeting about their website redesign")...' :
+              agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
+              contentType === 'image' ? 'Describe the image...' : 'What to create?'
+            } value={prompt} onChange={e => setPrompt(e.target.value)} />
+            <button className="generate-btn" onClick={handleGenerate} disabled={generating || !prompt.trim()}>
+              {generating ? 'Analyzing...' : agentMode === 'competitor-analysis' ? '\ud83d\udd0d Analyze Competitor' : agentMode === 'ad-maker' ? '\ud83d\udce2 Create Ad' : agentMode === 'email-assistant' ? '\ud83d\udce7 Write Email' : agentMode === 'logo-maker' ? '\ud83c\udfa8 Design Logo' : 'Generate'}
+            </button>
             {generating && (
               <div className="generating-animation">
                 <div className="typing-dots"><span></span><span></span><span></span></div>
-                <p>AI is crafting your content...</p>
+                <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : 'AI is crafting your content...'}</p>
               </div>
             )}
             {result && !result.error && (
               <div className="result-container">
                 <div className="result-actions">
-                  {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
-                  {result.imageUrl && <button className="action-btn" onClick={handleDownload}>⬇️ Download</button>}
-                  <button className="action-btn" onClick={handleRegenerate}>🔄 Regenerate</button>
+                  {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '\u2705 Copied!' : '\ud83d\udccb Copy'}</button>}
+                  {result.imageUrl && <button className="action-btn" onClick={handleDownload}>\u2b07\ufe0f Download</button>}
+                  <button className="action-btn" onClick={handleRegenerate}>\ud83d\udd04 Regenerate</button>
                 </div>
                 <div className="result-area">
                   {result.imageUrl ? <img className="result-image" src={result.imageUrl} alt="" /> : <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content || result.text || '') }} />}
@@ -283,15 +506,9 @@ const App: React.FC = () => {
             {!result && !generating && !prompt && (
               <div className="prompt-suggestions">
                 <p className="suggestions-label">Try one of these:</p>
-                {/* TODO: Make suggestions dynamic based on selected industry */}
                 <div className="suggestions-grid">
-                  {[
-                    { icon: '📧', text: 'Write a professional follow-up email to a potential client' },
-                    { icon: '📱', text: 'Create an Instagram caption for a product launch' },
-                    { icon: '📝', text: 'Write a compelling "About Us" page for my business' },
-                    { icon: '🎨', text: 'Design a modern logo for a tech startup called "NexGen"' }
-                  ].map((s, i) => (
-                    <button key={i} className="suggestion-chip" onClick={() => { setPrompt(s.text); if (s.icon === '🎨') { setModel('gpt-image-1'); setContentType('image'); } }}>
+                  {(AGENT_SUGGESTIONS[agentMode] || AGENT_SUGGESTIONS['general']).map((s, i) => (
+                    <button key={i} className="suggestion-chip" onClick={() => { setPrompt(s.text); if (s.icon === '\ud83c\udfa8' && agentMode === 'general') { setModel('gpt-image-1'); setContentType('image'); } }}>
                       <span>{s.icon}</span> {s.text}
                     </button>
                   ))}
@@ -310,7 +527,7 @@ const App: React.FC = () => {
       <nav className="bottom-nav">
         {(['home','create','gallery','crm','projects'] as Tab[]).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
-            <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', crm: '📇', projects: '📋' }[id]}</span>
+            <span className="bottom-nav-icon">{{ home: '\ud83c\udfe0', create: '\u2728', gallery: '\ud83d\uddbc\ufe0f', crm: '\ud83d\udcc7', projects: '\ud83d\udccb' }[id]}</span>
             {{ home: 'Home', create: 'Create', gallery: 'Gallery', crm: 'CRM', projects: 'Projects' }[id]}
           </button>
         ))}
