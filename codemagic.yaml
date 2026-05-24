@@ -23,18 +23,21 @@ workflows:
         script: npx cap add android || true
       - name: Sync Capacitor
         script: npx cap sync android
+      - name: Set Android package name
+        script: |
+          cd android
+          # Ensure the package name is correct in build.gradle
+          if grep -q "applicationId" app/build.gradle; then
+            sed -i "s/applicationId .*/applicationId \"studio.novamindai.app\"/" app/build.gradle
+          fi
       - name: Build Android AAB
         script: |
           cd android
+          chmod +x ./gradlew
           ./gradlew bundleRelease
     artifacts:
       - android/app/build/outputs/**/*.aab
       - android/app/build/outputs/**/*.apk
-    publishing:
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        submit_as_draft: true
 
   novamind-ios:
     name: NovaMind AI iOS
@@ -77,20 +80,109 @@ workflows:
             --create
           keychain add-certificates
           
-          echo "=== Installed provisioning profiles ==="
-          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ || true
+          echo "=== Debug: List all provisioning profiles ==="
+          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ || echo "No profiles directory"
           
-          # Let use-profiles auto-detect the project
-          xcode-project use-profiles
+          echo "=== Debug: Extract profile details ==="
+          for profile in ~/Library/MobileDevice/Provisioning\ Profiles/*.mobileprovision; do
+            echo "--- Profile: $profile ---"
+            PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" /dev/stdin <<< $(security cms -D -i "$profile" 2>/dev/null))
+            PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" /dev/stdin <<< $(security cms -D -i "$profile" 2>/dev/null))
+            PROFILE_BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :Entitlements:application-identifier" /dev/stdin <<< $(security cms -D -i "$profile" 2>/dev/null))
+            echo "  Name: $PROFILE_NAME"
+            echo "  UUID: $PROFILE_UUID"
+            echo "  Bundle: $PROFILE_BUNDLE"
+            
+            # Use this profile
+            CM_PROVISIONING_PROFILE_NAME="$PROFILE_NAME"
+            CM_PROVISIONING_PROFILE_UUID="$PROFILE_UUID"
+          done
           
-          echo "=== Verifying code signing settings ==="
-          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -showBuildSettings 2>/dev/null | grep -E "PROVISIONING_PROFILE|CODE_SIGN|DEVELOPMENT_TEAM" || true
+          echo ""
+          echo "=== Selected Profile ==="
+          echo "  Name: $CM_PROVISIONING_PROFILE_NAME"
+          echo "  UUID: $CM_PROVISIONING_PROFILE_UUID"
+          
+          # Save for later steps
+          echo "CM_PROVISIONING_PROFILE_NAME=$CM_PROVISIONING_PROFILE_NAME" >> $CM_ENV
+          echo "CM_PROVISIONING_PROFILE_UUID=$CM_PROVISIONING_PROFILE_UUID" >> $CM_ENV
+          
+          # Manually set Xcode project signing settings using PlistBuddy
+          PBXPROJ="ios/App/App.xcodeproj/project.pbxproj"
+          echo "=== Patching Xcode project: $PBXPROJ ==="
+          
+          # Replace automatic signing with manual
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' "$PBXPROJ"
+          sed -i '' 's/ProvisioningStyle = Automatic/ProvisioningStyle = Manual/g' "$PBXPROJ"
+          
+          # Set the development team
+          sed -i '' "s/DEVELOPMENT_TEAM = \"\"/DEVELOPMENT_TEAM = $TEAM_ID/g" "$PBXPROJ"
+          sed -i '' "s/DEVELOPMENT_TEAM = .*;/DEVELOPMENT_TEAM = $TEAM_ID;/g" "$PBXPROJ"
+          
+          # Set provisioning profile specifier 
+          if grep -q "PROVISIONING_PROFILE_SPECIFIER" "$PBXPROJ"; then
+            sed -i '' "s/PROVISIONING_PROFILE_SPECIFIER = .*/PROVISIONING_PROFILE_SPECIFIER = \"$CM_PROVISIONING_PROFILE_NAME\";/g" "$PBXPROJ"
+          else
+            sed -i '' "s/DEVELOPMENT_TEAM = $TEAM_ID;/DEVELOPMENT_TEAM = $TEAM_ID;\n\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = \"$CM_PROVISIONING_PROFILE_NAME\";/g" "$PBXPROJ"
+          fi
+          
+          # Set code sign identity
+          sed -i '' 's/CODE_SIGN_IDENTITY = .*/CODE_SIGN_IDENTITY = "iPhone Distribution";/g' "$PBXPROJ"
+          
+          echo "=== Verifying patched settings ==="
+          grep -E "PROVISIONING_PROFILE|CODE_SIGN|DEVELOPMENT_TEAM|ProvisioningStyle" "$PBXPROJ" | head -20
       - name: Build iOS IPA
         script: |
+          echo "=== Profile Name: $CM_PROVISIONING_PROFILE_NAME ==="
+          echo "=== Profile UUID: $CM_PROVISIONING_PROFILE_UUID ==="
+          
+          # Create export options plist with actual profile name
+          cat > /tmp/export_options.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>$TEAM_ID</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>$BUNDLE_ID</key>
+                  <string>$CM_PROVISIONING_PROFILE_NAME</string>
+              </dict>
+          </dict>
+          </plist>
+          PLIST
+          
+          echo "=== Export options plist ==="
+          cat /tmp/export_options.plist
+          
           cd ios/App
-          xcode-project build-ipa \
-            --workspace App.xcworkspace \
-            --scheme App
+          
+          # Archive
+          xcodebuild archive \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -archivePath /tmp/App.xcarchive \
+            -configuration Release \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            CODE_SIGN_IDENTITY="iPhone Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="$CM_PROVISIONING_PROFILE_NAME" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+          
+          # Export IPA
+          xcodebuild -exportArchive \
+            -archivePath /tmp/App.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist /tmp/export_options.plist
     artifacts:
       - "**/*.ipa"
       - /tmp/xcodebuild_logs/*.log
