@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase-config';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp } from 'firebase/firestore';
 import { generateContent } from './api-service';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -245,6 +245,19 @@ const App: React.FC = () => {
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'favorites'>('all');
+
+  // Onboarding wizard state
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState(0);
+  const [onboardingData, setOnboardingData] = useState({
+    displayName: '',
+    businessName: '',
+    industry: 'general',
+    primaryUse: [] as string[],
+    experienceLevel: 'beginner' as 'beginner' | 'intermediate' | 'advanced',
+    goals: [] as string[]
+  });
+
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   const loadTemplates = async (uid: string) => {
@@ -339,6 +352,22 @@ const App: React.FC = () => {
         // Load templates and history
         loadTemplates(u.uid);
         loadHistory(u.uid);
+        // Check if onboarding is needed
+        if (usageDoc.exists()) {
+          const data = usageDoc.data();
+          if (!data.onboardingComplete) {
+            setShowOnboarding(true);
+            setOnboardingStep(0);
+            if (u.displayName) setOnboardingData(prev => ({ ...prev, displayName: u.displayName || '' }));
+          } else {
+            if (data.defaultIndustry) setIndustry(data.defaultIndustry);
+          }
+        } else {
+          // New user — no doc yet, show onboarding
+          setShowOnboarding(true);
+          setOnboardingStep(0);
+          if (u.displayName) setOnboardingData(prev => ({ ...prev, displayName: u.displayName || '' }));
+        }
       } else {
         setTemplates([]);
         setHistory([]);
@@ -346,6 +375,57 @@ const App: React.FC = () => {
     });
     return unsub;
   }, []);
+
+
+  const ONBOARDING_USES = [
+    { id: 'content', label: '✍️ Content Writing', desc: 'Blog posts, articles, copy' },
+    { id: 'marketing', label: '📣 Marketing & Ads', desc: 'Ad copy, social posts, campaigns' },
+    { id: 'email', label: '📧 Email & Comms', desc: 'Professional emails, outreach' },
+    { id: 'images', label: '🎨 Image Generation', desc: 'Logos, graphics, AI art' },
+    { id: 'code', label: '💻 Code & Tech', desc: 'Programming, debugging, scripts' },
+    { id: 'analysis', label: '📊 Analysis & Research', desc: 'Market research, competitor intel' },
+  ];
+
+  const ONBOARDING_GOALS = [
+    { id: 'save-time', label: '⏱️ Save Time', desc: 'Automate repetitive tasks' },
+    { id: 'grow-business', label: '📈 Grow My Business', desc: 'Marketing, leads, sales' },
+    { id: 'better-content', label: '✨ Create Better Content', desc: 'Higher quality output' },
+    { id: 'reduce-costs', label: '💰 Reduce Costs', desc: 'Replace expensive tools/services' },
+    { id: 'learn-ai', label: '🧠 Learn AI', desc: 'Explore what AI can do' },
+    { id: 'team-productivity', label: '👥 Team Productivity', desc: 'Help my team work smarter' },
+  ];
+
+  const completeOnboarding = async () => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), {
+        onboardingComplete: true,
+        displayName: onboardingData.displayName || user.displayName || '',
+        businessName: onboardingData.businessName || '',
+        defaultIndustry: onboardingData.industry || 'general',
+        primaryUse: onboardingData.primaryUse || [],
+        experienceLevel: onboardingData.experienceLevel || 'beginner',
+        goals: onboardingData.goals || [],
+        onboardedAt: Timestamp.now()
+      }, { merge: true });
+      setIndustry(onboardingData.industry || 'general');
+      setShowOnboarding(false);
+    } catch (e) {
+      console.error('Failed to save onboarding:', e);
+    }
+  };
+
+  const skipOnboarding = async () => {
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'users', user.uid), { onboardingComplete: true, onboardedAt: Timestamp.now() }, { merge: true });
+    } catch (e) { console.error(e); }
+    setShowOnboarding(false);
+  };
+
+  const toggleOnboardingArray = (arr: string[], item: string) => {
+    return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
+  };
 
   const handleAuth = async () => {
     setAuthError('');
@@ -723,6 +803,118 @@ const App: React.FC = () => {
           </button>
         ))}
       </nav>
+
+      {showOnboarding && user && (
+        <div className="auth-overlay">
+          <div className="auth-modal" style={{ maxWidth: '480px', maxHeight: '90vh', overflow: 'auto' }}>
+            {/* Progress bar */}
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '24px' }}>
+              {[0,1,2,3,4].map(s => (
+                <div key={s} style={{ flex: 1, height: '4px', borderRadius: '2px', background: s <= onboardingStep ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.1)', transition: 'background 0.3s' }} />
+              ))}
+            </div>
+            
+            {onboardingStep === 0 && (
+              <>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>👋 Welcome to NovaMind AI!</h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px' }}>Let's personalize your experience. This takes about 30 seconds.</p>
+                <label style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>Your Name</label>
+                <input className="auth-input" placeholder="Enter your name" value={onboardingData.displayName} onChange={e => setOnboardingData(prev => ({ ...prev, displayName: e.target.value }))} />
+                <label style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>Business Name <span style={{ opacity: 0.5 }}>(optional)</span></label>
+                <input className="auth-input" placeholder="Your company or brand name" value={onboardingData.businessName} onChange={e => setOnboardingData(prev => ({ ...prev, businessName: e.target.value }))} />
+              </>
+            )}
+
+            {onboardingStep === 1 && (
+              <>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>🏢 What's your industry?</h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '14px' }}>We'll tailor AI responses to your field.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {INDUSTRIES.map(ind => (
+                    <div key={ind.id} onClick={() => setOnboardingData(prev => ({ ...prev, industry: ind.id }))}
+                      style={{ padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center', fontSize: '13px', border: onboardingData.industry === ind.id ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.industry === ind.id ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      <div style={{ fontSize: '24px', marginBottom: '4px' }}>{ind.icon}</div>
+                      <div>{ind.name}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {onboardingStep === 2 && (
+              <>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>🎯 What will you use AI for?</h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '14px' }}>Select all that apply — we'll highlight the right tools.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {ONBOARDING_USES.map(u => (
+                    <div key={u.id} onClick={() => setOnboardingData(prev => ({ ...prev, primaryUse: toggleOnboardingArray(prev.primaryUse, u.id) }))}
+                      style={{ padding: '14px 16px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', border: onboardingData.primaryUse.includes(u.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.primaryUse.includes(u.id) ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '6px', border: onboardingData.primaryUse.includes(u.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', background: onboardingData.primaryUse.includes(u.id) ? 'var(--primary, #6c63ff)' : 'transparent', flexShrink: 0 }}>{onboardingData.primaryUse.includes(u.id) ? '✓' : ''}</div>
+                      <div><div style={{ fontWeight: 600, fontSize: '14px' }}>{u.label}</div><div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{u.desc}</div></div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {onboardingStep === 3 && (
+              <>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>🧠 Your AI experience?</h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '14px' }}>We'll adjust tips and complexity accordingly.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {([
+                    { id: 'beginner' as const, icon: '🌱', label: 'Beginner', desc: "I'm new to AI — guide me through everything" },
+                    { id: 'intermediate' as const, icon: '🌿', label: 'Intermediate', desc: "I've used ChatGPT or similar tools before" },
+                    { id: 'advanced' as const, icon: '🌳', label: 'Advanced', desc: "I use AI daily and know prompt engineering" }
+                  ]).map(level => (
+                    <div key={level.id} onClick={() => setOnboardingData(prev => ({ ...prev, experienceLevel: level.id }))}
+                      style={{ padding: '16px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px', border: onboardingData.experienceLevel === level.id ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.experienceLevel === level.id ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      <div style={{ fontSize: '28px' }}>{level.icon}</div>
+                      <div><div style={{ fontWeight: 600, fontSize: '15px' }}>{level.label}</div><div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>{level.desc}</div></div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {onboardingStep === 4 && (
+              <>
+                <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>🚀 What are your goals?</h2>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '20px', fontSize: '14px' }}>Select what matters most — we'll customize your dashboard.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {ONBOARDING_GOALS.map(g => (
+                    <div key={g.id} onClick={() => setOnboardingData(prev => ({ ...prev, goals: toggleOnboardingArray(prev.goals, g.id) }))}
+                      style={{ padding: '14px 16px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', border: onboardingData.goals.includes(g.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.goals.includes(g.id) ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '6px', border: onboardingData.goals.includes(g.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', background: onboardingData.goals.includes(g.id) ? 'var(--primary, #6c63ff)' : 'transparent', flexShrink: 0 }}>{onboardingData.goals.includes(g.id) ? '✓' : ''}</div>
+                      <div><div style={{ fontWeight: 600, fontSize: '14px' }}>{g.label}</div><div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{g.desc}</div></div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Navigation buttons */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+              {onboardingStep > 0 && (
+                <button className="generate-btn" onClick={() => setOnboardingStep(prev => prev - 1)}
+                  style={{ flex: 'none', width: 'auto', padding: '12px 20px', background: 'transparent', border: '2px solid rgba(255,255,255,0.15)', color: 'var(--text-primary, #fff)' }}>
+                  ← Back
+                </button>
+              )}
+              {onboardingStep < 4 ? (
+                <button className="generate-btn" onClick={() => setOnboardingStep(prev => prev + 1)} style={{ flex: 1 }}>
+                  {onboardingStep === 0 && !onboardingData.displayName.trim() ? 'Skip →' : 'Continue →'}
+                </button>
+              ) : (
+                <button className="generate-btn" onClick={completeOnboarding} style={{ flex: 1 }}>
+                  🚀 Let's Go!
+                </button>
+              )}
+            </div>
+            <p onClick={skipOnboarding} style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer', opacity: 0.6 }}>Skip setup for now</p>
+          </div>
+        </div>
+      )}
       {showAuth && (
         <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowAuth(false)}>
           <div className="auth-modal">
