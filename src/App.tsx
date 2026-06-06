@@ -506,6 +506,28 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      // Clear ALL user state
+      setChatMessages([]);
+      setCreations([]);
+      setResult(null);
+      setPrompt('');
+      setTab('home');
+      setTemplates([]);
+      setHistory([]);
+      setChats([]);
+      setCurrentChatId(null);
+      setUsage({ used: 0, limit: 15, plan: 'free' });
+      setIndustry('general');
+      setAgentMode('general');
+    } catch (err) {
+      alert('Sign out failed — please try again.');
+      console.error('Sign out error:', err);
+    }
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u); setLoading(false);
@@ -890,7 +912,7 @@ const App: React.FC = () => {
           <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI" />
           <span className="logo-text">{isPersonalMode ? 'NovaMind Personal' : 'NovaMind AI'}</span>
         </div>
-        <button className="nav-btn btn-outline" onClick={() => signOut(auth)}>Sign Out</button>
+        <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600' }}>🚪 Sign Out</button>
       </nav>
       <div className="main-content">
         {tab === 'home' && isPersonalMode && (
