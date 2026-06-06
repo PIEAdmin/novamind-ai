@@ -1080,22 +1080,28 @@ const App: React.FC = () => {
 
             {/* Chat Messages Thread */}
             {chatMessages.length > 0 && (
-              <div style={{ marginBottom: '16px', maxHeight: '400px', overflowY: 'auto', padding: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ marginBottom: '16px', overflowY: 'auto', padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
                 {chatMessages.map((msg, idx) => (
                   <div key={idx} style={{
                     display: 'flex',
-                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                    marginBottom: '10px'
+                    flexDirection: 'column',
+                    alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                    marginBottom: '14px'
                   }}>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: '4px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>
+                      {msg.role === 'user' ? '👤 You' : '✨ NovaMind'}
+                    </div>
                     <div style={{
-                      maxWidth: '85%',
-                      padding: '10px 14px',
+                      maxWidth: '95%',
+                      width: msg.role === 'assistant' ? '100%' : 'auto',
+                      padding: msg.role === 'assistant' ? '16px 18px' : '10px 16px',
                       borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.08)',
+                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
                       color: msg.role === 'user' ? '#fff' : 'var(--text-primary, #fff)',
-                      fontSize: '14px',
-                      lineHeight: '1.5',
+                      fontSize: msg.role === 'assistant' ? '15px' : '14px',
+                      lineHeight: '1.6',
                       wordBreak: 'break-word' as const,
+                      border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
                     }}>
                       {msg.role === 'assistant' ? (
                         <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
@@ -1103,19 +1109,47 @@ const App: React.FC = () => {
                         <span>{msg.content}</span>
                       )}
                     </div>
+                    {msg.role === 'assistant' && (
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                        <button onClick={() => { navigator.clipboard.writeText(msg.content); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
+                      </div>
+                    )}
                   </div>
                 ))}
                 <div ref={chatEndRef} />
               </div>
             )}
 
-            <textarea className="prompt-input" placeholder={
-              agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
-              agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
-              agentMode === 'email-assistant' ? getEmailPlaceholder() :
-              agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
-              contentType === 'image' ? 'Describe the image...' : 'What to create?'
-            } value={prompt} onChange={e => setPrompt(e.target.value)} />
+            <div style={{ position: 'relative' }}>
+              <textarea className="prompt-input" style={{ paddingRight: '80px' }} placeholder={
+                agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
+                agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
+                agentMode === 'email-assistant' ? getEmailPlaceholder() :
+                agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
+                contentType === 'image' ? 'Describe the image...' : 'What to create?'
+              } value={prompt} onChange={e => setPrompt(e.target.value)} />
+              <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                {prompt && (
+                  <button onClick={() => setPrompt('')} title="Clear" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                )}
+                <button onClick={() => {
+                  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+                  if (!SR) { alert('Speech recognition is not supported in this browser. Try Chrome or Safari.'); return; }
+                  const recognition = new SR();
+                  recognition.lang = 'en-US';
+                  recognition.interimResults = false;
+                  recognition.maxAlternatives = 1;
+                  recognition.onresult = (event: any) => {
+                    const transcript = event.results[0][0].transcript;
+                    setPrompt(prev => prev ? prev + ' ' + transcript : transcript);
+                  };
+                  recognition.onerror = (event: any) => {
+                    if (event.error === 'not-allowed') alert('Microphone access denied. Please allow microphone permissions.');
+                  };
+                  recognition.start();
+                }} title="Voice input" style={{ background: 'rgba(108,99,255,0.2)', border: '1px solid rgba(108,99,255,0.3)', color: '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎤</button>
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || !prompt.trim()}>
                 {generating ? 'Analyzing...' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : chatMessages.length > 0 ? '💬 Send' : 'Generate'}
@@ -1134,7 +1168,7 @@ const App: React.FC = () => {
                 <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : 'AI is crafting your content...'}</p>
               </div>
             )}
-            {result && !result.error && chatMessages.length === 0 && (
+            {result && !result.error && (result.imageUrl || chatMessages.length === 0) && (
               <div className="result-container">
                 <div className="result-actions">
                   {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
