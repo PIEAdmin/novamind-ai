@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from './firebase-config';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp } from 'firebase/firestore';
@@ -7,8 +7,29 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
-type Tab = 'home' | 'create' | 'gallery' | 'crm' | 'projects';
+type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'crm' | 'projects';
 type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant';
+type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+interface ChatDoc {
+  id: string;
+  title: string;
+  messages: ChatMessage[];
+  agentMode: string;
+  industry: string;
+  model: string;
+  contentType: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  isShared: boolean;
+  shareId: string | null;
+}
 
 interface PromptTemplate {
   id: string;
@@ -18,7 +39,7 @@ interface PromptTemplate {
   contentType: string;
   model: string;
   label: string;
-  createdAt: any;
+  createdAt: Timestamp;
 }
 
 interface HistoryItem {
@@ -31,7 +52,7 @@ interface HistoryItem {
   resultPreview: string;
   imageUrl: string | null;
   isFavorite: boolean;
-  createdAt: any;
+  createdAt: Timestamp;
 }
 
 const INDUSTRIES = [
@@ -69,6 +90,43 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'logo-maker', name: 'Logo Maker', icon: '🎨', desc: 'AI logo design' },
   { id: 'email-assistant', name: 'Email Assistant', icon: '📧', desc: 'Professional emails' },
 ];
+
+const EMAIL_MODE_PROMPTS: Record<EmailMode, (tone: string) => string> = {
+  'compose': (tone: string) => `You are a professional email writer. Compose a polished, ready-to-send email based on the user's request.
+Include: Subject line, greeting, body, call-to-action, professional sign-off.
+Also provide: 2 alternative subject lines and a follow-up timing suggestion.
+Tone: ${tone}`,
+  'reply': (tone: string) => `You are an expert email responder. The user will paste an email they received. Write the perfect professional reply.
+Analyze the sender's tone and intent, then craft a response that:
+- Addresses all points raised
+- Maintains professionalism
+- Includes a clear next step or CTA
+Tone: ${tone}
+Provide the reply email only (with subject line for reply).`,
+  'sequences': (tone: string) => `You are an email sequence strategist. Create a multi-step email sequence (3-5 emails) for the user's goal.
+For each email provide:
+- Email # and suggested send timing (e.g., "Day 1", "Day 3", "Day 7")
+- Subject line
+- Full email body
+- Goal of this specific email in the sequence
+Make each email progressively build urgency/value.
+Tone: ${tone}`,
+  'polish': (tone: string) => `You are a professional editor. The user will paste a rough email draft. Rewrite it to be polished, professional, and effective.
+Provide:
+- The polished version
+- A brief "What I changed" summary (3-5 bullet points)
+- A rate (1-10) of the original vs polished version
+Tone: ${tone}`,
+};
+
+const EMAIL_MODES: { id: EmailMode; icon: string; label: string }[] = [
+  { id: 'compose', icon: '📝', label: 'Compose' },
+  { id: 'reply', icon: '↩️', label: 'Reply' },
+  { id: 'sequences', icon: '📧', label: 'Sequences' },
+  { id: 'polish', icon: '✨', label: 'Polish' },
+];
+
+const EMAIL_TONES = ['Formal', 'Friendly', 'Persuasive', 'Apologetic', 'Follow-Up', 'Urgent'];
 
 const AGENT_SYSTEM_PROMPTS: Record<AgentMode, string> = {
   'general': '',
@@ -212,6 +270,15 @@ const renderMarkdown = (text: string): string => {
   return result;
 };
 
+const generateShareId = (): string => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -224,11 +291,11 @@ const App: React.FC = () => {
   const [resetSent, setResetSent] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<{ content?: string; text?: string; imageUrl?: string; error?: string } | null>(null);
   const [model, setModel] = useState('deepseek');
   const [contentType, setContentType] = useState('text');
   const [usage, setUsage] = useState({ used: 0, limit: 15, plan: 'free' });
-  const [creations, setCreations] = useState<any[]>([]);
+  const [creations, setCreations] = useState<Array<{ id: string; prompt?: string; imageUrl?: string; model?: string; [key: string]: unknown }>>([]);
   const [copied, setCopied] = useState(false);
   const [lastPrompt, setLastPrompt] = useState('');
   const [lastContentType, setLastContentType] = useState('text');
@@ -246,6 +313,17 @@ const App: React.FC = () => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyFilter, setHistoryFilter] = useState<'all' | 'favorites'>('all');
 
+  // Chat History state
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatTitle, setChatTitle] = useState<string>('');
+  const [chats, setChats] = useState<ChatDoc[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Email Agent Enhanced state
+  const [emailMode, setEmailMode] = useState<EmailMode>('compose');
+  const [emailTone, setEmailTone] = useState('Formal');
+
   // Onboarding wizard state
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState(0);
@@ -260,6 +338,13 @@ const App: React.FC = () => {
 
   const [savingTemplate, setSavingTemplate] = useState(false);
 
+  // Scroll to bottom of chat when messages change
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages]);
+
   const loadTemplates = async (uid: string) => {
     try {
       const snap = await getDocs(query(collection(db, 'users', uid, 'templates'), orderBy('createdAt', 'desc'), firestoreLimit(20)));
@@ -272,6 +357,13 @@ const App: React.FC = () => {
       const snap = await getDocs(query(collection(db, 'users', uid, 'history'), orderBy('createdAt', 'desc'), firestoreLimit(100)));
       setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() } as HistoryItem)));
     } catch (e) { console.error('Load history err:', e); }
+  };
+
+  const loadChats = async (uid: string) => {
+    try {
+      const snap = await getDocs(query(collection(db, 'users', uid, 'chats'), orderBy('updatedAt', 'desc'), firestoreLimit(50)));
+      setChats(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatDoc)));
+    } catch (e) { console.error('Load chats err:', e); }
   };
 
   const saveTemplate = async () => {
@@ -312,7 +404,7 @@ const App: React.FC = () => {
   };
   const loadTemplate = (t: PromptTemplate) => applySettings(t.prompt, t.industry, t.agentMode, t.contentType, t.model);
 
-  const saveHistoryItem = async (p: string, ct: string, m: string, am: string, ind: string, res: any) => {
+  const saveHistoryItem = async (p: string, ct: string, m: string, am: string, ind: string, res: { content?: string; text?: string; imageUrl?: string } | null) => {
     if (!user) return;
     try {
       const d = { prompt: p, contentType: ct, model: m, agentMode: am, industry: ind, resultPreview: (res?.content || res?.text || '').substring(0, 500), imageUrl: res?.imageUrl || null, isFavorite: false, createdAt: Timestamp.now() };
@@ -333,6 +425,87 @@ const App: React.FC = () => {
 
   const loadHistoryPrompt = (h: HistoryItem) => { applySettings(h.prompt, h.industry, h.agentMode, h.contentType, h.model); setTab('create'); };
 
+  // Chat management functions
+  const startNewChat = () => {
+    setCurrentChatId(null);
+    setChatMessages([]);
+    setChatTitle('');
+    setPrompt('');
+    setResult(null);
+  };
+
+  const saveChatToFirestore = async (
+    chatId: string | null,
+    messages: ChatMessage[],
+    title: string
+  ): Promise<string> => {
+    if (!user) return chatId || '';
+    const chatData = {
+      title: title.substring(0, 60),
+      messages,
+      agentMode,
+      industry,
+      model,
+      contentType,
+      updatedAt: Timestamp.now(),
+      isShared: false,
+      shareId: null,
+    };
+
+    if (chatId) {
+      await updateDoc(doc(db, 'users', user.uid, 'chats', chatId), chatData);
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, ...chatData, id: chatId } as ChatDoc : c));
+      return chatId;
+    } else {
+      const fullData = { ...chatData, createdAt: Timestamp.now() };
+      const ref = await addDoc(collection(db, 'users', user.uid, 'chats'), fullData);
+      const newChat: ChatDoc = { id: ref.id, ...fullData } as ChatDoc;
+      setChats(prev => [newChat, ...prev]);
+      return ref.id;
+    }
+  };
+
+  const loadChat = (chat: ChatDoc) => {
+    setCurrentChatId(chat.id);
+    setChatMessages(chat.messages || []);
+    setChatTitle(chat.title);
+    setAgentMode((chat.agentMode || 'general') as AgentMode);
+    setIndustry(chat.industry || 'general');
+    setModel(chat.model || 'deepseek');
+    setContentType(chat.contentType || 'text');
+    setPrompt('');
+    setResult(null);
+    setTab('create');
+  };
+
+  const deleteChat = async (chatId: string) => {
+    if (!user) return;
+    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'chats', chatId));
+      setChats(prev => prev.filter(c => c.id !== chatId));
+      if (currentChatId === chatId) {
+        startNewChat();
+      }
+    } catch (e) {
+      console.error('Failed to delete chat:', e);
+    }
+  };
+
+  const shareChat = async (chatId: string) => {
+    if (!user) return;
+    try {
+      const sid = generateShareId();
+      await updateDoc(doc(db, 'users', user.uid, 'chats', chatId), { isShared: true, shareId: sid });
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, isShared: true, shareId: sid } : c));
+      const link = `${window.location.origin}/shared/${sid}`;
+      await navigator.clipboard.writeText(link);
+      alert('Share link copied to clipboard!');
+    } catch (e) {
+      console.error('Failed to share chat:', e);
+    }
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u); setLoading(false);
@@ -347,11 +520,12 @@ const App: React.FC = () => {
         try {
           const q = query(collection(db, 'creations'), where('userId', '==', u.uid), orderBy('createdAt', 'desc'));
           const snap = await getDocs(q);
-          setCreations(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          setCreations(snap.docs.map(d => ({ id: d.id, ...d.data() } as { id: string; [key: string]: unknown })));
         } catch {}
-        // Load templates and history
+        // Load templates, history, and chats
         loadTemplates(u.uid);
         loadHistory(u.uid);
+        loadChats(u.uid);
         // Check if onboarding is needed
         if (usageDoc.exists()) {
           const data = usageDoc.data();
@@ -371,6 +545,7 @@ const App: React.FC = () => {
       } else {
         setTemplates([]);
         setHistory([]);
+        setChats([]);
       }
     });
     return unsub;
@@ -434,7 +609,7 @@ const App: React.FC = () => {
       else await createUserWithEmailAndPassword(auth, email, password);
       setShowAuth(false);
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {} }
-    } catch (e: any) { setAuthError(e.message?.replace('Firebase: ', '') || 'Auth failed'); }
+    } catch (e: unknown) { const err = e as { message?: string }; setAuthError(err.message?.replace('Firebase: ', '') || 'Auth failed'); }
   };
 
 
@@ -444,8 +619,9 @@ const App: React.FC = () => {
       await sendPasswordResetEmail(auth, email.trim());
       setResetSent(true);
       setAuthError('');
-    } catch (e: any) {
-      setAuthError(e.message?.replace('Firebase: ', '') || 'Failed to send reset email');
+    } catch (e: unknown) {
+      const err = e as { message?: string };
+      setAuthError(err.message?.replace('Firebase: ', '') || 'Failed to send reset email');
     }
   };
 
@@ -456,11 +632,16 @@ const App: React.FC = () => {
       await signInWithPopup(auth, provider);
       setShowAuth(false);
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {} }
-    } catch (e: any) {
-      if (e.code !== 'auth/popup-closed-by-user') {
-        setAuthError(e.message?.replace('Firebase: ', '') || 'Google sign-in failed');
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      if (err.code !== 'auth/popup-closed-by-user') {
+        setAuthError(err.message?.replace('Firebase: ', '') || 'Google sign-in failed');
       }
     }
+  };
+
+  const getEmailSystemPrompt = (): string => {
+    return EMAIL_MODE_PROMPTS[emailMode](emailTone);
   };
 
   const handleGenerate = async () => {
@@ -475,11 +656,23 @@ const App: React.FC = () => {
     setLastContentType(currentContentType);
     setLastModel(currentModel);
     setGenerating(true); setResult(null);
+
+    // Add user message to chat
+    const userMsg: ChatMessage = { role: 'user', content: currentPrompt, timestamp: Date.now() };
+    const updatedMessages = [...chatMessages, userMsg];
+    setChatMessages(updatedMessages);
+    setPrompt('');
+
     try {
       const industryObj = INDUSTRIES.find(i => i.id === currentIndustry);
       let systemPrefix = '';
-      
-      if (currentAgentMode !== 'general') {
+
+      if (currentAgentMode === 'email-assistant') {
+        systemPrefix = getEmailSystemPrompt();
+        if (currentIndustry !== 'general') {
+          systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your email specifically for this industry.`;
+        }
+      } else if (currentAgentMode !== 'general') {
         systemPrefix = AGENT_SYSTEM_PROMPTS[currentAgentMode];
         if (currentIndustry !== 'general') {
           systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your analysis specifically for this industry.`;
@@ -487,14 +680,43 @@ const App: React.FC = () => {
       } else if (currentIndustry !== 'general' && currentContentType === 'text') {
         systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals.`;
       }
-      
+
+      // Build conversation context from last 10 messages
+      const contextMessages = updatedMessages.slice(-10);
+      if (contextMessages.length > 1) {
+        const conversationContext = contextMessages.slice(0, -1).map(m =>
+          `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`
+        ).join('\n\n');
+        systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+          `Previous conversation:\n${conversationContext}\n\nNow respond to the user's latest message:`;
+      }
+
       setLastSystemPrompt(systemPrefix || '');
       const res = await generateContent(currentPrompt, currentContentType, currentModel, systemPrefix || undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
+
+      // Add assistant message to chat
+      const assistantContent = res?.content || res?.text || '';
+      const assistantMsg: ChatMessage = { role: 'assistant', content: assistantContent, timestamp: Date.now() };
+      const allMessages = [...updatedMessages, assistantMsg];
+      setChatMessages(allMessages);
+
+      // Auto-generate title from first prompt
+      const title = chatTitle || currentPrompt.substring(0, 60);
+      setChatTitle(title);
+
+      // Save/update chat in Firestore
+      try {
+        const newChatId = await saveChatToFirestore(currentChatId, allMessages, title);
+        setCurrentChatId(newChatId);
+      } catch (chatErr) {
+        console.error('Failed to save chat:', chatErr);
+      }
+
       // Save to history after successful generation
       await saveHistoryItem(currentPrompt, currentContentType, currentModel, currentAgentMode, currentIndustry, res);
-    } catch (e: any) { setResult({ error: e.message }); }
+    } catch (e: unknown) { const err = e as { message?: string }; setResult({ error: err.message }); }
     setGenerating(false);
   };
 
@@ -517,7 +739,7 @@ const App: React.FC = () => {
     try {
       const res = await generateContent(lastPrompt, lastContentType, lastModel, lastSystemPrompt || undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
-    } catch (e: any) { setResult({ error: e.message }); }
+    } catch (e: unknown) { const err = e as { message?: string }; setResult({ error: err.message }); }
     setGenerating(false);
   };
 
@@ -531,6 +753,11 @@ const App: React.FC = () => {
     } else {
       setModel('deepseek');
       setContentType('text');
+    }
+    // Reset email mode when switching away
+    if (agentId !== 'email-assistant') {
+      setEmailMode('compose');
+      setEmailTone('Formal');
     }
     setTab('create');
   };
@@ -591,6 +818,48 @@ const App: React.FC = () => {
   const pct = Math.min((usage.used / usage.limit) * 100, 100);
   const currentAgent = AGENTS.find(a => a.id === agentMode);
   const filteredHistory = historyFilter === 'favorites' ? history.filter(h => h.isFavorite) : history;
+
+  const getEmailPlaceholder = (): string => {
+    switch (emailMode) {
+      case 'compose': return 'Describe the email you need (e.g., "Follow-up email after a client meeting about their website redesign")...';
+      case 'reply': return 'Paste the email you received and describe the reply you want...';
+      case 'sequences': return 'Describe your goal for the email sequence (e.g., "Nurture leads who downloaded our whitepaper")...';
+      case 'polish': return 'Paste your rough email draft here and we\'ll polish it into a professional message...';
+    }
+  };
+
+  const getEmailButtonText = (): string => {
+    switch (emailMode) {
+      case 'compose': return '📧 Write Email';
+      case 'reply': return '↩️ Draft Reply';
+      case 'sequences': return '📧 Generate Sequence';
+      case 'polish': return '✨ Polish Email';
+    }
+  };
+
+  const getEmailBannerText = (): { title: string; desc: string } => {
+    switch (emailMode) {
+      case 'compose': return { title: '📝 Compose Mode', desc: 'Tell us the context — get a polished, ready-to-send email with subject line, body, and follow-up tips.' };
+      case 'reply': return { title: '↩️ Reply Mode', desc: 'Paste an email you received — we\'ll analyze the tone and craft the perfect professional response.' };
+      case 'sequences': return { title: '📧 Sequences Mode', desc: 'Describe your goal — get a multi-step email sequence with timing, subject lines, and progressive messaging.' };
+      case 'polish': return { title: '✨ Polish Mode', desc: 'Paste your rough draft — get a professionally rewritten version with a summary of improvements.' };
+    }
+  };
+
+  const formatChatDate = (ts: Timestamp | { seconds: number } | undefined): string => {
+    if (!ts) return '';
+    const date = ts instanceof Timestamp ? ts.toDate() : new Date((ts as { seconds: number }).seconds * 1000);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return date.toLocaleDateString();
+  };
 
   return (
     <div className="app-container">
@@ -685,7 +954,7 @@ const App: React.FC = () => {
           <div className="create-area">
             {!isPersonalMode && (<div className="agent-selector-bar">
               {AGENTS.map(agent => (
-                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } }}>
+                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } if (agent.id !== 'email-assistant') { setEmailMode('compose'); setEmailTone('Formal'); } }}>
                   <span className="agent-tab-icon">{agent.icon}</span>
                   <span className="agent-tab-name">{agent.name}</span>
                   {agent.badge && <span className="agent-tab-badge">{agent.badge}</span>}
@@ -693,7 +962,15 @@ const App: React.FC = () => {
               ))}
             </div>)}
 
-            <h3 className="section-title">{currentAgent?.icon} {currentAgent?.name || 'Create Something Amazing'}</h3>
+            {/* Chat title and new chat button */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <h3 className="section-title" style={{ margin: 0 }}>
+                {chatTitle ? `💬 ${chatTitle}` : `${currentAgent?.icon || '✨'} ${currentAgent?.name || 'Create Something Amazing'}`}
+              </h3>
+              <button onClick={startNewChat} style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: 'var(--primary, #6c63ff)', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                ➕ New Chat
+              </button>
+            </div>
             
             {agentMode === 'competitor-analysis' && (
               <div className="agent-info-banner">
@@ -708,10 +985,39 @@ const App: React.FC = () => {
               </div>
             )}
             {agentMode === 'email-assistant' && (
-              <div className="agent-info-banner">
-                <strong>📧 Email Assistant</strong>
-                <p>Tell us the context — get a polished, ready-to-send email with subject line, body, and follow-up tips.</p>
-              </div>
+              <>
+                {/* Email Mode Selector */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '12px' }}>
+                  {EMAIL_MODES.map(em => (
+                    <button key={em.id} onClick={() => setEmailMode(em.id)}
+                      style={{
+                        padding: '10px 6px', borderRadius: '10px', border: emailMode === em.id ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)',
+                        background: emailMode === em.id ? 'rgba(108,99,255,0.2)' : 'rgba(255,255,255,0.03)', color: 'var(--text-primary, #fff)',
+                        cursor: 'pointer', textAlign: 'center', fontSize: '12px', transition: 'all 0.2s'
+                      }}>
+                      <div style={{ fontSize: '18px', marginBottom: '2px' }}>{em.icon}</div>
+                      <div style={{ fontWeight: emailMode === em.id ? 700 : 500 }}>{em.label}</div>
+                    </button>
+                  ))}
+                </div>
+                {/* Tone Selector */}
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block', fontWeight: 600 }}>Tone</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {EMAIL_TONES.map(tone => (
+                      <button key={tone} onClick={() => setEmailTone(tone)}
+                        className={`industry-chip ${emailTone === tone ? 'active' : ''}`}
+                        style={{ fontSize: '12px', padding: '6px 12px' }}>
+                        {tone}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="agent-info-banner">
+                  <strong>{getEmailBannerText().title}</strong>
+                  <p>{getEmailBannerText().desc}</p>
+                </div>
+              </>
             )}
             {agentMode === 'logo-maker' && (
               <div className="agent-info-banner">
@@ -749,16 +1055,48 @@ const App: React.FC = () => {
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
               ))}
             </div>
+
+            {/* Chat Messages Thread */}
+            {chatMessages.length > 0 && (
+              <div style={{ marginBottom: '16px', maxHeight: '400px', overflowY: 'auto', padding: '12px', background: 'rgba(0,0,0,0.15)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                {chatMessages.map((msg, idx) => (
+                  <div key={idx} style={{
+                    display: 'flex',
+                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                    marginBottom: '10px'
+                  }}>
+                    <div style={{
+                      maxWidth: '85%',
+                      padding: '10px 14px',
+                      borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.08)',
+                      color: msg.role === 'user' ? '#fff' : 'var(--text-primary, #fff)',
+                      fontSize: '14px',
+                      lineHeight: '1.5',
+                      wordBreak: 'break-word' as const,
+                    }}>
+                      {msg.role === 'assistant' ? (
+                        <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                      ) : (
+                        <span>{msg.content}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatEndRef} />
+              </div>
+            )}
+
             <textarea className="prompt-input" placeholder={
               agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
               agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
-              agentMode === 'email-assistant' ? 'Describe the email you need (e.g., "Follow-up email after a client meeting about their website redesign")...' :
+              agentMode === 'email-assistant' ? getEmailPlaceholder() :
               agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
               contentType === 'image' ? 'Describe the image...' : 'What to create?'
             } value={prompt} onChange={e => setPrompt(e.target.value)} />
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || !prompt.trim()}>
-                {generating ? 'Analyzing...' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? '📧 Write Email' : agentMode === 'logo-maker' ? '🎨 Design Logo' : 'Generate'}
+                {generating ? 'Analyzing...' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : chatMessages.length > 0 ? '💬 Send' : 'Generate'}
               </button>
               {user && prompt.trim() && !generating && (
                 <button className="generate-btn" onClick={saveTemplate} disabled={savingTemplate}
@@ -774,7 +1112,7 @@ const App: React.FC = () => {
                 <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : 'AI is crafting your content...'}</p>
               </div>
             )}
-            {result && !result.error && (
+            {result && !result.error && chatMessages.length === 0 && (
               <div className="result-container">
                 <div className="result-actions">
                   {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
@@ -787,7 +1125,7 @@ const App: React.FC = () => {
               </div>
             )}
             {result?.error && <div className="result-area"><div className="error-text">{result.error}</div></div>}
-            {!result && !generating && !prompt && (
+            {!result && !generating && !prompt && chatMessages.length === 0 && (
               <div className="prompt-suggestions">
                 <p className="suggestions-label">Try one of these:</p>
                 <div className="suggestions-grid">
@@ -833,24 +1171,81 @@ const App: React.FC = () => {
               ))}
               {historyFilter === 'all' && creations.filter(c => !history.some(h => h.prompt === c.prompt)).map((c, i) => (
                 <div key={`l-${i}`} className="gallery-card">
-                  {c.imageUrl && <img src={c.imageUrl} alt="" />}
-                  <div className="gallery-card-body"><div className="gallery-card-title">{c.prompt?.substring(0, 60)}</div><div className="gallery-card-meta">{c.model}</div></div>
+                  {c.imageUrl && <img src={c.imageUrl as string} alt="" />}
+                  <div className="gallery-card-body"><div className="gallery-card-title">{(c.prompt as string)?.substring(0, 60)}</div><div className="gallery-card-meta">{c.model as string}</div></div>
                 </div>
               ))}
             </div>
           )}
         </>)}
+
+        {/* Chats Tab */}
+        {tab === 'chats' && (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+              <h3 className="section-title" style={{ margin: 0 }}>💬 My Chats</h3>
+              <button onClick={() => { startNewChat(); setTab('create'); }}
+                style={{ background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                ➕ New Chat
+              </button>
+            </div>
+            {chats.length === 0 ? (
+              <div className="empty-state">
+                <p>No chats yet. Start a conversation to see it here!</p>
+                <button className="nav-btn btn-primary" onClick={() => { startNewChat(); setTab('create'); }}>Start Chatting</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {chats.map(chat => {
+                  const agentInfo = AGENTS.find(a => a.id === chat.agentMode);
+                  const lastMsg = chat.messages && chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
+                  return (
+                    <div key={chat.id} style={{
+                      background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)',
+                      padding: '14px 16px', cursor: 'pointer', transition: 'all 0.2s'
+                    }}>
+                      <div onClick={() => loadChat(chat)} style={{ marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '18px' }}>{agentInfo?.icon || '✨'}</span>
+                          <span style={{ fontWeight: 600, fontSize: '15px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title || 'Untitled Chat'}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', whiteSpace: 'nowrap' }}>{formatChatDate(chat.updatedAt)}</span>
+                        </div>
+                        {lastMsg && (
+                          <p style={{ fontSize: '13px', color: 'var(--text-secondary, #999)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '26px' }}>
+                            {lastMsg.role === 'user' ? 'You: ' : 'AI: '}{lastMsg.content.substring(0, 80)}
+                          </p>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px', paddingLeft: '26px' }}>
+                        <button onClick={() => loadChat(chat)} style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: 'var(--primary, #6c63ff)', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                          ▶ Continue
+                        </button>
+                        <button onClick={() => shareChat(chat.id)} style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                          🔗 Share
+                        </button>
+                        <button onClick={() => deleteChat(chat.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                          🗑️ Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
+
         {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
         {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
       </div>
       <nav className="bottom-nav">
         {(isPersonalMode 
-            ? (['home','create','gallery'] as Tab[])
-            : (['home','create','gallery','crm','projects'] as Tab[])
+            ? (['home','create','gallery','chats'] as Tab[])
+            : (['home','create','chats','gallery','crm','projects'] as Tab[])
           ).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
-            <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', crm: '📇', projects: '📋' }[id]}</span>
-            {{ home: 'Home', create: 'Create', gallery: 'Gallery', crm: 'CRM', projects: 'Projects' }[id]}
+            <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', chats: '💬', crm: '📇', projects: '📋' }[id]}</span>
+            {{ home: 'Home', create: 'Create', gallery: 'Gallery', chats: 'Chats', crm: 'CRM', projects: 'Projects' }[id]}
           </button>
         ))}
       </nav>
