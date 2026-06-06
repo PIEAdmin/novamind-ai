@@ -609,7 +609,13 @@ const App: React.FC = () => {
       else await createUserWithEmailAndPassword(auth, email, password);
       setShowAuth(false);
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {} }
-    } catch (e: unknown) { const err = e as { message?: string }; setAuthError(err.message?.replace('Firebase: ', '') || 'Auth failed'); }
+    } catch (e: unknown) { const err = e as { code?: string; message?: string }; 
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') setAuthError('No account found with that email. Try "Create a Free Account" below!');
+      else if (err.code === 'auth/wrong-password') setAuthError('Incorrect password. Try again or use "Forgot Password".');
+      else if (err.code === 'auth/email-already-in-use') setAuthError('An account with this email already exists. Try signing in instead!');
+      else if (err.code === 'auth/weak-password') setAuthError('Password must be at least 6 characters.');
+      else if (err.code === 'auth/invalid-email') setAuthError('Please enter a valid email address.');
+      else setAuthError(err.message?.replace('Firebase: ', '') || 'Something went wrong. Please try again.'); }
   };
 
 
@@ -779,10 +785,10 @@ const App: React.FC = () => {
           <div className="auth-modal" style={{ width: '100%', maxWidth: '420px', margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <img src="/icon-192.png" alt="NovaMind AI" style={{ width: '64px', height: '64px', marginBottom: '16px' }} />
-              <h2 style={{ margin: '0 0 8px' }}>{authMode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
+              <h2 style={{ margin: '0 0 8px' }}>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Create Your Account'}</h2>
               <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: 14 }}>
                 {authMode === 'login'
-                  ? (isPersonalMode ? 'Sign in to NovaMind Personal' : 'Sign in to NovaMind AI Hub')
+                  ? (isPersonalMode ? 'Sign in or create an account to get started' : 'Sign in or create an account to get started')
                   : (isPersonalMode ? 'Join NovaMind Personal — AI for everyday life' : 'Start creating with NovaMind AI')}
               </p>
             </div>
@@ -805,7 +811,17 @@ const App: React.FC = () => {
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
               Continue with Google
             </button>
-            <p className="auth-toggle">{authMode === 'login' ? "No account? " : "Have account? "}<span onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setResetSent(false); }}>{authMode === 'login' ? 'Sign Up' : 'Sign In'}</span></p>
+            <div style={{ textAlign: 'center', margin: '16px 0 0' }}>
+              {authMode === 'login' ? (
+                <button onClick={() => { setAuthMode('signup'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                  New here? Create a Free Account
+                </button>
+              ) : (
+                <button onClick={() => { setAuthMode('login'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                  Already have an account? Sign In
+                </button>
+              )}
+            </div>
             <div className="powered-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               <span>A Product of The PIE Group</span>
             </div>
@@ -1364,7 +1380,7 @@ const App: React.FC = () => {
       {showAuth && (
         <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowAuth(false)}>
           <div className="auth-modal">
-            <h2>{authMode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
+            <h2>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Create Your Account'}</h2>
             <p style={{ color: 'var(--text-secondary)', margin: '8px 0 20px', fontSize: 14 }}>{authMode === 'login' ? 'Sign in to NovaMind AI' : 'Start creating with NovaMind AI'}</p>
             {authError && <div className="auth-error">{authError}</div>}
             <input className="auth-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
@@ -1385,7 +1401,7 @@ const App: React.FC = () => {
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
               Continue with Google
             </button>
-            <p className="auth-toggle">{authMode === 'login' ? "No account? " : "Have account? "}<span onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setResetSent(false); }}>{authMode === 'login' ? 'Sign Up' : 'Sign In'}</span></p>
+            <p className="auth-toggle" style={{ fontSize: '15px' }}>{authMode === 'login' ? "Don't have an account? " : "Already have an account? "}<span onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setResetSent(false); }} style={{ fontWeight: 700, textDecoration: 'underline' }}>{authMode === 'login' ? 'Create One Free' : 'Sign In'}</span></p>
           </div>
         </div>
       )}
