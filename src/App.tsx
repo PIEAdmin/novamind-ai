@@ -722,7 +722,13 @@ const App: React.FC = () => {
 
       // Save to history after successful generation
       await saveHistoryItem(currentPrompt, currentContentType, currentModel, currentAgentMode, currentIndustry, res);
-    } catch (e: unknown) { const err = e as { message?: string }; setResult({ error: err.message }); }
+    } catch (e: unknown) { 
+      const err = e as { message?: string }; 
+      const errorMsg: ChatMessage = { role: 'assistant', content: `⚠️ **Something went wrong:** ${err.message || 'Unknown error'}\n\nTap "Try Again" or type a new message.`, timestamp: Date.now() };
+      setChatMessages(prev => [...prev, errorMsg]);
+      setPrompt(currentPrompt);
+      setResult(null);
+    }
     setGenerating(false);
   };
 
@@ -1140,7 +1146,19 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
-            {result?.error && <div className="result-area"><div className="error-text">{result.error}</div></div>}
+            {result?.error && (
+              <div className="result-area" style={{ textAlign: 'center' }}>
+                <div className="error-text" style={{ marginBottom: '16px' }}>{result.error}</div>
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button className="action-btn" onClick={() => { setResult(null); setPrompt(lastPrompt || ''); }} style={{ padding: '12px 24px', fontSize: '15px', fontWeight: 600, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer' }}>
+                    🔄 Try Again
+                  </button>
+                  <button className="action-btn" onClick={() => { setResult(null); setPrompt(''); setChatMessages([]); setCurrentChatId(null); setChatTitle(''); }} style={{ padding: '12px 24px', fontSize: '15px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '2px solid var(--border-color, #333)', borderRadius: '12px', cursor: 'pointer' }}>
+                    ← Start Over
+                  </button>
+                </div>
+              </div>
+            )}
             {!result && !generating && !prompt && chatMessages.length === 0 && (
               <div className="prompt-suggestions">
                 <p className="suggestions-label">Try one of these:</p>
