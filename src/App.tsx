@@ -323,6 +323,7 @@ const App: React.FC = () => {
   // Email Agent Enhanced state
   const [emailMode, setEmailMode] = useState<EmailMode>('compose');
   const [emailTone, setEmailTone] = useState('Formal');
+  const [routeNotification, setRouteNotification] = useState('');
 
   // Onboarding wizard state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -672,6 +673,73 @@ const App: React.FC = () => {
     return EMAIL_MODE_PROMPTS[emailMode](emailTone);
   };
 
+  // 🧠 Smart Agent Router — detects intent from General and auto-switches
+  const detectAndRoute = (userPrompt: string): { agent: AgentMode; model?: string; contentType?: string; personalTool?: string; notification?: string } | null => {
+    const p = userPrompt.toLowerCase();
+
+    // Logo detection
+    if (/\b(logo|brand.*logo|design.*logo|create.*logo|make.*logo|logo.*design|company.*logo|business.*logo|icon.*design)\b/.test(p)) {
+      return { agent: 'logo-maker', model: 'gpt-image-1', contentType: 'image', notification: '🎨 Switching to Logo Maker...' };
+    }
+
+    // Ad/advertising detection
+    if (/\b(ad copy|advertisement|facebook ad|instagram ad|google ad|create.*ad|write.*ad|marketing.*ad|ad campaign|social media ad|tiktok ad|youtube ad|linkedin ad|promote|promotional)\b/.test(p)) {
+      return { agent: 'ad-maker', notification: '📢 Switching to Ad Maker...' };
+    }
+
+    // Email detection
+    if (/\b(write.*email|draft.*email|compose.*email|send.*email|email.*to|professional email|follow.?up email|cold email|outreach email|reply.*email|email.*sequence|email.*campaign|newsletter)\b/.test(p)) {
+      return { agent: 'email-assistant', notification: '📧 Switching to Email Assistant...' };
+    }
+
+    // Competitor analysis detection
+    if (/\b(competitor|competition|swot|market analysis|analyze.*company|compare.*with|vs\b|versus|competitive.*analysis|market.*research|industry.*analysis|benchmark)\b/.test(p)) {
+      return { agent: 'competitor-analysis', notification: '🔍 Switching to Competitor Analysis...' };
+    }
+
+    // Personal tool detection (only in personal mode)
+    if (isPersonalMode) {
+      if (/\b(recipe|cook|fridge|ingredients|meal|dinner|lunch|breakfast|what.*make.*eat)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'fridge-chef', notification: '🍳 Switching to Fridge Chef...' };
+      }
+      if (/\b(schedule|planner|plan.*day|organize.*day|time.*block|to.?do|task.*list|daily.*plan)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'day-planner', notification: '📅 Switching to Day Planner...' };
+      }
+      if (/\b(trip|travel|itinerary|vacation|flight|hotel|plan.*trip|visit.*city|budget.*travel)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'itinerary', notification: '✈️ Switching to Itinerary Builder...' };
+      }
+      if (/\b(summarize|summary|textbook|chapter|key.*points|study.*guide|tldr|tl;dr)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'summarizer', notification: '📚 Switching to Textbook Summarizer...' };
+      }
+      if (/\b(flashcard|study.*card|quiz.*card|flash.*card|memorize|study.*notes)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'flashcards', notification: '🎴 Switching to Flashcard Generator...' };
+      }
+      if (/\b(essay|outline|thesis|paragraph.*structure|essay.*structure|paper.*outline)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'essay-outline', notification: '📐 Switching to Essay Outline...' };
+      }
+      if (/\b(resume|cv|cover.*letter|job.*application|ats|tailor.*resume)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'resume', notification: '📄 Switching to Resume Tailor...' };
+      }
+      if (/\b(interview|mock.*interview|practice.*interview|interview.*question|interview.*prep)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'interview', notification: '💬 Switching to Interview Simulator...' };
+      }
+      if (/\b(contract|lease|fine.*print|legal.*document|terms.*conditions|translate.*contract)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'contract', notification: '📜 Switching to Contract Translator...' };
+      }
+      if (/\b(hook|tiktok|reel|shorts|scroll.*stop|video.*hook|viral.*hook)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'video-hook', notification: '🎥 Switching to Video Hook Writer...' };
+      }
+      if (/\b(faceless|youtube.*script|video.*script|faceless.*video|narration.*script)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'faceless-script', notification: '🎬 Switching to Script Writer...' };
+      }
+      if (/\b(ai.*art|aesthetic|prompt.*architect|art.*prompt|midjourney|stable.*diffusion|image.*prompt|art.*style)\b/.test(p)) {
+        return { agent: 'general', personalTool: 'aesthetic-prompt', notification: '🎨 Switching to Prompt Architect...' };
+      }
+    }
+
+    return null; // Stay in General
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
     if (!user) { setShowAuth(true); return; }
@@ -680,9 +748,37 @@ const App: React.FC = () => {
     const currentModel = model;
     const currentAgentMode = agentMode;
     const currentIndustry = industry;
+    // 🧠 Smart routing: if in General, detect intent and auto-switch
+    let activeAgentMode = currentAgentMode;
+    let activeContentType = currentContentType;
+    let activeModel = currentModel;
+
+    if (currentAgentMode === 'general') {
+      const route = detectAndRoute(currentPrompt);
+      if (route) {
+        activeAgentMode = route.agent;
+        if (route.model) activeModel = route.model;
+        if (route.contentType) activeContentType = route.contentType;
+        // Update UI to show the switch
+        setRouteNotification(route.notification || '');
+        setTimeout(() => setRouteNotification(''), 3000);
+        setAgentMode(route.agent);
+        if (route.model) setModel(route.model);
+        if (route.contentType) setContentType(route.contentType);
+        // For personal tools, enhance the prompt with the tool's system context
+        if (route.personalTool) {
+          const tool = PERSONAL_TOOLS.find(t => t.id === route.personalTool);
+          if (tool) {
+            // Tool context will be added via system prompt
+            (window as Record<string, unknown>).__activePersonalTool = tool;
+          }
+        }
+      }
+    }
+
     setLastPrompt(currentPrompt);
-    setLastContentType(currentContentType);
-    setLastModel(currentModel);
+    setLastContentType(activeContentType);
+    setLastModel(activeModel);
     setGenerating(true); setResult(null);
 
     // Add user message to chat
@@ -695,13 +791,18 @@ const App: React.FC = () => {
       const industryObj = INDUSTRIES.find(i => i.id === currentIndustry);
       let systemPrefix = '';
 
-      if (currentAgentMode === 'email-assistant') {
+      // Check for personal tool routing
+      const personalTool = (window as Record<string, unknown>).__activePersonalTool as { id: string; name: string; prompt: string } | undefined;
+      if (personalTool) {
+        systemPrefix = `You are NovaMind's ${personalTool.name} assistant. The user is asking for help related to: ${personalTool.name}. Provide detailed, helpful, and personalized results. Be friendly and conversational.`;
+        delete (window as Record<string, unknown>).__activePersonalTool;
+      } else if (activeAgentMode === 'email-assistant') {
         systemPrefix = getEmailSystemPrompt();
         if (currentIndustry !== 'general') {
           systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your email specifically for this industry.`;
         }
-      } else if (currentAgentMode !== 'general') {
-        systemPrefix = AGENT_SYSTEM_PROMPTS[currentAgentMode];
+      } else if (activeAgentMode !== 'general') {
+        systemPrefix = AGENT_SYSTEM_PROMPTS[activeAgentMode];
         if (currentIndustry !== 'general') {
           systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your analysis specifically for this industry.`;
         }
@@ -743,7 +844,7 @@ const App: React.FC = () => {
       }
 
       // Save to history after successful generation
-      await saveHistoryItem(currentPrompt, currentContentType, currentModel, currentAgentMode, currentIndustry, res);
+      await saveHistoryItem(currentPrompt, activeContentType, activeModel, activeAgentMode, currentIndustry, res);
     } catch (e: unknown) { 
       const err = e as { message?: string }; 
       const errorMsg: ChatMessage = { role: 'assistant', content: `⚠️ **Something went wrong:** ${err.message || 'Unknown error'}\n\nTap "Try Again" or type a new message.`, timestamp: Date.now() };
@@ -1184,6 +1285,11 @@ const App: React.FC = () => {
                 </button>
               )}
             </div>
+            {routeNotification && (
+              <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 20px', borderRadius: '12px', margin: '12px 0', textAlign: 'center', fontSize: '15px', fontWeight: '600', boxShadow: '0 4px 15px rgba(102,126,234,0.3)' }}>
+                {routeNotification}
+              </div>
+            )}
             {generating && (
               <div className="generating-animation">
                 <div className="typing-dots"><span></span><span></span><span></span></div>
