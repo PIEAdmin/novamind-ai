@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from './firebase-config';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp } from 'firebase/firestore';
-import { generateContent } from './api-service';
+import { generateContent, fileToAttachment, FileAttachment } from './api-service';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
@@ -324,6 +324,9 @@ const App: React.FC = () => {
   const [emailMode, setEmailMode] = useState<EmailMode>('compose');
   const [emailTone, setEmailTone] = useState('Formal');
   const [routeNotification, setRouteNotification] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<{name: string; type: string; preview?: string}[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Onboarding wizard state
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -740,6 +743,34 @@ const App: React.FC = () => {
     return null; // Stay in General
   };
 
+  const handleFileSelect = (files: FileList | null) => {
+    if (!files) return;
+    const newFiles: File[] = [];
+    const newPreviews: {name: string; type: string; preview?: string}[] = [];
+    Array.from(files).forEach(file => {
+      if (file.size > 10 * 1024 * 1024) { alert(`${file.name} is too large (max 10MB)`); return; }
+      newFiles.push(file);
+      const info: {name: string; type: string; preview?: string} = { name: file.name, type: file.type };
+      if (file.type.startsWith('image/')) {
+        info.preview = URL.createObjectURL(file);
+      }
+      newPreviews.push(info);
+    });
+    setPendingFiles(prev => [...prev, ...newFiles]);
+    setAttachedFiles(prev => [...prev, ...newPreviews]);
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles(prev => { const n = [...prev]; if (n[index]?.preview) URL.revokeObjectURL(n[index].preview!); n.splice(index, 1); return n; });
+    setPendingFiles(prev => { const n = [...prev]; n.splice(index, 1); return n; });
+  };
+
+  const clearFiles = () => {
+    attachedFiles.forEach(f => { if (f.preview) URL.revokeObjectURL(f.preview); });
+    setAttachedFiles([]);
+    setPendingFiles([]);
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
     if (!user) { setShowAuth(true); return; }
@@ -782,7 +813,8 @@ const App: React.FC = () => {
     setGenerating(true); setResult(null);
 
     // Add user message to chat
-    const userMsg: ChatMessage = { role: 'user', content: currentPrompt, timestamp: Date.now() };
+    const fileLabel = attachedFiles.length > 0 ? `\n📎 ${attachedFiles.map(f => f.name).join(', ')}` : '';
+    const userMsg: ChatMessage = { role: 'user', content: currentPrompt + fileLabel, timestamp: Date.now() };
     const updatedMessages = [...chatMessages, userMsg];
     setChatMessages(updatedMessages);
     setPrompt('');
@@ -821,7 +853,19 @@ const App: React.FC = () => {
       }
 
       setLastSystemPrompt(systemPrefix || '');
-      const res = await generateContent(currentPrompt, currentContentType, currentModel, systemPrefix || undefined);
+      // Process file attachments
+      let fileAttachments: FileAttachment[] | undefined;
+      if (pendingFiles.length > 0) {
+        fileAttachments = await Promise.all(pendingFiles.map(f => fileToAttachment(f)));
+        // Auto-switch to GPT-4o for image analysis if images attached and using deepseek
+        const hasImages = pendingFiles.some(f => f.type.startsWith('image/'));
+        if (hasImages && activeModel === 'deepseek') {
+          activeModel = 'gpt-4o';
+          setModel('gpt-4o');
+        }
+        clearFiles();
+      }
+      const res = await generateContent(currentPrompt, activeContentType, activeModel, systemPrefix || undefined, fileAttachments);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
 
@@ -1203,8 +1247,20 @@ const App: React.FC = () => {
 
             {/* Chat Messages Thread */}
             {chatMessages.length > 0 && (
-              <div style={{ marginBottom: '16px', overflowY: 'auto', padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-                {chatMessages.map((msg, idx) => (
+              <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary, #999)', fontWeight: 600 }}>
+                  💬 {chatTitle || 'Conversation'} · {chatMessages.filter(m => m.role === 'user').length} messages
+                </div>
+                <button onClick={() => { startNewChat(); }} style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: 'var(--primary, #6c63ff)', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                  ➕ New Chat
+                </button>
+              </div>
+              <div style={{ maxHeight: '55vh', overflowY: 'auto', padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px', scrollBehavior: 'smooth' as const }}>
+                {chatMessages.map((msg, idx) => {
+                  const isLastAssistant = msg.role === 'assistant' && idx === chatMessages.length - 1;
+                  const endsWithQuestion = msg.role === 'assistant' && /\?\s*$/.test(msg.content.trim());
+                  return (
                   <div key={idx} style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -1219,12 +1275,12 @@ const App: React.FC = () => {
                       width: msg.role === 'assistant' ? '100%' : 'auto',
                       padding: msg.role === 'assistant' ? '16px 18px' : '10px 16px',
                       borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
+                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : (endsWithQuestion && isLastAssistant) ? 'rgba(108,99,255,0.12)' : 'rgba(255,255,255,0.06)',
                       color: msg.role === 'user' ? '#fff' : 'var(--text-primary, #fff)',
                       fontSize: msg.role === 'assistant' ? '15px' : '14px',
                       lineHeight: '1.6',
                       wordBreak: 'break-word' as const,
-                      border: msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                      border: (endsWithQuestion && isLastAssistant) ? '1px solid rgba(108,99,255,0.3)' : msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
                     }}>
                       {msg.role === 'assistant' ? (
                         <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
@@ -1237,21 +1293,51 @@ const App: React.FC = () => {
                         <button onClick={() => { navigator.clipboard.writeText(msg.content); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
                       </div>
                     )}
+                    {endsWithQuestion && isLastAssistant && (
+                      <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--primary, #6c63ff)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>💬</span> Type your reply below...
+                      </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
                 <div ref={chatEndRef} />
               </div>
+              </>
             )}
 
-            <div style={{ position: 'relative' }}>
-              <textarea className="prompt-input" style={{ paddingRight: '80px' }} placeholder={
+            <div style={{ position: 'relative' }}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
+              onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = ''; handleFileSelect(e.dataTransfer.files); }}>
+              <textarea className="prompt-input" style={{ paddingRight: '120px', ...(chatMessages.length > 0 ? { borderColor: 'rgba(108,99,255,0.3)', background: 'rgba(108,99,255,0.05)' } : {}) }} placeholder={
+                chatMessages.length > 0 ? 'Type your reply here...' :
                 agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
                 agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
                 agentMode === 'email-assistant' ? getEmailPlaceholder() :
                 agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
-                contentType === 'image' ? 'Describe the image...' : 'What to create?'
-              } value={prompt} onChange={e => setPrompt(e.target.value)} />
+                contentType === 'image' ? 'Describe the image...' : 'What would you like to create?'
+              } value={prompt} onChange={e => setPrompt(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && prompt.trim() && !generating) { e.preventDefault(); handleGenerate(); }}} />
+              {/* File attachment preview */}
+              {attachedFiles.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                  {attachedFiles.map((f, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(108,99,255,0.1)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '10px', padding: '6px 12px', fontSize: '13px' }}>
+                      {f.preview ? (
+                        <img src={f.preview} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                      ) : (
+                        <span>📄</span>
+                      )}
+                      <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                      <button onClick={() => removeFile(i)} style={{ background: 'none', border: 'none', color: '#ff6b6b', cursor: 'pointer', fontSize: '16px', padding: '0 2px' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <input type="file" ref={fileInputRef} onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} multiple accept="image/*,.pdf,.doc,.docx,.txt,.csv,.md" style={{ display: 'none' }} />
               <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <button onClick={() => fileInputRef.current?.click()} title="Attach file" style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.25)', color: '#6c63ff', fontSize: '16px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📎</button>
                 {prompt && (
                   <button onClick={() => setPrompt('')} title="Clear" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 )}
@@ -1274,8 +1360,8 @@ const App: React.FC = () => {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || !prompt.trim()}>
-                {generating ? 'Analyzing...' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : chatMessages.length > 0 ? '💬 Send' : 'Generate'}
+              <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || (!prompt.trim() && pendingFiles.length === 0)}>
+                {generating ? '⏳ Thinking...' : chatMessages.length > 0 ? '💬 Reply' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : '✨ Generate'}
               </button>
               {user && prompt.trim() && !generating && (
                 <button className="generate-btn" onClick={saveTemplate} disabled={savingTemplate}
@@ -1395,32 +1481,39 @@ const App: React.FC = () => {
                 {chats.map(chat => {
                   const agentInfo = AGENTS.find(a => a.id === chat.agentMode);
                   const lastMsg = chat.messages && chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
+                  const msgCount = chat.messages ? chat.messages.length : 0;
+                  const userMsgCount = chat.messages ? chat.messages.filter((m: any) => m.role === 'user').length : 0;
                   return (
                     <div key={chat.id} style={{
-                      background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.08)',
-                      padding: '14px 16px', cursor: 'pointer', transition: 'all 0.2s'
-                    }}>
-                      <div onClick={() => loadChat(chat)} style={{ marginBottom: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <span style={{ fontSize: '18px' }}>{agentInfo?.icon || '✨'}</span>
-                          <span style={{ fontWeight: 600, fontSize: '15px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title || 'Untitled Chat'}</span>
-                          <span style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', whiteSpace: 'nowrap' }}>{formatChatDate(chat.updatedAt)}</span>
+                      background: 'rgba(255,255,255,0.04)', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.08)',
+                      padding: '16px', cursor: 'pointer', transition: 'all 0.2s'
+                    }}
+                    onClick={() => { loadChat(chat); setTab('create'); }}>
+                      <div style={{ marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                          <span style={{ fontSize: '20px' }}>{agentInfo?.icon || '✨'}</span>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title || 'Untitled Chat'}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', marginTop: '2px' }}>
+                              {agentInfo?.name || 'General'} · {userMsgCount} {userMsgCount === 1 ? 'message' : 'messages'} · {formatChatDate(chat.updatedAt)}
+                            </div>
+                          </div>
                         </div>
                         {lastMsg && (
-                          <p style={{ fontSize: '13px', color: 'var(--text-secondary, #999)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingLeft: '26px' }}>
-                            {lastMsg.role === 'user' ? 'You: ' : 'AI: '}{lastMsg.content.substring(0, 80)}
-                          </p>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary, #999)', margin: 0, paddingLeft: '28px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden', lineHeight: '1.4' }}>
+                            {lastMsg.role === 'user' ? '👤 ' : '✨ '}{lastMsg.content.substring(0, 120)}
+                          </div>
                         )}
                       </div>
-                      <div style={{ display: 'flex', gap: '8px', paddingLeft: '26px' }}>
-                        <button onClick={() => loadChat(chat)} style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: 'var(--primary, #6c63ff)', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                      <div style={{ display: 'flex', gap: '8px', paddingLeft: '28px' }} onClick={e => e.stopPropagation()}>
+                        <button onClick={() => { loadChat(chat); setTab('create'); }} style={{ background: 'var(--primary, #6c63ff)', border: 'none', color: '#fff', padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                           ▶ Continue
                         </button>
-                        <button onClick={() => shareChat(chat.id)} style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+                        <button onClick={() => shareChat(chat.id)} style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', padding: '7px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>
                           🔗 Share
                         </button>
-                        <button onClick={() => deleteChat(chat.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', padding: '5px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
-                          🗑️ Delete
+                        <button onClick={() => deleteChat(chat.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444', padding: '7px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                          🗑️
                         </button>
                       </div>
                     </div>
