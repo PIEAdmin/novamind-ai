@@ -8,8 +8,13 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
+
+type ToastType = 'success' | 'info' | 'warning' | 'error';
+type ThemeMode = 'dark' | 'light';
+type LangCode = 'en' | 'es' | 'fr';
+type ChatTagLabel = '' | 'Content' | 'Email' | 'Design' | 'Research' | 'Marketing' | 'Ideas';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -91,6 +96,8 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'ad-maker', name: 'Ad Maker', icon: '📢', desc: 'Ad copy & creatives' },
   { id: 'logo-maker', name: 'Logo Maker', icon: '🎨', desc: 'AI logo design' },
   { id: 'email-assistant', name: 'Email Assistant', icon: '📧', desc: 'Professional emails' },
+  { id: 'fact-checker', name: 'Fact Checker', icon: '✅', desc: 'Verify claims & info', badge: 'NEW' },
+  { id: 'idea-spark', name: 'Idea Spark', icon: '💡', desc: 'Brainstorm & ideation', badge: 'NEW' },
 ];
 
 const EMAIL_MODE_PROMPTS: Record<EmailMode, (tone: string) => string> = {
@@ -152,7 +159,20 @@ Be punchy, benefit-driven, and conversion-focused.`,
 ## 🔤 Typography (font recommendations)
 ## 📰 Layout (icon, horizontal, stacked variants)
 Suggest switching to GPT Image for AI-generated visuals.`,
-  'email-assistant': `You are a professional email writer. Write a polished email with Subject line, greeting, body, CTA, and sign-off. Include 2 alternative subject lines and a follow-up tip. Adapt tone to context.`
+  'email-assistant': `You are a professional email writer. Write a polished email with Subject line, greeting, body, CTA, and sign-off. Include 2 alternative subject lines and a follow-up tip. Adapt tone to context.`,
+  'fact-checker': `You are a meticulous fact-checker and research analyst. When given a claim, statement, or piece of information:
+## \u2705 Verdict (True / Partially True / False / Unverifiable)
+## \ud83d\udcca Evidence (3-5 bullet points with sources where possible)
+## \ud83d\udd0d Context (important nuance or missing context)
+## \ud83d\udcdd Summary (2-3 sentence plain-English explanation)
+Be objective, cite sources when possible, and clearly distinguish between verified facts and opinions.`,
+  'idea-spark': `You are a creative brainstorming partner and idea generator. When given a topic or challenge:
+## \ud83d\udca1 Top Ideas (5-7 creative ideas, ranked by potential)
+## \ud83c\udfaf Quick Wins (2-3 ideas that can be executed immediately)
+## \ud83d\ude80 Moonshot (1 ambitious, high-impact idea)
+## \ud83d\udd17 Connections (unexpected links between the topic and other fields)
+## \ud83d\udccb Next Steps (3 concrete actions to start with the best idea)
+Be creative, think laterally, and don't be afraid of unconventional suggestions.`
 };
 
 const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
@@ -185,6 +205,18 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '📋', text: 'Follow-up email after a sales meeting where the client seemed interested' },
     { icon: '🙏', text: 'Professional apology email for a delayed project delivery' },
     { icon: '🎉', text: 'Customer welcome email sequence for new subscribers' }
+  ],
+  'fact-checker': [
+    { icon: '✅', text: 'Is it true that humans only use 10% of their brain?' },
+    { icon: '📊', text: 'Fact-check: "The Great Wall of China is visible from space"' },
+    { icon: '🔍', text: 'Verify this claim: "Drinking 8 glasses of water a day is essential"' },
+    { icon: '📝', text: 'Is this accurate: "90% of startups fail within the first year"?' }
+  ],
+  'idea-spark': [
+    { icon: '💡', text: 'Give me 10 creative side hustle ideas I can start this weekend with $0' },
+    { icon: '🎯', text: 'Brainstorm unique marketing ideas for a local bakery on a tight budget' },
+    { icon: '🚀', text: 'What are some innovative app ideas that solve everyday problems?' },
+    { icon: '🔗', text: 'Creative content ideas for a fitness Instagram account that stand out' }
   ]
 };
 
@@ -281,6 +313,102 @@ const generateShareId = (): string => {
   return result;
 };
 
+
+const CHAT_TAGS: ChatTagLabel[] = ['', 'Content', 'Email', 'Design', 'Research', 'Marketing', 'Ideas'];
+
+const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
+  en: {
+    home: 'Home', create: 'Create', gallery: 'Gallery', chats: 'Chats', community: 'Community',
+    crm: 'CRM', projects: 'Projects', signOut: 'Sign Out', signIn: 'Sign In',
+    createAccount: 'Create Account', generate: 'Generate', thinking: 'Thinking...',
+    newChat: 'New Chat', searchChats: 'Search chats...', searchHistory: 'Search creations...',
+    noResults: 'No results found', noChats: 'No chats yet', noCreations: 'No creations yet',
+    yourAIToolkit: 'Your AI Toolkit', createAmazingContent: 'Create Amazing Content with AI',
+    startCreating: 'Start Creating', welcomeToNovaMind: 'Welcome to NovaMind AI',
+    monthlyUsage: 'Monthly Usage', used: 'Used', limit: 'Limit', created: 'Created',
+    tryOneOfThese: 'Try one of these:', typeYourReply: 'Type your reply below...',
+    offline: 'You are offline', backOnline: 'Back online!',
+    exportPDF: 'Export PDF', exportWord: 'Export Word', copy: 'Copy', share: 'Share',
+    publish: 'Publish', download: 'Download', darkMode: 'Dark Mode', lightMode: 'Light Mode',
+    shortcuts: 'Shortcuts', myCreations: 'My Creations', myChats: 'My Chats',
+    communityGallery: 'Community Gallery', reply: 'Reply', continue_: 'Continue',
+    delete_: 'Delete', aiAgents: 'AI Agents', quickTools: 'Quick Tools',
+    thisMonth: 'This Month', totalGenerations: 'Total Generations',
+    textGens: 'Text Gens', imageGens: 'Image Gens', recentActivity: 'Recent Activity',
+    industry: 'Industry', all: 'All', favorites: 'Favorites',
+    factCheck: 'Fact Check', ideaSpark: 'Idea Spark', tapToDictate: 'Tap to dictate',
+    listening: 'Listening...', moodWriter: 'Mood Writer', voiceNotSupported: 'Voice not supported'
+  },
+  es: {
+    home: 'Inicio', create: 'Crear', gallery: 'Galería', chats: 'Chats', community: 'Comunidad',
+    crm: 'CRM', projects: 'Proyectos', signOut: 'Cerrar Sesión', signIn: 'Iniciar Sesión',
+    createAccount: 'Crear Cuenta', generate: 'Generar', thinking: 'Pensando...',
+    newChat: 'Nuevo Chat', searchChats: 'Buscar chats...', searchHistory: 'Buscar creaciones...',
+    noResults: 'Sin resultados', noChats: 'Sin chats aún', noCreations: 'Sin creaciones aún',
+    yourAIToolkit: 'Tu Kit de IA', createAmazingContent: 'Crea Contenido Increíble con IA',
+    startCreating: 'Empezar a Crear', welcomeToNovaMind: 'Bienvenido a NovaMind AI',
+    monthlyUsage: 'Uso Mensual', used: 'Usado', limit: 'Límite', created: 'Creado',
+    tryOneOfThese: 'Prueba uno de estos:', typeYourReply: 'Escribe tu respuesta...',
+    offline: 'Estás sin conexión', backOnline: 'Conexión restaurada',
+    exportPDF: 'Exportar PDF', exportWord: 'Exportar Word', copy: 'Copiar', share: 'Compartir',
+    publish: 'Publicar', download: 'Descargar', darkMode: 'Modo Oscuro', lightMode: 'Modo Claro',
+    shortcuts: 'Atajos', myCreations: 'Mis Creaciones', myChats: 'Mis Chats',
+    communityGallery: 'Galería Comunidad', reply: 'Responder', continue_: 'Continuar',
+    delete_: 'Eliminar', aiAgents: 'Agentes IA', quickTools: 'Herramientas',
+    thisMonth: 'Este Mes', totalGenerations: 'Generaciones Totales',
+    textGens: 'Texto', imageGens: 'Imágenes', recentActivity: 'Actividad Reciente',
+    industry: 'Industria', all: 'Todos', favorites: 'Favoritos',
+    factCheck: 'Verificar', ideaSpark: 'Ideas', tapToDictate: 'Toca para dictar',
+    listening: 'Escuchando...', moodWriter: 'Tono', voiceNotSupported: 'Voz no compatible'
+  },
+  fr: {
+    home: 'Accueil', create: 'Créer', gallery: 'Galerie', chats: 'Chats', community: 'Communauté',
+    crm: 'CRM', projects: 'Projets', signOut: 'Déconnexion', signIn: 'Connexion',
+    createAccount: 'Créer un Compte', generate: 'Générer', thinking: 'Réflexion...',
+    newChat: 'Nouveau Chat', searchChats: 'Rechercher...', searchHistory: 'Rechercher créations...',
+    noResults: 'Aucun résultat', noChats: 'Pas de chats', noCreations: 'Pas de créations',
+    yourAIToolkit: 'Boîte à Outils IA', createAmazingContent: 'Créez du Contenu Incroyable',
+    startCreating: 'Commencer', welcomeToNovaMind: 'Bienvenue sur NovaMind AI',
+    monthlyUsage: 'Utilisation Mensuelle', used: 'Utilisé', limit: 'Limite', created: 'Créé',
+    tryOneOfThese: 'Essayez ceux-ci:', typeYourReply: 'Tapez votre réponse...',
+    offline: 'Vous êtes hors ligne', backOnline: 'Reconnecté!',
+    exportPDF: 'Exporter PDF', exportWord: 'Exporter Word', copy: 'Copier', share: 'Partager',
+    publish: 'Publier', download: 'Télécharger', darkMode: 'Mode Sombre', lightMode: 'Mode Clair',
+    shortcuts: 'Raccourcis', myCreations: 'Mes Créations', myChats: 'Mes Chats',
+    communityGallery: 'Galerie Communauté', reply: 'Répondre', continue_: 'Continuer',
+    delete_: 'Supprimer', aiAgents: 'Agents IA', quickTools: 'Outils Rapides',
+    thisMonth: 'Ce Mois', totalGenerations: 'Générations Totales',
+    textGens: 'Texte', imageGens: 'Images', recentActivity: 'Activité Récente',
+    industry: 'Industrie', all: 'Tous', favorites: 'Favoris',
+    factCheck: 'Vérifier', ideaSpark: 'Idées', tapToDictate: 'Appuyez pour dicter',
+    listening: 'Écoute...', moodWriter: "Ton d'Écriture", voiceNotSupported: 'Voix non supportée'
+  }
+};
+
+const PERSONAL_TOOL_STARTERS: Record<string, string[]> = {
+  'fridge-chef': ['I have chicken, rice, and broccoli', 'Quick dinner with pasta and cheese'],
+  'day-planner': ['5 work tasks + gym + groceries', 'Full day of meetings + deep work'],
+  'itinerary': ['Weekend trip to NYC on $500', '7 days in Tokyo for two'],
+  'summarizer': ['Paste a chapter or article here', 'Key points from this text'],
+  'flashcards': ['Biology: cell division notes', 'Spanish vocabulary chapter 5'],
+  'essay-outline': ['Climate change persuasive essay', 'History of AI research paper'],
+  'resume': ['Software engineer at Google posting', 'Marketing manager role'],
+  'interview': ['Product manager at a startup', 'Data analyst behavioral questions'],
+  'contract': ['Apartment lease review', 'Freelance contract terms'],
+  'video-hook': ['Day in my life vlog', 'Fitness transformation story'],
+  'faceless-script': ['Top 10 unsolved mysteries', 'How money actually works'],
+  'aesthetic-prompt': ['Cozy autumn coffee shop', 'Futuristic neon cityscape'],
+};
+
+const detectChatTag = (agentMode: string, contentType: string): ChatTagLabel => {
+  if (agentMode === 'email-assistant') return 'Email';
+  if (agentMode === 'ad-maker') return 'Marketing';
+  if (agentMode === 'logo-maker' || contentType === 'image') return 'Design';
+  if (agentMode === 'competitor-analysis' || agentMode === 'fact-checker') return 'Research';
+  if (agentMode === 'idea-spark') return 'Ideas';
+  return 'Content';
+};
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -345,6 +473,20 @@ const App: React.FC = () => {
   });
 
   const [savingTemplate, setSavingTemplate] = useState(false);
+
+  // === NEW FEATURE STATE ===
+  const [theme, setTheme] = useState<ThemeMode>(() => (localStorage.getItem('novamind-theme') as ThemeMode) || 'dark');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
+  const [toastType, setToastType] = useState<ToastType>('info');
+  const [toastVisible, setToastVisible] = useState(false);
+  const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const [language, setLanguage] = useState<LangCode>(() => (localStorage.getItem('novamind-lang') as LangCode) || 'en');
+  const [chatTag, setChatTag] = useState<ChatTagLabel>('');
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const [moodTone, setMoodTone] = useState('');
 
   // Scroll to bottom of chat when messages change
   useEffect(() => {
@@ -581,6 +723,38 @@ const App: React.FC = () => {
     return unsub;
   }, []);
 
+  // === NEW FEATURE EFFECTS ===
+  // Theme persistence
+  useEffect(() => {
+    localStorage.setItem('novamind-theme', theme);
+  }, [theme]);
+
+  // Language persistence
+  useEffect(() => {
+    localStorage.setItem('novamind-lang', language);
+  }, [language]);
+
+  // Online/offline detection
+  useEffect(() => {
+    const goOnline = () => setIsOffline(false);
+    const goOffline = () => setIsOffline(true);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKbd = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'Enter') { e.preventDefault(); const b = document.querySelector('.generate-btn') as HTMLButtonElement; if (b && !b.disabled) b.click(); }
+      if (e.ctrlKey && e.key === 'n') { e.preventDefault(); startNewChat(); }
+      if (e.ctrlKey && e.key === 'k') { e.preventDefault(); setShowShortcuts(p => !p); }
+      if (e.key === 'Escape') { setShowShortcuts(false); setShowShareMenu(null); }
+    };
+    window.addEventListener('keydown', handleKbd);
+    return () => window.removeEventListener('keydown', handleKbd);
+  }, []);
+
 
   const ONBOARDING_USES = [
     { id: 'content', label: '✍️ Content Writing', desc: 'Blog posts, articles, copy' },
@@ -744,6 +918,17 @@ const App: React.FC = () => {
       }
     }
 
+
+    // Fact-checking detection
+    if (/\b(fact.?check|is it true|verify.*claim|debunk|myth.*bust|true or false)\b/.test(p)) {
+      return { agent: 'fact-checker', notification: '\u2705 Switching to Fact Checker...' };
+    }
+
+    // Idea generation detection
+    if (/\b(brainstorm|give me ideas|creative ideas|come up with|think of ideas|innovative ideas|ideas for)\b/.test(p)) {
+      return { agent: 'idea-spark', notification: '\U0001f4a1 Switching to Idea Spark...' };
+    }
+
     return null; // Stay in General
   };
 
@@ -890,6 +1075,11 @@ const App: React.FC = () => {
           `Previous conversation:\n${conversationContext}\n\nNow respond to the user's latest message:`;
       }
 
+      // Mood tone injection
+      if (moodTone) {
+        systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+          'Write in a ' + moodTone.toLowerCase() + ' tone. Adjust your language, word choice, and style to match this mood.';
+      }
       setLastSystemPrompt(systemPrefix || '');
       // Process file attachments
       let fileAttachments: FileAttachment[] | undefined;
@@ -983,13 +1173,62 @@ const App: React.FC = () => {
   const [communityPosts, setCommunityPosts] = useState<any[]>([]);
   const [communityLoading, setCommunityLoading] = useState(false);
 
-  const showToast = (msg: string) => { setShareToast(msg); setTimeout(() => setShareToast(''), 2500); };
+  const showToast = (msg: string, type: ToastType = 'info') => {
+    setToastMsg(msg); setToastType(type); setToastVisible(true);
+    setShareToast(msg); // backward compat
+    setTimeout(() => { setToastVisible(false); setShareToast(''); }, 2500);
+  };
+
+  const exportToPDF = () => {
+    const text = result?.content || result?.text || '';
+    if (!text) return;
+    const pw = window.open('', '_blank');
+    if (pw) {
+      pw.document.write('<html><head><title>NovaMind Export</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}h1,h2,h3{color:#333}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto}code{background:#f0f0f0;padding:2px 6px;border-radius:4px}</style></head><body>' + renderMarkdown(text) + '<hr><p style="color:#999;font-size:12px">Exported from NovaMind AI</p></body></html>');
+      pw.document.close();
+      pw.print();
+    }
+  };
+
+  const exportToWord = () => {
+    const text = result?.content || result?.text || '';
+    if (!text) return;
+    const html = '<html><head><meta charset="utf-8"><title>NovaMind Export</title></head><body>' + renderMarkdown(text) + '</body></html>';
+    const blob = new Blob([html], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'novamind-export.doc'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const toggleVoiceRecognition = () => {
+    if (isListening && recognitionRef.current) { recognitionRef.current.stop(); setIsListening(false); return; }
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) { alert('Voice not supported in this browser'); return; }
+    const recog = new SR();
+    recog.lang = 'en-US'; recog.interimResults = false; recog.maxAlternatives = 1;
+    recog.onresult = (event: any) => { const t = event.results[0][0].transcript; setPrompt((p: string) => p ? p + ' ' + t : t); };
+    recog.onend = () => setIsListening(false);
+    recog.onerror = (ev: any) => { setIsListening(false); if (ev.error === 'not-allowed') alert('Microphone access denied.'); };
+    recognitionRef.current = recog; recog.start(); setIsListening(true);
+  };
 
   const shareToSocial = (platform: string, text: string, imageUrl?: string) => {
     const shareText = text.substring(0, 200);
     const appUrl = 'https://novamind-ai-app.netlify.app';
     const tagline = 'Made with NovaMind AI ✨ Try it free';
     const fullText = `${shareText}\n\n${tagline}`;
+
+    // Native share with image blob support for base64 images
+    if (imageUrl && imageUrl.startsWith('data:') && navigator.share) {
+      fetch(imageUrl).then(r => r.blob()).then(blob => {
+        const file = new File([blob], 'novamind-creation.png', { type: blob.type || 'image/png' });
+        navigator.share({ text: fullText, url: appUrl, files: [file] }).catch(() => {});
+      }).catch(() => {});
+      showToast('Sharing image...', 'info');
+      setShowShareMenu(null);
+      return;
+    }
+
     const encodedText = encodeURIComponent(fullText);
     const encodedUrl = encodeURIComponent(appUrl);
     
@@ -1184,6 +1423,7 @@ const App: React.FC = () => {
   const pct = Math.min((usage.used / usage.limit) * 100, 100);
   const currentAgent = AGENTS.find(a => a.id === agentMode);
   const filteredHistory = historyFilter === 'favorites' ? history.filter(h => h.isFavorite) : history;
+  const t = TRANSLATIONS[language];
 
   const getEmailPlaceholder = (): string => {
     switch (emailMode) {
@@ -1228,14 +1468,59 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-container" data-theme={theme}>
+      <style>{`
+        [data-theme="light"] {
+          --bg-primary: #f8f9fa; --bg-secondary: #e9ecef; --text-primary: #212529;
+          --text-secondary: #6c757d; --surface: #ffffff; --border-color: #dee2e6;
+        }
+        [data-theme="light"] .app-container { background: #f8f9fa; color: #212529; }
+        [data-theme="light"] .navbar { background: rgba(255,255,255,0.95); border-bottom: 1px solid #dee2e6; }
+        [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.95); border-top: 1px solid #dee2e6; }
+        [data-theme="light"] .auth-input, [data-theme="light"] .prompt-input { background: #fff; border-color: #dee2e6; color: #212529; }
+        [data-theme="light"] .stat-card { background: #fff; border-color: #dee2e6; }
+        [data-theme="light"] .tool-card, [data-theme="light"] .agent-card, [data-theme="light"] .gallery-card { background: #fff; border-color: #dee2e6; }
+        [data-theme="light"] .suggestion-chip { background: #fff; border-color: #dee2e6; color: #212529; }
+        [data-theme="light"] .industry-chip { background: rgba(0,0,0,0.04); border-color: #dee2e6; color: #212529; }
+        [data-theme="light"] .model-chip { background: rgba(0,0,0,0.04); color: #212529; }
+        [data-theme="light"] .result-container { background: #fff; border-color: #dee2e6; }
+        [data-theme="light"] .agent-info-banner { background: rgba(108,99,255,0.05); border-color: rgba(108,99,255,0.15); }
+        [data-theme="light"] .auth-modal { background: #fff; color: #212529; }
+        [data-theme="light"] .empty-state { color: #6c757d; }
+        @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(255,75,75,0.4)} 50%{box-shadow:0 0 0 12px rgba(255,75,75,0)} }
+        @keyframes slideInUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+        .toast-enter { animation: slideInUp 0.3s ease; }
+        .offline-banner { animation: slideInUp 0.3s ease; }
+        .mic-pulse { animation: pulseMic 1.5s ease-in-out infinite !important; }
+        .mood-chip { transition: all 0.2s ease; cursor: pointer; }
+        .mood-chip:hover { transform: scale(1.05); }
+        @media (max-width: 480px) {
+          .nav-controls { gap: 4px !important; }
+          .nav-controls button { font-size: 14px !important; padding: 4px 6px !important; }
+        }
+      `}</style>
       <nav className="navbar">
         <div className="logo-section">
           <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI" />
           <span className="logo-text">{isPersonalMode ? 'NovaMind Personal' : 'NovaMind AI'}</span>
         </div>
-        <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600' }}>🚪 Sign Out</button>
+        <div className="nav-controls" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', gap: '2px' }}>
+            {(['en','es','fr'] as LangCode[]).map(code => (
+              <button key={code} onClick={() => setLanguage(code)} style={{ background: language === code ? 'rgba(108,99,255,0.3)' : 'transparent', border: language === code ? '1px solid rgba(108,99,255,0.5)' : '1px solid transparent', borderRadius: '6px', padding: '4px 6px', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', color: 'var(--text-primary, #fff)' }}>{{ en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }[code]}</button>
+            ))}
+          </div>
+          <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
+          <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer' }}>⌨️</button>
+          <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600' }}>🚪 {t.signOut}</button>
+        </div>
       </nav>
+      {isOffline && (
+        <div className="offline-banner" style={{ background: '#ef4444', color: '#fff', padding: '8px 16px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
+          ⚠️ {t.offline}
+        </div>
+      )}
       <div className="main-content">
         {tab === 'home' && isPersonalMode && (
           <>
@@ -1292,7 +1577,23 @@ const App: React.FC = () => {
             <div className="usage-bar"><div className={`usage-fill ${pct > 80 ? 'warning' : ''}`} style={{ width: `${pct}%` }} /></div>
           </div>
           
-          <h3 className="section-title">AI Agents</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }}>
+            <div className="stat-card" style={{ textAlign: 'center' }}>
+              <div className="stat-value" style={{ fontSize: '1.2rem' }}>{t.thisMonth}</div>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--primary, #6c63ff)', margin: '4px 0' }}>{usage.used}</div>
+              <div className="stat-label">{t.totalGenerations}</div>
+            </div>
+            <div className="stat-card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: '#22c55e', margin: '4px 0' }}>{history.filter(h => h.contentType === 'text').length}</div>
+              <div className="stat-label">{t.textGens}</div>
+            </div>
+            <div className="stat-card" style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '24px', fontWeight: 700, color: '#a855f7', margin: '4px 0' }}>{history.filter(h => h.contentType === 'image' || h.model === 'gpt-image-1').length}</div>
+              <div className="stat-label">{t.imageGens}</div>
+            </div>
+          </div>
+
+          <h3 className="section-title">{t.aiAgents}</h3>
           <div className="agent-grid">
             {AGENTS.map((agent) => (
               <div key={agent.id} className={`agent-card ${agentMode === agent.id ? 'active' : ''}`} onClick={() => selectAgent(agent.id)}>
@@ -1384,6 +1685,18 @@ const App: React.FC = () => {
                   <p>{getEmailBannerText().desc}</p>
                 </div>
               </>
+            )}
+            {agentMode === 'fact-checker' && (
+              <div className="agent-info-banner">
+                <strong>✅ Fact Checker Agent</strong>
+                <p>Enter a claim, statement, or piece of information — get a thorough fact-check with sources and verdict.</p>
+              </div>
+            )}
+            {agentMode === 'idea-spark' && (
+              <div className="agent-info-banner">
+                <strong>💡 Idea Spark Agent</strong>
+                <p>Describe a topic or challenge — get creative ideas, quick wins, and actionable next steps.</p>
+              </div>
             )}
             {agentMode === 'logo-maker' && (
               <div className="agent-info-banner">
@@ -1578,6 +1891,21 @@ const App: React.FC = () => {
               </>
             )}
 
+            {/* Mood Writer Chips */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', alignItems: 'center' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>{'✍️'} Mood:</span>
+              {['', 'Professional', 'Casual', 'Witty', 'Empathetic', 'Bold', 'Minimalist'].map(tone => (
+                <button key={tone} className="mood-chip" onClick={() => setMoodTone(tone)}
+                  style={{
+                    padding: '4px 12px', fontSize: '12px', fontWeight: 600, borderRadius: '16px', cursor: 'pointer',
+                    background: moodTone === tone ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
+                    color: moodTone === tone ? '#fff' : 'var(--text-secondary, #aaa)',
+                    border: moodTone === tone ? '1px solid var(--primary, #6c63ff)' : '1px solid rgba(255,255,255,0.1)',
+                  }}>
+                  {tone || 'Default'}
+                </button>
+              ))}
+            </div>
             <div style={{ position: 'relative' }}
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
               onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
@@ -1613,22 +1941,7 @@ const App: React.FC = () => {
                 {prompt && (
                   <button onClick={() => setPrompt('')} title="Clear" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 )}
-                <button onClick={() => {
-                  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-                  if (!SR) { alert('Speech recognition is not supported in this browser. Try Chrome or Safari.'); return; }
-                  const recognition = new SR();
-                  recognition.lang = 'en-US';
-                  recognition.interimResults = false;
-                  recognition.maxAlternatives = 1;
-                  recognition.onresult = (event: any) => {
-                    const transcript = event.results[0][0].transcript;
-                    setPrompt(prev => prev ? prev + ' ' + transcript : transcript);
-                  };
-                  recognition.onerror = (event: any) => {
-                    if (event.error === 'not-allowed') alert('Microphone access denied. Please allow microphone permissions.');
-                  };
-                  recognition.start();
-                }} title="Voice input" style={{ background: 'rgba(108,99,255,0.2)', border: '1px solid rgba(108,99,255,0.3)', color: '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎤</button>
+                <button onClick={toggleVoiceRecognition} title={isListening ? t.listening : t.tapToDictate} className={isListening ? 'mic-pulse' : ''} style={{ background: isListening ? 'rgba(255,75,75,0.3)' : 'rgba(108,99,255,0.2)', border: isListening ? '2px solid rgba(255,75,75,0.6)' : '1px solid rgba(108,99,255,0.3)', color: isListening ? '#ff4b4b' : '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>{isListening ? '🔴' : '🎤'}</button>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -1658,6 +1971,8 @@ const App: React.FC = () => {
               <div className="result-container">
                 <div className="result-actions" style={{ position: 'relative' }}>
                   {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
+                  {!result.imageUrl && <button className="action-btn" onClick={exportToPDF} style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>📄 PDF</button>}
+                  {!result.imageUrl && <button className="action-btn" onClick={exportToWord} style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>📝 Word</button>}
                   {result.imageUrl && <button className="action-btn" onClick={handleDownload}>⬇️ Download</button>}
                   <button className="action-btn" onClick={handleRegenerate}>🔄 Regenerate</button>
                   {result.imageUrl && (
@@ -1696,9 +2011,22 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
+            {!result && !generating && !prompt && chatMessages.length === 0 && isPersonalMode && (
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '8px' }}>{"\U0001f527"} Quick starts:</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {PERSONAL_TOOLS.slice(0, 6).map(tool => (
+                    <button key={tool.id} className="suggestion-chip" onClick={() => { setPrompt(tool.prompt); }}
+                      style={{ fontSize: '12px', padding: '6px 12px' }}>
+                      <span>{tool.icon}</span> {tool.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {!result && !generating && !prompt && chatMessages.length === 0 && (
               <div className="prompt-suggestions">
-                <p className="suggestions-label">Try one of these:</p>
+                <p className="suggestions-label">{t.tryOneOfThese}</p>
                 <div className="suggestions-grid">
                   {(AGENT_SUGGESTIONS[agentMode] || AGENT_SUGGESTIONS['general']).map((s, i) => (
                     <button key={i} className="suggestion-chip" onClick={() => { setPrompt(s.text); if (s.icon === '🎨' && agentMode === 'general') { setModel('gpt-image-1'); setContentType('image'); } }}>
@@ -1711,7 +2039,9 @@ const App: React.FC = () => {
           </div>
         )}
         {tab === 'gallery' && (<>
-          <h3 className="section-title">My Creations</h3>
+          <h3 className="section-title">{t.myCreations}</h3>
+          <input type="text" placeholder={t.searchHistory} value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary, #fff)', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' as const }} />
           {history.length > 0 && (
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               {(['all', 'favorites'] as const).map(f => (
@@ -1765,12 +2095,21 @@ const App: React.FC = () => {
         {/* Chats Tab */}
         {tab === 'chats' && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h3 className="section-title" style={{ margin: 0 }}>💬 My Chats</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <h3 className="section-title" style={{ margin: 0 }}>💬 {t.myChats}</h3>
               <button onClick={() => { startNewChat(); setTab('create'); }}
                 style={{ background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
-                ➕ New Chat
+                ➕ {t.newChat}
               </button>
+            </div>
+            <input type="text" placeholder={t.searchChats} value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary, #fff)', fontSize: '14px', marginBottom: '10px', boxSizing: 'border-box' as const }} />
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+              {CHAT_TAGS.map(tag => (
+                <button key={tag || 'all'} onClick={() => setChatTag(tag)} className={`model-chip ${chatTag === tag ? 'active' : ''}`} style={{ fontSize: '12px', padding: '4px 12px' }}>
+                  {tag || t.all}
+                </button>
+              ))}
             </div>
             {chats.length === 0 ? (
               <div className="empty-state">
@@ -1779,7 +2118,7 @@ const App: React.FC = () => {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {chats.map(chat => {
+                {chats.filter(c => (!searchQuery || (c.title || '').toLowerCase().includes(searchQuery.toLowerCase())) && (!chatTag || detectChatTag(c.agentMode, c.contentType) === chatTag)).map(chat => {
                   const agentInfo = AGENTS.find(a => a.id === chat.agentMode);
                   const lastMsg = chat.messages && chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
                   const msgCount = chat.messages ? chat.messages.length : 0;
@@ -1889,9 +2228,9 @@ const App: React.FC = () => {
         {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
         {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
       </div>
-      {shareToast && (
-        <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #6c63ff, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(108,99,255,0.4)', animation: 'fadeIn 0.3s ease' }}>
-          {shareToast}
+      {toastVisible && (
+        <div className="toast-enter" style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: toastType === 'error' ? '#ef4444' : toastType === 'success' ? '#22c55e' : toastType === 'warning' ? '#f59e0b' : 'linear-gradient(135deg, #6c63ff, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+          {toastMsg}
         </div>
       )}
       <nav className="bottom-nav">
@@ -2014,6 +2353,23 @@ const App: React.FC = () => {
               )}
             </div>
             <p onClick={skipOnboarding} style={{ textAlign: 'center', marginTop: '12px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer', opacity: 0.6 }}>Skip setup for now</p>
+          </div>
+        </div>
+      )}
+      {showShortcuts && (
+        <div className="auth-overlay" onClick={() => setShowShortcuts(false)}>
+          <div className="auth-modal" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ marginBottom: '4px' }}>{"\u2328\ufe0f"} {t.shortcuts}</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '16px' }}>Speed up your workflow</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {[['Ctrl + Enter', 'Send message'], ['Ctrl + N', 'New chat'], ['Ctrl + K', 'Toggle shortcuts'], ['Escape', 'Close dialogs']].map(([key, desc]) => (
+                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>{desc}</span>
+                  <kbd style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontFamily: 'monospace', border: '1px solid rgba(255,255,255,0.15)' }}>{key}</kbd>
+                </div>
+              ))}
+            </div>
+            <button className="generate-btn" onClick={() => setShowShortcuts(false)} style={{ marginTop: '20px' }}>Close</button>
           </div>
         </div>
       )}
