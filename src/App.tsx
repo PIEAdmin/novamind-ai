@@ -431,6 +431,7 @@ const App: React.FC = () => {
   const [lastContentType, setLastContentType] = useState('text');
   const [lastModel, setLastModel] = useState('deepseek');
   const [lastSystemPrompt, setLastSystemPrompt] = useState('');
+  const [lastFiles, setLastFiles] = useState<FileAttachment[]>([]);
   const [industry, setIndustry] = useState('general');
   const [imageStyle, setImageStyle] = useState('');
   const [imageSize, setImageSize] = useState('');
@@ -1001,7 +1002,7 @@ const App: React.FC = () => {
     const hasImageAttachments = pendingFiles.some(f => f.type.startsWith('image/'));
 
     // Image generation → GPT Image
-    if (/\b(generate.*image|create.*image|draw|design|make.*picture|make.*image|illustration|render|visualize|create.*graphic|poster|banner|infographic|logo|icon)\b/.test(pLower) && !hasImageAttachments) {
+    if (/\b(generate.*image|create.*image|draw\s+(a|an|me|the)|design\s+(a|an|me|the)\s*(logo|image|graphic|poster|banner|icon|illustration)|make.*picture|make.*image|create.*illustration|render\s+(a|an|me)|visualize|create.*graphic|make.*poster|make.*banner|make.*infographic|make.*logo|make.*icon|create.*logo|draw.*picture)\b/.test(pLower) && !hasImageAttachments && pendingFiles.length === 0) {
       activeModel = 'gpt-image-1';
       activeContentType = 'image';
       setModel('gpt-image-1');
@@ -1081,6 +1082,8 @@ const App: React.FC = () => {
           'Write in a ' + moodTone.toLowerCase() + ' tone. Adjust your language, word choice, and style to match this mood.';
       }
       setLastSystemPrompt(systemPrefix || '');
+      // Save file attachments for retry/regenerate
+      const savedFileAttachments: FileAttachment[] = [];
       // Process file attachments
       let fileAttachments: FileAttachment[] | undefined;
       if (pendingFiles.length > 0) {
@@ -1092,7 +1095,9 @@ const App: React.FC = () => {
           setModel('gpt-4o');
         }
         clearFiles();
+        savedFileAttachments.push(...fileAttachments);
       }
+      setLastFiles(savedFileAttachments);
       // 🎨 Inject Image Studio enhancements into prompt
       let finalPrompt = currentPrompt;
       if (activeContentType === 'image' || activeModel === 'gpt-image-1') {
@@ -1325,7 +1330,7 @@ const App: React.FC = () => {
     if (!lastPrompt || generating) return;
     setGenerating(true); setResult(null);
     try {
-      const res = await generateContent(lastPrompt, lastContentType, lastModel, lastSystemPrompt || undefined);
+      const res = await generateContent(lastPrompt, lastContentType, lastModel, lastSystemPrompt || undefined, lastFiles.length > 0 ? lastFiles : undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       // Add regenerated result to chat
       const isImg = !!(res?.imageUrl || res?.type === 'image');
