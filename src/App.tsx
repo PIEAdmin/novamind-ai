@@ -844,6 +844,13 @@ const App: React.FC = () => {
         systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals.`;
       }
 
+      // Personalize — address the user by name if available
+      const firstName = user?.displayName?.split(' ')[0] || '';
+      if (firstName) {
+        systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+          `The user's name is ${firstName}. Address them by name naturally — use it in greetings, transitions, or when it feels conversational, but don't force it into every sentence.`;
+      }
+
       // Build conversation context from last 10 messages
       const contextMessages = updatedMessages.slice(-10);
       if (contextMessages.length > 1) {
