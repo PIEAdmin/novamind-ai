@@ -84,11 +84,20 @@ exports.handler = async (event) => {
     // NOTE: dall-e-3 was deprecated and shut down May 12, 2026
     // gpt-image-1 returns base64 only (no URL), doesn't support response_format
     if (type === 'image') {
+      // Add safe margin instructions to prevent text/content from being cut off at edges
+      const safePrompt = prompt + '. IMPORTANT LAYOUT RULES: Keep all text, logos, and important elements well within safe margins — at least 10% padding from every edge. Never place text or key visuals at the very top, bottom, or sides of the image. Center the composition with comfortable breathing room on all sides.';
+      // Parse size from prompt if specified (e.g., "1200x628" for banners)
+      const sizeMatch = prompt.match(/(\d{3,4})x(\d{3,4})/);
+      const imageSize = sizeMatch ? `${sizeMatch[1]}x${sizeMatch[2]}` : '1024x1024';
+      // Validate size — gpt-image-1 supports: 1024x1024, 1536x1024, 1024x1536, auto
+      const validSizes = ['1024x1024', '1536x1024', '1024x1536'];
+      const finalSize = validSizes.includes(imageSize) ? imageSize : 'auto';
+      
       const result = await callAPI('api.openai.com', '/v1/images/generations', OPENAI_KEY, {
         model: 'gpt-image-1',
-        prompt: prompt,
+        prompt: safePrompt,
         n: 1,
-        size: '1024x1024',
+        size: finalSize,
         quality: 'low',
         output_format: 'webp',
         output_compression: 50,
