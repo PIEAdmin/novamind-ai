@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from './firebase-config';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { generateContent, fileToAttachment, FileAttachment } from './api-service';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
-type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'crm' | 'projects';
+type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
 type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
@@ -15,6 +15,7 @@ interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  imageUrl?: string;
 }
 
 interface ChatDoc {
@@ -801,7 +802,7 @@ const App: React.FC = () => {
           const tool = PERSONAL_TOOLS.find(t => t.id === route.personalTool);
           if (tool) {
             // Tool context will be added via system prompt
-            (window as Record<string, unknown>).__activePersonalTool = tool;
+            (window as unknown as Record<string, unknown>).__activePersonalTool = tool;
           }
         }
       }
@@ -824,10 +825,10 @@ const App: React.FC = () => {
       let systemPrefix = '';
 
       // Check for personal tool routing
-      const personalTool = (window as Record<string, unknown>).__activePersonalTool as { id: string; name: string; prompt: string } | undefined;
+      const personalTool = (window as unknown as Record<string, unknown>).__activePersonalTool as { id: string; name: string; prompt: string } | undefined;
       if (personalTool) {
         systemPrefix = `You are NovaMind's ${personalTool.name} assistant. The user is asking for help related to: ${personalTool.name}. Provide detailed, helpful, and personalized results. Be friendly and conversational.`;
-        delete (window as Record<string, unknown>).__activePersonalTool;
+        delete (window as unknown as Record<string, unknown>).__activePersonalTool;
       } else if (activeAgentMode === 'email-assistant') {
         systemPrefix = getEmailSystemPrompt();
         if (currentIndustry !== 'general') {
@@ -869,9 +870,17 @@ const App: React.FC = () => {
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
 
-      // Add assistant message to chat
-      const assistantContent = res?.content || res?.text || '';
-      const assistantMsg: ChatMessage = { role: 'assistant', content: assistantContent, timestamp: Date.now() };
+      // Add assistant message to chat — handle images vs text
+      const isImageResult = !!(res?.imageUrl || res?.type === 'image');
+      const assistantContent = isImageResult 
+        ? (res?.content?.startsWith?.('data:') ? '🎨 Here\'s your generated image!' : (res?.content || res?.text || '🎨 Image generated!'))
+        : (res?.content || res?.text || '');
+      const assistantMsg: ChatMessage = { 
+        role: 'assistant', 
+        content: assistantContent, 
+        timestamp: Date.now(),
+        ...(isImageResult && res?.imageUrl ? { imageUrl: res.imageUrl } : {})
+      };
       const allMessages = [...updatedMessages, assistantMsg];
       setChatMessages(allMessages);
 
@@ -912,12 +921,125 @@ const App: React.FC = () => {
     a.click();
   };
 
+
+  // ====== SHARE & COMMUNITY FUNCTIONS ======
+  const [showShareMenu, setShowShareMenu] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState('');
+  const [communityPosts, setCommunityPosts] = useState<any[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
+
+  const showToast = (msg: string) => { setShareToast(msg); setTimeout(() => setShareToast(''), 2500); };
+
+  const shareToSocial = (platform: string, text: string, imageUrl?: string) => {
+    const shareText = text.substring(0, 200);
+    const appUrl = 'https://novamind-ai-app.netlify.app';
+    const tagline = 'Made with NovaMind AI ✨ Try it free';
+    const fullText = `${shareText}\n\n${tagline}`;
+    const encodedText = encodeURIComponent(fullText);
+    const encodedUrl = encodeURIComponent(appUrl);
+    
+    const urls: Record<string, string> = {
+      twitter: `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedText}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodedUrl}`,
+      whatsapp: `https://wa.me/?text=${encodedText}%20${encodedUrl}`,
+    };
+    
+    if (urls[platform]) {
+      window.open(urls[platform], '_blank', 'width=600,height=400');
+      showToast(`Shared to ${platform}! 🎉`);
+    }
+    setShowShareMenu(null);
+  };
+
+  const handleShareDownload = async (imageUrl: string, filename?: string) => {
+    try {
+      const link = document.createElement('a');
+      link.href = imageUrl;
+      link.download = filename || `novamind-creation-${Date.now()}.webp`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      showToast('Downloaded! 📥');
+    } catch { showToast('Download failed'); }
+  };
+
+  const handleCopyShareLink = (text: string) => {
+    const shareMsg = `${text.substring(0, 200)}\n\nMade with NovaMind AI ✨ — https://novamind-ai-app.netlify.app`;
+    navigator.clipboard.writeText(shareMsg);
+    showToast('Link copied! 🔗');
+    setShowShareMenu(null);
+  };
+
+  const publishToCommunity = async (prompt: string, content: string, imageUrl?: string | null) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'communityGallery'), {
+        userId: user.uid,
+        displayName: user.displayName || 'Anonymous Creator',
+        prompt: prompt.substring(0, 200),
+        content: content.substring(0, 1000),
+        imageUrl: imageUrl || null,
+        likes: 0,
+        likedBy: [],
+        comments: [],
+        createdAt: serverTimestamp(),
+        featured: false,
+      });
+      showToast('Published to Community! 🌟');
+    } catch (err) {
+      console.error('Publish failed:', err);
+      showToast('Failed to publish');
+    }
+  };
+
+  const loadCommunityPosts = async () => {
+    setCommunityLoading(true);
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'communityGallery'),
+        orderBy('createdAt', 'desc'),
+        firestoreLimit(50)
+      ));
+      setCommunityPosts(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) { console.error('Load community failed:', err); }
+    setCommunityLoading(false);
+  };
+
+  const handleLikePost = async (postId: string) => {
+    if (!user) return;
+    const postRef = doc(db, 'communityGallery', postId);
+    const post = communityPosts.find(p => p.id === postId);
+    if (!post) return;
+    const likedBy = post.likedBy || [];
+    const alreadyLiked = likedBy.includes(user.uid);
+    try {
+      if (alreadyLiked) {
+        await updateDoc(postRef, { likes: Math.max(0, (post.likes || 0) - 1), likedBy: likedBy.filter((id: string) => id !== user.uid) });
+      } else {
+        await updateDoc(postRef, { likes: (post.likes || 0) + 1, likedBy: [...likedBy, user.uid] });
+      }
+      setCommunityPosts(prev => prev.map(p => p.id === postId ? {
+        ...p,
+        likes: alreadyLiked ? Math.max(0, (p.likes || 0) - 1) : (p.likes || 0) + 1,
+        likedBy: alreadyLiked ? (p.likedBy || []).filter((id: string) => id !== user.uid) : [...(p.likedBy || []), user.uid]
+      } : p));
+    } catch (err) { console.error('Like failed:', err); }
+  };
+
   const handleRegenerate = async () => {
     if (!lastPrompt || generating) return;
     setGenerating(true); setResult(null);
     try {
       const res = await generateContent(lastPrompt, lastContentType, lastModel, lastSystemPrompt || undefined);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
+      // Add regenerated result to chat
+      const isImg = !!(res?.imageUrl || res?.type === 'image');
+      const regenContent = isImg
+        ? (res?.content?.startsWith?.('data:') ? '🎨 Here\'s your regenerated image!' : (res?.content || res?.text || '🎨 Image regenerated!'))
+        : (res?.content || res?.text || '');
+      const regenMsg: ChatMessage = { role: 'assistant', content: regenContent, timestamp: Date.now(), ...(isImg && res?.imageUrl ? { imageUrl: res.imageUrl } : {}) };
+      setChatMessages(prev => [...prev, regenMsg]);
     } catch (e: unknown) { const err = e as { message?: string }; setResult({ error: err.message }); }
     setGenerating(false);
   };
@@ -941,7 +1063,7 @@ const App: React.FC = () => {
     setTab('create');
   };
 
-  const switchTab = (t: Tab) => setTab(t);
+  const switchTab = (t: Tab) => { setTab(t); if (t === 'community' && communityPosts.length === 0) loadCommunityPosts(); };
   if (loading) return null;
 
   // AUTH GATE: Require login before accessing any part of the app
@@ -1282,15 +1404,32 @@ const App: React.FC = () => {
                       wordBreak: 'break-word' as const,
                       border: (endsWithQuestion && isLastAssistant) ? '1px solid rgba(108,99,255,0.3)' : msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
                     }}>
-                      {msg.role === 'assistant' ? (
+                      {msg.imageUrl ? (
+                        <div>
+                          <img src={msg.imageUrl} alt="Generated" style={{ width: '100%', maxWidth: '400px', borderRadius: '12px', marginBottom: '8px' }} />
+                          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0 }}>{msg.content}</p>
+                        </div>
+                      ) : msg.role === 'assistant' ? (
                         <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
                       ) : (
                         <span>{msg.content}</span>
                       )}
                     </div>
                     {msg.role === 'assistant' && (
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                        <button onClick={() => { navigator.clipboard.writeText(msg.content); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap', position: 'relative' }}>
+                        <button onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
+                        <button onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
+                        {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
+                        <button onClick={() => publishToCommunity(chatMessages.find(m => m.role === 'user')?.content || '', msg.content, msg.imageUrl)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,165,0,0.15)', color: '#ffa500', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🌟 Publish</button>
+                        {showShareMenu === `chat-${idx}` && (
+                          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', background: 'var(--surface, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '8px', display: 'flex', gap: '6px', zIndex: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+                            <button onClick={() => shareToSocial('twitter', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(29,161,242,0.15)', color: '#1da1f2', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>𝕏</button>
+                            <button onClick={() => shareToSocial('facebook', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(66,103,178,0.15)', color: '#4267b2', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>fb</button>
+                            <button onClick={() => shareToSocial('linkedin', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(0,119,181,0.15)', color: '#0077b5', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>in</button>
+                            <button onClick={() => shareToSocial('whatsapp', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(37,211,102,0.15)', color: '#25d366', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>wa</button>
+                            <button onClick={() => handleCopyShareLink(msg.content)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>🔗</button>
+                          </div>
+                        )}
                       </div>
                     )}
                     {endsWithQuestion && isLastAssistant && (
@@ -1384,10 +1523,21 @@ const App: React.FC = () => {
             )}
             {result && !result.error && (result.imageUrl || chatMessages.length === 0) && (
               <div className="result-container">
-                <div className="result-actions">
+                <div className="result-actions" style={{ position: 'relative' }}>
                   {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
                   {result.imageUrl && <button className="action-btn" onClick={handleDownload}>⬇️ Download</button>}
                   <button className="action-btn" onClick={handleRegenerate}>🔄 Regenerate</button>
+                  <button className="action-btn" onClick={() => setShowShareMenu(showShareMenu === 'result' ? null : 'result')} style={{ background: 'rgba(108,99,255,0.2)', color: 'var(--primary, #6c63ff)' }}>🔗 Share</button>
+                  <button className="action-btn" onClick={() => publishToCommunity(lastPrompt, result.content || result.text || '', result.imageUrl)} style={{ background: 'rgba(255,165,0,0.15)', color: '#ffa500' }}>🌟 Publish to Community</button>
+                  {showShareMenu === 'result' && (
+                    <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'var(--surface, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '10px', display: 'flex', gap: '8px', zIndex: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+                      <button onClick={() => shareToSocial('twitter', result.content || result.text || '', result.imageUrl)} style={{ padding: '10px 14px', fontSize: '14px', background: 'rgba(29,161,242,0.15)', color: '#1da1f2', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>𝕏 Tweet</button>
+                      <button onClick={() => shareToSocial('facebook', result.content || result.text || '', result.imageUrl)} style={{ padding: '10px 14px', fontSize: '14px', background: 'rgba(66,103,178,0.15)', color: '#4267b2', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>📘 Facebook</button>
+                      <button onClick={() => shareToSocial('linkedin', result.content || result.text || '', result.imageUrl)} style={{ padding: '10px 14px', fontSize: '14px', background: 'rgba(0,119,181,0.15)', color: '#0077b5', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>💼 LinkedIn</button>
+                      <button onClick={() => shareToSocial('whatsapp', result.content || result.text || '', result.imageUrl)} style={{ padding: '10px 14px', fontSize: '14px', background: 'rgba(37,211,102,0.15)', color: '#25d366', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>💬 WhatsApp</button>
+                      <button onClick={() => handleCopyShareLink(result.content || result.text || '')} style={{ padding: '10px 14px', fontSize: '14px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>🔗 Copy Link</button>
+                    </div>
+                  )}
                 </div>
                 <div className="result-area">
                   {result.imageUrl ? <img className="result-image" src={result.imageUrl} alt="" /> : <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content || result.text || '') }} />}
@@ -1448,6 +1598,18 @@ const App: React.FC = () => {
                       )}
                       <div className="gallery-card-meta">{h.model} · {h.agentMode !== 'general' ? AGENTS.find(a => a.id === h.agentMode)?.name || h.agentMode : h.contentType}</div>
                     </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', padding: '0 12px 12px', flexWrap: 'wrap' }}>
+                    <button onClick={(e) => { e.stopPropagation(); setShowShareMenu(showShareMenu === `gal-${h.id}` ? null : `gal-${h.id}`); }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.2)', borderRadius: '6px', cursor: 'pointer' }}>🔗 Share</button>
+                    <button onClick={(e) => { e.stopPropagation(); publishToCommunity(h.prompt || '', h.resultPreview || '', h.imageUrl); }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(255,165,0,0.1)', color: '#ffa500', border: '1px solid rgba(255,165,0,0.2)', borderRadius: '6px', cursor: 'pointer' }}>🌟 Publish</button>
+                    {showShareMenu === `gal-${h.id}` && (
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        <button onClick={() => shareToSocial('twitter', h.prompt || '')} style={{ padding: '4px 8px', fontSize: '11px', background: 'rgba(29,161,242,0.15)', color: '#1da1f2', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>𝕏</button>
+                        <button onClick={() => shareToSocial('facebook', h.prompt || '')} style={{ padding: '4px 8px', fontSize: '11px', background: 'rgba(66,103,178,0.15)', color: '#4267b2', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>fb</button>
+                        <button onClick={() => shareToSocial('linkedin', h.prompt || '')} style={{ padding: '4px 8px', fontSize: '11px', background: 'rgba(0,119,181,0.15)', color: '#0077b5', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>in</button>
+                        <button onClick={() => handleCopyShareLink(h.prompt || '')} style={{ padding: '4px 8px', fontSize: '11px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>🔗</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1524,17 +1686,83 @@ const App: React.FC = () => {
           </>
         )}
 
+        {tab === 'community' && (<>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h3 className="section-title" style={{ margin: 0 }}>🌟 Community Gallery</h3>
+            <button onClick={loadCommunityPosts} className="nav-btn btn-primary" style={{ padding: '8px 16px', fontSize: '13px' }}>
+              {communityLoading ? '⏳ Loading...' : '🔄 Refresh'}
+            </button>
+          </div>
+          <p style={{ color: 'var(--text-secondary, #999)', fontSize: '14px', marginBottom: '20px', lineHeight: 1.5 }}>
+            Discover what others are creating with NovaMind AI. Like your favorites and share your own! 🎨
+          </p>
+          {communityPosts.length === 0 ? (
+            <div className="empty-state" style={{ textAlign: 'center', padding: '48px 24px' }}>
+              <div style={{ fontSize: '64px', marginBottom: '16px' }}>🌟</div>
+              <h3 style={{ marginBottom: '8px' }}>The Gallery Awaits!</h3>
+              <p style={{ color: 'var(--text-secondary)', marginBottom: '20px' }}>Be the first to publish a creation and inspire others.</p>
+              <button className="nav-btn btn-primary" onClick={() => switchTab('create')}>✨ Start Creating</button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+              {communityPosts.map(post => {
+                const isLiked = user && (post.likedBy || []).includes(user.uid);
+                return (
+                  <div key={post.id} style={{ background: 'var(--surface, #1a1a2e)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 12px 40px rgba(108,99,255,0.15)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
+                    {post.imageUrl && (
+                      <img src={post.imageUrl} alt="" style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
+                    )}
+                    <div style={{ padding: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #6c63ff, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+                          {(post.displayName || 'A').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary, #fff)' }}>{post.displayName || 'Anonymous'}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary, #999)' }}>{post.createdAt?.toDate ? new Date(post.createdAt.toDate()).toLocaleDateString() : 'Just now'}</div>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary, #ccc)', marginBottom: '8px', lineHeight: 1.5 }}>
+                        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px' }}>Prompt:</span> {post.prompt}
+                      </p>
+                      {!post.imageUrl && post.content && (
+                        <div style={{ fontSize: '13px', color: 'var(--text-primary, #eee)', background: 'rgba(255,255,255,0.04)', padding: '10px', borderRadius: '8px', marginBottom: '8px', maxHeight: '100px', overflow: 'hidden', lineHeight: 1.5 }}>
+                          {post.content.substring(0, 200)}{post.content.length > 200 ? '...' : ''}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '12px' }}>
+                        <button onClick={() => handleLikePost(post.id)} style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '6px 14px', fontSize: '13px', background: isLiked ? 'rgba(255,75,75,0.15)' : 'rgba(255,255,255,0.06)', color: isLiked ? '#ff4b4b' : 'rgba(255,255,255,0.6)', border: isLiked ? '1px solid rgba(255,75,75,0.3)' : '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', cursor: 'pointer', fontWeight: 600, transition: 'all 0.2s' }}>
+                          {isLiked ? '❤️' : '🤍'} {post.likes || 0}
+                        </button>
+                        <button onClick={() => { shareToSocial('twitter', post.prompt || post.content, post.imageUrl); }} style={{ padding: '6px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '20px', cursor: 'pointer' }}>
+                          🔗 Share
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>)}
         {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
         {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
       </div>
+      {shareToast && (
+        <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #6c63ff, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(108,99,255,0.4)', animation: 'fadeIn 0.3s ease' }}>
+          {shareToast}
+        </div>
+      )}
       <nav className="bottom-nav">
         {(isPersonalMode 
-            ? (['home','create','gallery','chats'] as Tab[])
-            : (['home','create','chats','gallery','crm','projects'] as Tab[])
+            ? (['home','create','gallery','community','chats'] as Tab[])
+            : (['home','create','chats','gallery','community','crm','projects'] as Tab[])
           ).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
-            <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', chats: '💬', crm: '📇', projects: '📋' }[id]}</span>
-            {{ home: 'Home', create: 'Create', gallery: 'Gallery', chats: 'Chats', crm: 'CRM', projects: 'Projects' }[id]}
+            <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋' }[id]}</span>
+            {{ home: 'Home', create: 'Create', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects' }[id]}
           </button>
         ))}
       </nav>
