@@ -809,6 +809,33 @@ const App: React.FC = () => {
       }
     }
 
+    // 🤖 Smart Model Selection — NovaMind picks the best AI automatically
+    const pLower = currentPrompt.toLowerCase();
+    const hasImageAttachments = pendingFiles.some(f => f.type.startsWith('image/'));
+
+    // Image generation → GPT Image
+    if (/\b(generate.*image|create.*image|draw|design|make.*picture|make.*image|illustration|render|visualize|create.*graphic|poster|banner|infographic|logo|icon)\b/.test(pLower) && !hasImageAttachments) {
+      activeModel = 'gpt-image-1';
+      activeContentType = 'image';
+      setModel('gpt-image-1');
+      setContentType('image');
+    }
+    // Image analysis (uploaded images) → GPT-4o
+    else if (hasImageAttachments) {
+      activeModel = 'gpt-4o';
+      setModel('gpt-4o');
+    }
+    // Complex reasoning, analysis, code review, detailed comparisons → GPT-4o
+    else if (/\b(analyze.*in.?depth|complex.*analysis|detailed.*comparison|advanced.*code|debug.*code|refactor|architecture|strategic.*plan|financial.*model|legal.*review|technical.*spec)\b/.test(pLower)) {
+      activeModel = 'gpt-4o';
+      setModel('gpt-4o');
+    }
+    // Everything else (text, email, summaries, general chat) → DeepSeek (fastest + cheapest)
+    else if (activeModel !== 'gpt-image-1') {
+      activeModel = 'deepseek';
+      setModel('deepseek');
+    }
+
     setLastPrompt(currentPrompt);
     setLastContentType(activeContentType);
     setLastModel(activeModel);
@@ -1369,8 +1396,9 @@ const App: React.FC = () => {
                 ))}
               </div>
             </div>)}
-            <div className="model-selector">
-              {[{ id: 'deepseek', l: 'DeepSeek' }, { id: 'gpt-image-1', l: 'GPT Image' }, { id: 'gpt-4o', l: 'GPT-4o' }].map(m => (
+            <div className="model-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary, #888)', fontWeight: 500 }}>🤖 AI Model (auto-selected):</span>
+              {[{ id: 'deepseek', l: '⚡ DeepSeek' }, { id: 'gpt-image-1', l: '🎨 GPT Image' }, { id: 'gpt-4o', l: '✨ GPT-4o' }].map(m => (
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
               ))}
             </div>
