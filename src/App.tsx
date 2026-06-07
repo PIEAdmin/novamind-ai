@@ -304,6 +304,8 @@ const App: React.FC = () => {
   const [lastModel, setLastModel] = useState('deepseek');
   const [lastSystemPrompt, setLastSystemPrompt] = useState('');
   const [industry, setIndustry] = useState('general');
+  const [imageStyle, setImageStyle] = useState('');
+  const [imageSize, setImageSize] = useState('');
   const [agentMode, setAgentMode] = useState<AgentMode>('general');
   const [isPersonalMode] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -901,7 +903,25 @@ const App: React.FC = () => {
         }
         clearFiles();
       }
-      const res = await generateContent(currentPrompt, activeContentType, activeModel, systemPrefix || undefined, fileAttachments);
+      // 🎨 Inject Image Studio enhancements into prompt
+      let finalPrompt = currentPrompt;
+      if (activeContentType === 'image' || activeModel === 'gpt-image-1') {
+        const styleMap: Record<string, string> = {
+          professional: 'Professional style — clean, corporate, polished, high-end commercial quality.',
+          minimalist: 'Minimalist style — simple, modern, clean lines, lots of white space, elegant.',
+          luxury: 'Luxury style — gold accents, premium feel, elegant, sophisticated, rich colors.',
+          playful: 'Playful style — bright vibrant colors, fun, energetic, cheerful, dynamic.',
+          vintage: 'Vintage/retro style — warm muted tones, nostalgic feel, classic typography.',
+          neon: 'Neon/cyberpunk style — vibrant glowing colors, futuristic, dark background with neon lights.',
+          watercolor: 'Watercolor art style — soft washes of color, artistic, painterly, delicate textures.',
+          flat: 'Flat design style — bold geometric shapes, solid colors, no gradients or shadows, modern graphic design.',
+          '3d': '3D render style — realistic 3D rendering, depth, shadows, volumetric lighting, photorealistic.',
+        };
+        const styleHint = imageStyle && styleMap[imageStyle] ? `\n\nStyle: ${styleMap[imageStyle]}` : '';
+        const sizeHint = imageSize ? `\n\nImage dimensions: ${imageSize}` : '';
+        finalPrompt = currentPrompt + styleHint + sizeHint;
+      }
+      const res = await generateContent(finalPrompt, activeContentType, activeModel, systemPrefix || undefined, fileAttachments);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
 
@@ -1403,6 +1423,72 @@ const App: React.FC = () => {
               ))}
             </div>
 
+            {/* 🎨 Image Studio — Style & Size Presets */}
+            {(model === 'gpt-image-1' || contentType === 'image') && (
+              <div style={{ background: 'linear-gradient(135deg, rgba(108,99,255,0.08), rgba(168,85,247,0.08))', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '18px' }}>🎨</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary, #fff)' }}>Image Studio</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', marginLeft: 'auto' }}>Optional — enhance your prompt automatically</span>
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #aaa)', marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Style</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[
+                      { id: '', label: '🔘 Auto', desc: '' },
+                      { id: 'professional', label: '💼 Professional', desc: 'Clean, corporate, polished' },
+                      { id: 'minimalist', label: '⬜ Minimalist', desc: 'Simple, modern, clean lines' },
+                      { id: 'luxury', label: '👑 Luxury', desc: 'Gold accents, premium, elegant' },
+                      { id: 'playful', label: '🎉 Playful', desc: 'Bright colors, fun, energetic' },
+                      { id: 'vintage', label: '📷 Vintage', desc: 'Retro, warm tones, nostalgic' },
+                      { id: 'neon', label: '💜 Neon', desc: 'Vibrant, glowing, futuristic' },
+                      { id: 'watercolor', label: '🎨 Watercolor', desc: 'Soft, artistic, painterly' },
+                      { id: 'flat', label: '📐 Flat Design', desc: 'Bold shapes, solid colors' },
+                      { id: '3d', label: '🧊 3D Render', desc: 'Realistic 3D, depth, shadows' },
+                    ].map(s => (
+                      <button key={s.id} onClick={() => setImageStyle(s.id)}
+                        title={s.desc}
+                        style={{
+                          padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '20px', cursor: 'pointer',
+                          background: imageStyle === s.id ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
+                          color: imageStyle === s.id ? '#fff' : 'var(--text-primary, #ccc)',
+                          border: imageStyle === s.id ? '1px solid var(--primary, #6c63ff)' : '1px solid rgba(255,255,255,0.1)',
+                          transition: 'all 0.2s ease'
+                        }}>
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #aaa)', marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Size / Format</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[
+                      { id: '', label: '🔘 Auto', dim: '' },
+                      { id: '1024x1024', label: '📱 Instagram Post', dim: '1:1 Square' },
+                      { id: '1792x1024', label: '🖥️ Website Banner', dim: '16:9 Landscape' },
+                      { id: '1024x1792', label: '📲 Story / Reel', dim: '9:16 Portrait' },
+                      { id: '1792x1024', label: '📘 Facebook Cover', dim: 'Landscape' },
+                      { id: '1024x1024', label: '🎴 Logo / Icon', dim: '1:1 Square' },
+                      { id: '1792x1024', label: '📊 Presentation', dim: '16:9 Landscape' },
+                      { id: '1024x1792', label: '📄 Flyer / Poster', dim: 'Portrait' },
+                    ].map((s, i) => (
+                      <button key={`${s.id}-${i}`} onClick={() => setImageSize(s.id)}
+                        style={{
+                          padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '20px', cursor: 'pointer',
+                          background: imageSize === s.id ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
+                          color: imageSize === s.id ? '#fff' : 'var(--text-primary, #ccc)',
+                          border: imageSize === s.id ? '1px solid var(--primary, #6c63ff)' : '1px solid rgba(255,255,255,0.1)',
+                          transition: 'all 0.2s ease'
+                        }}>
+                        {s.label} {s.dim && <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '4px' }}>({s.dim})</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Chat Messages Thread */}
             {chatMessages.length > 0 && (
               <>
@@ -1460,6 +1546,12 @@ const App: React.FC = () => {
                         <button onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
                         <button onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
                         {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
+                        {msg.imageUrl && (
+                          <>
+                            <button onClick={() => { const originalPrompt = chatMessages.filter(m => m.role === 'user').pop()?.content || ''; setPrompt(`Create 3 different variations of: ${originalPrompt}`); setModel('gpt-image-1'); setContentType('image'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(168,85,247,0.15)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🎲 Variations</button>
+                            <button onClick={() => { const originalPrompt = chatMessages.filter(m => m.role === 'user').pop()?.content || ''; setPrompt(`Refine this image: ${originalPrompt}. Make it `); setModel('gpt-image-1'); setContentType('image'); setTimeout(() => { const ta = document.querySelector('.prompt-input') as HTMLTextAreaElement; if(ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 100); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', cursor: 'pointer' }}>✏️ Refine</button>
+                          </>
+                        )}
                         <button onClick={() => publishToCommunity(chatMessages.find(m => m.role === 'user')?.content || '', msg.content, msg.imageUrl)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,165,0,0.15)', color: '#ffa500', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🌟 Publish</button>
                         </>)}
                         {showShareMenu === `chat-${idx}` && (
@@ -1568,6 +1660,12 @@ const App: React.FC = () => {
                   {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
                   {result.imageUrl && <button className="action-btn" onClick={handleDownload}>⬇️ Download</button>}
                   <button className="action-btn" onClick={handleRegenerate}>🔄 Regenerate</button>
+                  {result.imageUrl && (
+                    <>
+                      <button className="action-btn" onClick={() => { setPrompt(`Create 3 different variations of this concept: ${lastPrompt}`); setModel('gpt-image-1'); setContentType('image'); }} style={{ background: 'rgba(168,85,247,0.15)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }}>🎲 Variations</button>
+                      <button className="action-btn" onClick={() => { setPrompt(`Refine this image: ${lastPrompt}. Make it `); setModel('gpt-image-1'); setContentType('image'); setTimeout(() => { const ta = document.querySelector('.prompt-input') as HTMLTextAreaElement; if(ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 100); }} style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>✏️ Refine</button>
+                    </>
+                  )}
                   <button className="action-btn" onClick={() => setShowShareMenu(showShareMenu === 'result' ? null : 'result')} style={{ background: 'rgba(108,99,255,0.2)', color: 'var(--primary, #6c63ff)' }}>🔗 Share</button>
                   <button className="action-btn" onClick={() => publishToCommunity(lastPrompt, result.content || result.text || '', result.imageUrl)} style={{ background: 'rgba(255,165,0,0.15)', color: '#ffa500' }}>🌟 Publish to Community</button>
                   {showShareMenu === 'result' && (
