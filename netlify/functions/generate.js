@@ -30,7 +30,7 @@ function callAPI(hostname, path, apiKey, body) {
       });
     });
     req.on('error', reject);
-    req.setTimeout(25000, () => { req.destroy(); reject(new Error('API timeout')); });
+    req.setTimeout(55000, () => { req.destroy(); reject(new Error('API timeout')); });
     req.write(data);
     req.end();
   });
@@ -72,13 +72,15 @@ exports.handler = async (event) => {
   }
 
   try {
-    const { type, prompt, model, files, systemPrompt } = JSON.parse(event.body || '{}');
+    const { type, prompt, model, files } = JSON.parse(event.body || '{}');
 
     if (!prompt || !type) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing prompt or type' }) };
     }
 
     // IMAGE GENERATION — OpenAI GPT Image (gpt-image-1)
+    // NOTE: dall-e-3 was deprecated and shut down May 12, 2026
+    // gpt-image-1 returns base64 only (no URL), doesn't support response_format
     if (type === 'image') {
       const result = await callAPI('api.openai.com', '/v1/images/generations', OPENAI_KEY, {
         model: 'gpt-image-1',
@@ -98,6 +100,7 @@ exports.handler = async (event) => {
         };
       }
 
+      // gpt-image-1 returns b64_json instead of url
       const b64 = result.body.data[0].b64_json;
       const dataUrl = `data:image/webp;base64,${b64}`;
       return {
@@ -147,13 +150,23 @@ exports.handler = async (event) => {
     }
 
     // TEXT/DOC FILES — extract text, add to prompt for DeepSeek
+    // Cap document text to avoid exceeding model context limits
+    const MAX_DOC_CHARS = 500000; // ~125K tokens — safe for DeepSeek's 1M token limit
     let fullPrompt = prompt;
     const docFiles = (files || []).filter((f) => f.type && !f.type.startsWith('image/'));
     if (docFiles.length > 0) {
+      let totalChars = 0;
       const docTexts = docFiles
         .map((f) => {
           try {
-            return `\n\n--- File: ${f.name} ---\n${Buffer.from(f.data, 'base64').toString('utf-8')}`;
+            let text = Buffer.from(f.data, 'base64').toString('utf-8');
+            const remaining = MAX_DOC_CHARS - totalChars;
+            if (remaining <= 0) return '';
+            if (text.length > remaining) {
+              text = text.substring(0, remaining) + '\n\n[... Document truncated — too large to process in full. Summarizing available content above ...]';
+            }
+            totalChars += text.length;
+            return `\n\n--- File: ${f.name} ---\n${text}`;
           } catch {
             return '';
           }
@@ -169,19 +182,17 @@ exports.handler = async (event) => {
     const apiKey = useOpenAI ? OPENAI_KEY : DEEPSEEK_KEY;
     const apiHost = useOpenAI ? 'api.openai.com' : 'api.deepseek.com';
     const apiModel = useOpenAI ? 'gpt-4o-mini' : 'deepseek-chat';
-    
-    // Use custom system prompt from frontend if provided, otherwise use default
-    const finalSystemPrompt = systemPrompt || SYSTEM_PROMPTS[type] || SYSTEM_PROMPTS.text;
+    const systemPrompt = SYSTEM_PROMPTS[type] || SYSTEM_PROMPTS.text;
 
     const messages = [
-      { role: 'system', content: finalSystemPrompt },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: fullPrompt },
     ];
 
     const result = await callAPI(apiHost, '/v1/chat/completions', apiKey, {
       model: apiModel,
       messages,
-      max_tokens: systemPrompt ? 2048 : 4096,
+      max_tokens: 4096,
       temperature: 0.7,
     });
 
