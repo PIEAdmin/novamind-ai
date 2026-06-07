@@ -16,16 +16,31 @@ export async function generateContent(prompt: string, type: string = 'text', mod
   const body: any = { prompt, type, model };
   if (systemPrompt) body.systemPrompt = systemPrompt;
   if (files && files.length > 0) body.files = files;
-  const response = await fetch(`${API_BASE}/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Generation failed' }));
-    throw new Error(error.error || 'Generation failed');
+
+  // Abort controller with 90-second timeout — prevents infinite spinner
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000);
+
+  try {
+    const response = await fetch(`${API_BASE}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Generation failed' }));
+      throw new Error(error.error || 'Generation failed');
+    }
+    return response.json();
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out. Your file may be too large — try a smaller document or paste the text directly.');
+    }
+    throw err;
   }
-  return response.json();
 }
 
 export function fileToAttachment(file: File): Promise<FileAttachment> {
