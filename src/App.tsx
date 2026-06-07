@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from './firebase-config';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp, serverTimestamp } from 'firebase/firestore';
@@ -8,12 +8,8 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
-type ToastType = 'success' | 'info' | 'warning' | 'error';
-type ThemeMode = 'dark' | 'light';
-type LangCode = 'en' | 'es' | 'fr';
-type ChatTagLabel = '' | 'Content' | 'Email' | 'Design' | 'Research' | 'Marketing' | 'Ideas';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -35,7 +31,6 @@ interface ChatDoc {
   updatedAt: Timestamp;
   isShared: boolean;
   shareId: string | null;
-  tag?: ChatTagLabel;
 }
 
 interface PromptTemplate {
@@ -61,142 +56,6 @@ interface HistoryItem {
   isFavorite: boolean;
   createdAt: Timestamp;
 }
-
-const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
-  en: {
-    home: 'Home', create: 'Create', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects',
-    signOut: 'Sign Out', signIn: 'Sign In', createAccount: 'Create Account', generate: 'Generate', thinking: 'Thinking...', newChat: 'New Chat',
-    searchChats: 'Search chats...', searchHistory: 'Search creations...', noResults: 'No results found', noChats: 'No chats yet', noCreations: 'No creations yet',
-    yourAIToolkit: 'Your AI Toolkit', createAmazingContent: 'Create Amazing Content with AI', startCreating: 'Start Creating',
-    welcomeToNovaMind: 'Welcome to NovaMind AI', monthlyUsage: 'Monthly Usage', used: 'Used', limit: 'Limit', created: 'Created',
-    tryOneOfThese: 'Try one of these:', typeYourReply: 'Type your reply below...', offline: "You're offline — some features may not work. We'll reconnect automatically.", backOnline: 'Back online!',
-    exportPDF: 'PDF', exportWord: 'Word', copy: 'Copy', share: 'Share', publish: 'Publish', download: 'Download',
-    darkMode: 'Dark Mode', lightMode: 'Light Mode', shortcuts: 'Shortcuts',
-    myCreations: 'My Creations', myChats: 'My Chats', communityGallery: 'Community Gallery',
-    reply: 'Reply', continue_: 'Continue', delete_: 'Delete', aiAgents: 'AI Agents', quickTools: 'Quick Tools',
-    thisMonth: 'This Month', totalGenerations: 'Total Generations', textGens: 'Text', imageGens: 'Images', recentActivity: 'Recent Activity',
-    industry: 'Industry', all: 'All', favorites: 'Favorites',
-    factCheck: 'Fact-Check & Verify', ideaSpark: 'Idea Spark', tapToDictate: '🎤 Tap to dictate',
-    listening: '🔴 Listening...', moodWriter: 'Mood / Tone', voiceNotSupported: 'Speech recognition is not supported in this browser. Try Chrome or Safari.',
-  },
-  es: {
-    home: 'Inicio', create: 'Crear', gallery: 'Galería', chats: 'Chats', community: 'Comunidad', crm: 'CRM', projects: 'Proyectos',
-    signOut: 'Cerrar Sesión', signIn: 'Iniciar Sesión', createAccount: 'Crear Cuenta', generate: 'Generar', thinking: 'Pensando...', newChat: 'Nuevo Chat',
-    searchChats: 'Buscar chats...', searchHistory: 'Buscar creaciones...', noResults: 'Sin resultados', noChats: 'Aún no hay chats', noCreations: 'Aún no hay creaciones',
-    yourAIToolkit: 'Tu Kit de IA', createAmazingContent: 'Crea Contenido Increíble con IA', startCreating: 'Empezar a Crear',
-    welcomeToNovaMind: 'Bienvenido a NovaMind AI', monthlyUsage: 'Uso Mensual', used: 'Usado', limit: 'Límite', created: 'Creado',
-    tryOneOfThese: 'Prueba uno de estos:', typeYourReply: 'Escribe tu respuesta...', offline: 'Sin conexión — algunas funciones pueden no funcionar.', backOnline: '¡Conexión restaurada!',
-    exportPDF: 'PDF', exportWord: 'Word', copy: 'Copiar', share: 'Compartir', publish: 'Publicar', download: 'Descargar',
-    darkMode: 'Modo Oscuro', lightMode: 'Modo Claro', shortcuts: 'Atajos',
-    myCreations: 'Mis Creaciones', myChats: 'Mis Chats', communityGallery: 'Galería Comunitaria',
-    reply: 'Responder', continue_: 'Continuar', delete_: 'Eliminar', aiAgents: 'Agentes IA', quickTools: 'Herramientas',
-    thisMonth: 'Este Mes', totalGenerations: 'Total Generaciones', textGens: 'Texto', imageGens: 'Imágenes', recentActivity: 'Actividad Reciente',
-    industry: 'Industria', all: 'Todos', favorites: 'Favoritos',
-    factCheck: 'Verificar Hechos', ideaSpark: 'Chispa de Ideas', tapToDictate: '🎤 Toca para dictar',
-    listening: '🔴 Escuchando...', moodWriter: 'Tono', voiceNotSupported: 'El reconocimiento de voz no es compatible con este navegador. Prueba Chrome o Safari.',
-  },
-  fr: {
-    home: 'Accueil', create: 'Créer', gallery: 'Galerie', chats: 'Chats', community: 'Communauté', crm: 'CRM', projects: 'Projets',
-    signOut: 'Déconnexion', signIn: 'Connexion', createAccount: 'Créer un Compte', generate: 'Générer', thinking: 'Réflexion...', newChat: 'Nouveau Chat',
-    searchChats: 'Rechercher des chats...', searchHistory: 'Rechercher des créations...', noResults: 'Aucun résultat', noChats: 'Pas encore de chats', noCreations: 'Pas encore de créations',
-    yourAIToolkit: 'Votre Boîte à Outils IA', createAmazingContent: 'Créez du Contenu Incroyable avec l\'IA', startCreating: 'Commencer à Créer',
-    welcomeToNovaMind: 'Bienvenue sur NovaMind AI', monthlyUsage: 'Utilisation Mensuelle', used: 'Utilisé', limit: 'Limite', created: 'Créé',
-    tryOneOfThese: 'Essayez l\'un de ceux-ci:', typeYourReply: 'Tapez votre réponse...', offline: 'Hors ligne — certaines fonctionnalités peuvent ne pas fonctionner.', backOnline: 'De retour en ligne!',
-    exportPDF: 'PDF', exportWord: 'Word', copy: 'Copier', share: 'Partager', publish: 'Publier', download: 'Télécharger',
-    darkMode: 'Mode Sombre', lightMode: 'Mode Clair', shortcuts: 'Raccourcis',
-    myCreations: 'Mes Créations', myChats: 'Mes Chats', communityGallery: 'Galerie Communautaire',
-    reply: 'Répondre', continue_: 'Continuer', delete_: 'Supprimer', aiAgents: 'Agents IA', quickTools: 'Outils Rapides',
-    thisMonth: 'Ce Mois', totalGenerations: 'Total Générations', textGens: 'Texte', imageGens: 'Images', recentActivity: 'Activité Récente',
-    industry: 'Industrie', all: 'Tous', favorites: 'Favoris',
-    factCheck: 'Vérification des Faits', ideaSpark: 'Étincelle d\'Idées', tapToDictate: '🎤 Appuyez pour dicter',
-    listening: '🔴 Écoute en cours...', moodWriter: 'Ton', voiceNotSupported: 'La reconnaissance vocale n\'est pas prise en charge par ce navigateur. Essayez Chrome ou Safari.',
-  },
-};
-
-const CHAT_TAGS: { id: ChatTagLabel; icon: string; label: string }[] = [
-  { id: '', icon: '📋', label: 'All' },
-  { id: 'Content', icon: '📝', label: 'Content' },
-  { id: 'Email', icon: '📧', label: 'Email' },
-  { id: 'Design', icon: '🎨', label: 'Design' },
-  { id: 'Research', icon: '🔍', label: 'Research' },
-  { id: 'Marketing', icon: '📢', label: 'Marketing' },
-  { id: 'Ideas', icon: '💡', label: 'Ideas' },
-];
-
-const PERSONAL_TOOL_STARTERS: Record<string, { icon: string; text: string }[]> = {
-  'fridge-chef': [
-    { icon: '🥚', text: 'Eggs, cheese, spinach, and bread' },
-    { icon: '🍗', text: 'Chicken thighs, rice, broccoli, soy sauce' },
-    { icon: '🥫', text: 'Canned tuna, pasta, garlic, olive oil' },
-  ],
-  'day-planner': [
-    { icon: '📋', text: 'Gym, grocery shopping, 2 meetings, cook dinner, read for 30 min' },
-    { icon: '🏠', text: 'Work from home: 3 client calls, write report, lunch break, evening walk' },
-    { icon: '📚', text: 'Study for exam, laundry, meal prep, 1 hour coding practice' },
-  ],
-  'itinerary': [
-    { icon: '🗼', text: 'Paris for 5 days on a $2000 budget' },
-    { icon: '🏖️', text: 'Bali for a week, budget-friendly, include beaches and temples' },
-    { icon: '🗽', text: 'New York City for 3 days, first-time visitor, $1500 budget' },
-  ],
-  'summarizer': [
-    { icon: '📖', text: 'Chapter 5 of my biology textbook on cell division' },
-    { icon: '📰', text: 'This 2000-word article about climate change policies' },
-    { icon: '📄', text: 'These meeting notes into 5 key takeaways' },
-  ],
-  'flashcards': [
-    { icon: '🧠', text: 'Chapter 3 of AP Psychology: Memory and Learning' },
-    { icon: '🇪🇸', text: 'Spanish vocabulary: food, restaurants, and ordering' },
-    { icon: '⚗️', text: 'Organic chemistry functional groups and reactions' },
-  ],
-  'essay-outline': [
-    { icon: '📝', text: 'The impact of social media on mental health (argumentative)' },
-    { icon: '🌍', text: 'Climate change solutions for developing nations (research paper)' },
-    { icon: '💼', text: 'Why remote work is the future of business (persuasive)' },
-  ],
-  'resume': [
-    { icon: '💻', text: 'Software Engineer position at Google — 3 years experience' },
-    { icon: '📊', text: 'Marketing Manager at a startup — career changer from teaching' },
-    { icon: '🏥', text: 'Registered Nurse position — new grad with clinical rotations' },
-  ],
-  'interview': [
-    { icon: '🖥️', text: 'Senior Frontend Developer at a fintech startup' },
-    { icon: '📈', text: 'Product Manager at a Fortune 500 company' },
-    { icon: '🎨', text: 'UX Designer at a design agency — portfolio review' },
-  ],
-  'contract': [
-    { icon: '🏠', text: 'This apartment lease agreement — highlight red flags' },
-    { icon: '💼', text: 'This freelance contract — what should I negotiate?' },
-    { icon: '📱', text: 'This software terms of service — privacy concerns' },
-  ],
-  'video-hook': [
-    { icon: '💰', text: 'Side hustles that actually work in 2024' },
-    { icon: '🍳', text: 'Easy meal prep for busy professionals' },
-    { icon: '📱', text: 'iPhone hidden features most people don\'t know' },
-  ],
-  'faceless-script': [
-    { icon: '🧠', text: 'Top 10 psychology facts that will blow your mind' },
-    { icon: '💡', text: 'How billionaires think differently — wealth mindset' },
-    { icon: '🌌', text: 'The most terrifying places in the universe' },
-  ],
-  'aesthetic-prompt': [
-    { icon: '🌅', text: 'Cozy autumn cabin with warm lighting and falling leaves' },
-    { icon: '🏙️', text: 'Cyberpunk neon cityscape at night with rain reflections' },
-    { icon: '🌸', text: 'Studio Ghibli-inspired peaceful countryside with wildflowers' },
-  ],
-};
-
-const detectChatTag = (agentMode: string, contentType: string): ChatTagLabel => {
-  if (agentMode === 'email-assistant') return 'Email';
-  if (agentMode === 'ad-maker') return 'Marketing';
-  if (agentMode === 'logo-maker') return 'Design';
-  if (agentMode === 'competitor-analysis') return 'Research';
-  if (agentMode === 'fact-checker') return 'Research';
-  if (agentMode === 'idea-spark') return 'Ideas';
-  if (agentMode === 'general' && contentType === 'image') return 'Design';
-  if (agentMode === 'general' && contentType === 'text') return 'Content';
-  return 'Content';
-};
 
 const INDUSTRIES = [
   { id: 'general', name: 'General', icon: '🌐' },
@@ -232,8 +91,6 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'ad-maker', name: 'Ad Maker', icon: '📢', desc: 'Ad copy & creatives' },
   { id: 'logo-maker', name: 'Logo Maker', icon: '🎨', desc: 'AI logo design' },
   { id: 'email-assistant', name: 'Email Assistant', icon: '📧', desc: 'Professional emails' },
-  { id: 'fact-checker', name: 'Fact-Check & Verify', icon: '🔍', desc: 'Verify claims & facts', badge: 'NEW' },
-  { id: 'idea-spark', name: 'Idea Spark', icon: '💡', desc: 'Creative brainstorming', badge: 'NEW' },
 ];
 
 const EMAIL_MODE_PROMPTS: Record<EmailMode, (tone: string) => string> = {
@@ -295,23 +152,7 @@ Be punchy, benefit-driven, and conversion-focused.`,
 ## 🔤 Typography (font recommendations)
 ## 📰 Layout (icon, horizontal, stacked variants)
 Suggest switching to GPT Image for AI-generated visuals.`,
-  'email-assistant': `You are a professional email writer. Write a polished email with Subject line, greeting, body, CTA, and sign-off. Include 2 alternative subject lines and a follow-up tip. Adapt tone to context.`,
-  'fact-checker': `You are a rigorous fact-checker. Analyze the following text for:
-1) Factual accuracy — identify any claims that are false, misleading, or unverifiable.
-2) Potential plagiarism indicators — flag any text that appears to be commonly found verbatim in other sources.
-3) Source credibility assessment.
-Rate overall reliability on a scale: ✅ Verified / ⚠️ Partially Verified / ❌ Unverified.
-Format your response with clear sections and confidence levels.`,
-  'idea-spark': `You are a creative ideation engine. Given a keyword or topic, generate a burst of creative inspiration formatted as:
-## 🎯 Headlines
-(3 catchy, click-worthy headlines)
-## 📐 Content Angles
-(3 unique approaches to cover this topic)
-## 🔮 Metaphors & Hooks
-(3 vivid metaphors or opening hooks)
-## 🔗 Unexpected Connections
-(2 cross-industry or surprising angles)
-Be bold, original, and inspiring.`
+  'email-assistant': `You are a professional email writer. Write a polished email with Subject line, greeting, body, CTA, and sign-off. Include 2 alternative subject lines and a follow-up tip. Adapt tone to context.`
 };
 
 const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
@@ -344,18 +185,6 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '📋', text: 'Follow-up email after a sales meeting where the client seemed interested' },
     { icon: '🙏', text: 'Professional apology email for a delayed project delivery' },
     { icon: '🎉', text: 'Customer welcome email sequence for new subscribers' }
-  ],
-  'fact-checker': [
-    { icon: '📰', text: 'Check if this article about AI replacing 80% of jobs by 2030 is accurate' },
-    { icon: '🔬', text: 'Verify: "Humans only use 10% of their brain capacity"' },
-    { icon: '📊', text: 'Fact-check this marketing claim about our competitor\'s market share' },
-    { icon: '🧪', text: 'Is this health article about intermittent fasting scientifically accurate?' }
-  ],
-  'idea-spark': [
-    { icon: '🚀', text: 'Sustainable fashion for Gen Z' },
-    { icon: '🍕', text: 'Local pizza restaurant social media content' },
-    { icon: '💡', text: 'AI in education — fresh angles for a blog series' },
-    { icon: '🎬', text: 'True crime podcast launch — unique hooks and angles' }
   ]
 };
 
@@ -452,9 +281,7 @@ const generateShareId = (): string => {
   return result;
 };
 
-
 const App: React.FC = () => {
-  // ===== EXISTING STATE =====
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('home');
@@ -518,132 +345,6 @@ const App: React.FC = () => {
   });
 
   const [savingTemplate, setSavingTemplate] = useState(false);
-
-  // ===== NEW FEATURE STATES =====
-
-  // Feature 1: Dark/Light Mode
-  const [theme, setTheme] = useState<ThemeMode>(() => {
-    try { return (localStorage.getItem('novamind-theme') as ThemeMode) || 'dark'; } catch { return 'dark'; }
-  });
-
-  // Feature 3: Search
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // Feature 4: Keyboard Shortcuts tooltip
-  const [showShortcuts, setShowShortcuts] = useState(false);
-
-  // Feature 9: Toast system
-  const [toastMsg, setToastMsg] = useState('');
-  const [toastType, setToastType] = useState<ToastType>('success');
-  const [toastVisible, setToastVisible] = useState(false);
-
-  // Feature 10: Offline indicator
-  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' ? !navigator.onLine : false);
-
-  // Feature 11: Multi-language
-  const [language, setLanguage] = useState<LangCode>(() => {
-    try { return (localStorage.getItem('novamind-lang') as LangCode) || 'en'; } catch { return 'en'; }
-  });
-
-  // Feature 13: Chat Tags
-  const [chatTag, setChatTag] = useState<ChatTagLabel>('');
-
-  // Feature: Voice-to-Text
-  const [isListening, setIsListening] = useState(false);
-  const recognitionRef = useRef<ReturnType<typeof Object> | null>(null);
-
-  // Feature: Mood Writer
-  const [moodTone, setMoodTone] = useState('');
-
-  // Share & Community
-  const [showShareMenu, setShowShareMenu] = useState<string | null>(null);
-  const [communityPosts, setCommunityPosts] = useState<Array<Record<string, any>>>([]);
-  const [communityLoading, setCommunityLoading] = useState(false);
-
-  // Feature 11: Translation helper
-  const T = TRANSLATIONS[language];
-
-  // Feature 9: Enhanced Toast
-  const showToast = useCallback((msg: string, type: ToastType = 'success') => {
-    setToastMsg(msg);
-    setToastType(type);
-    setToastVisible(true);
-    setTimeout(() => setToastVisible(false), 3000);
-  }, []);
-
-  // Feature 2: Export to PDF/Word
-  const exportToPDF = useCallback((content: string, title?: string) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>${title || 'NovaMind Export'}</title><style>body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;max-width:800px;margin:40px auto;padding:20px;color:#1a1a2e;line-height:1.8;}h1,h2,h3{color:#6c63ff;}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto;}code{background:#f0f0f5;padding:2px 6px;border-radius:4px;}hr{border:none;border-top:2px solid #e0e0e0;margin:24px 0;}.footer{text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #e0e0e0;color:#999;font-size:12px;}</style></head><body>${renderMarkdown(content)}<div class="footer">Created with NovaMind AI — novamindai.studio</div></body></html>`);
-    printWindow.document.close();
-    printWindow.print();
-  }, []);
-
-  const exportToWord = useCallback((content: string, title?: string) => {
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>${title || 'NovaMind Export'}</title><style>body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.8;color:#1a1a2e;}h1,h2,h3{color:#6c63ff;}</style></head><body>${renderMarkdown(content)}<p style="text-align:center;color:#999;margin-top:40px;font-size:11px;">Created with NovaMind AI</p></body></html>`;
-    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${(title || 'novamind-export').replace(/[^a-zA-Z0-9]/g, '-')}.doc`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Exported to Word! 📝');
-  }, [showToast]);
-
-  // Feature 1: Persist theme
-  useEffect(() => {
-    try { localStorage.setItem('novamind-theme', theme); } catch {}
-  }, [theme]);
-
-  // Feature 11: Persist language
-  useEffect(() => {
-    try { localStorage.setItem('novamind-lang', language); } catch {}
-  }, [language]);
-
-  // Feature 12: Update document title based on tab
-  useEffect(() => {
-    const titles: Record<Tab, string> = {
-      home: 'NovaMind AI - Home', create: 'NovaMind AI - Create',
-      gallery: 'NovaMind AI - Gallery', chats: 'NovaMind AI - Chats',
-      community: 'NovaMind AI - Community', crm: 'NovaMind AI - CRM',
-      projects: 'NovaMind AI - Projects'
-    };
-    document.title = titles[tab] || 'NovaMind AI';
-  }, [tab]);
-
-  // Feature 10: Online/offline detection
-  useEffect(() => {
-    const handleOnline = () => { setIsOffline(false); showToast('✅ Back online!', 'success'); };
-    const handleOffline = () => { setIsOffline(true); };
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
-  }, [showToast]);
-
-  // Feature 4: Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const meta = e.metaKey || e.ctrlKey;
-      if (meta && e.key === 'Enter') { e.preventDefault(); handleGenerate(); }
-      if (meta && e.key === 'n') { e.preventDefault(); startNewChat(); setTab('create'); }
-      if (meta && e.key === 'k') {
-        e.preventDefault();
-        if (tab === 'chats' || tab === 'gallery') {
-          const searchInput = document.querySelector('.search-input-field') as HTMLInputElement;
-          if (searchInput) searchInput.focus();
-        } else {
-          const promptInput = document.querySelector('.prompt-input') as HTMLTextAreaElement;
-          if (promptInput) promptInput.focus();
-        }
-      }
-      if (e.key === 'Escape') { setShowShareMenu(null); setShowShortcuts(false); setShowAuth(false); }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, generating, prompt]);
 
   // Scroll to bottom of chat when messages change
   useEffect(() => {
@@ -739,7 +440,6 @@ const App: React.FC = () => {
     setChatTitle('');
     setPrompt('');
     setResult(null);
-    setMoodTone('');
   };
 
   const saveChatToFirestore = async (
@@ -758,7 +458,6 @@ const App: React.FC = () => {
       updatedAt: Timestamp.now(),
       isShared: false,
       shareId: null,
-      tag: detectChatTag(agentMode, contentType),
     };
 
     if (chatId) {
@@ -836,7 +535,6 @@ const App: React.FC = () => {
       console.error('Sign out error:', err);
     }
   };
-
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -999,16 +697,6 @@ const App: React.FC = () => {
     // Email detection
     if (/\b(write.*email|draft.*email|compose.*email|send.*email|email.*to|professional email|follow.?up email|cold email|outreach email|reply.*email|email.*sequence|email.*campaign|newsletter)\b/.test(p)) {
       return { agent: 'email-assistant', notification: '📧 Switching to Email Assistant...' };
-    }
-
-    // Fact-check detection
-    if (/\b(fact.?check|verify|plagiarism|is this true|check if|is it true|debunk|accurate|fake news|misinformation|check this)\b/.test(p)) {
-      return { agent: 'fact-checker', notification: '🔍 Switching to Fact-Check & Verify...' };
-    }
-
-    // Idea spark / brainstorm detection
-    if (/\b(brainstorm|ideas|inspire|spark|creative ideas|ideate|idea.*for|content ideas|angles|hooks for)\b/.test(p)) {
-      return { agent: 'idea-spark', notification: '💡 Switching to Idea Spark...' };
     }
 
     // Competitor analysis detection
@@ -1185,12 +873,6 @@ const App: React.FC = () => {
         systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals.`;
       }
 
-      // Inject Mood Tone if selected
-      if (moodTone) {
-        systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
-          `Write in a ${moodTone} tone.`;
-      }
-
       // Personalize — address the user by name if available
       const firstName = user?.displayName?.split(' ')[0] || '';
       if (firstName) {
@@ -1281,7 +963,6 @@ const App: React.FC = () => {
     setGenerating(false);
   };
 
-
   const handleCopy = () => {
     const text = result?.content || result?.text || '';
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
@@ -1297,34 +978,18 @@ const App: React.FC = () => {
 
 
   // ====== SHARE & COMMUNITY FUNCTIONS ======
-  // (state and showToast moved to component state section above)
+  const [showShareMenu, setShowShareMenu] = useState<string | null>(null);
+  const [shareToast, setShareToast] = useState('');
+  const [communityPosts, setCommunityPosts] = useState<any[]>([]);
+  const [communityLoading, setCommunityLoading] = useState(false);
 
-  const shareToSocial = async (platform: string, text: string, imageUrl?: string) => {
+  const showToast = (msg: string) => { setShareToast(msg); setTimeout(() => setShareToast(''), 2500); };
+
+  const shareToSocial = (platform: string, text: string, imageUrl?: string) => {
+    const shareText = text.substring(0, 200);
     const appUrl = 'https://novamind-ai-app.netlify.app';
     const tagline = 'Made with NovaMind AI ✨ Try it free';
-    // Never share raw base64 data as text — detect and replace with a friendly message
-    const isBase64 = text.startsWith('data:image/') || text.startsWith('data:');
-    const cleanText = isBase64 ? '🎨 Check out what I created with AI!' : text.substring(0, 200);
-    const fullText = `${cleanText}\n\n${tagline}`;
-
-    // Try native share API first for images (mobile gets proper image sharing)
-    if (imageUrl && imageUrl.startsWith('data:image/') && navigator.share) {
-      try {
-        const res = await fetch(imageUrl);
-        const blob = await res.blob();
-        const file = new File([blob], 'novamind-creation.webp', { type: blob.type || 'image/webp' });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          await navigator.share({ text: fullText + ' ' + appUrl, files: [file] });
-          showToast(`Shared! 🎉`, 'success');
-          setShowShareMenu(null);
-          return;
-        }
-      } catch (e) {
-        // If native share cancelled or failed, fall through to URL-based sharing
-        if ((e as Error)?.name === 'AbortError') { setShowShareMenu(null); return; }
-      }
-    }
-
+    const fullText = `${shareText}\n\n${tagline}`;
     const encodedText = encodeURIComponent(fullText);
     const encodedUrl = encodeURIComponent(appUrl);
     
@@ -1337,7 +1002,7 @@ const App: React.FC = () => {
     
     if (urls[platform]) {
       window.open(urls[platform], '_blank', 'width=600,height=400');
-      showToast(`Shared to ${platform}! 🎉`, 'success');
+      showToast(`Shared to ${platform}! 🎉`);
     }
     setShowShareMenu(null);
   };
@@ -1453,78 +1118,33 @@ const App: React.FC = () => {
     setTab('create');
   };
 
-  // Voice-to-Text toggle
-  const toggleVoiceRecognition = () => {
-    const win = window as unknown as Record<string, unknown>;
-    const SRConstructor = win.SpeechRecognition || win.webkitSpeechRecognition;
-    if (!SRConstructor) {
-      alert(T.voiceNotSupported);
-      return;
-    }
-    if (isListening && recognitionRef.current) {
-      (recognitionRef.current as { stop: () => void }).stop();
-      setIsListening(false);
-      return;
-    }
-    const recognition = new (SRConstructor as { new(): { lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { results: { isFinal: boolean; 0: { transcript: string } }[] }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void } })();
-    recognition.lang = language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'en-US';
-    recognition.interimResults = true;
-    recognition.continuous = true;
-    recognitionRef.current = recognition;
-    let finalTranscript = '';
-    recognition.onresult = (event) => {
-      let interim = '';
-      for (let i = 0; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalTranscript += result[0].transcript + ' ';
-        } else {
-          interim += result[0].transcript;
-        }
-      }
-      setPrompt(prev => {
-        const base = prev.replace(/\u200B.*$/, '').trimEnd();
-        const newText = finalTranscript + (interim ? '\u200B' + interim : '');
-        return base ? base + ' ' + newText : newText;
-      });
-    };
-    recognition.onerror = (event) => {
-      if (event.error === 'not-allowed') alert('Microphone access denied. Please allow microphone permissions.');
-      setIsListening(false);
-    };
-    recognition.onend = () => {
-      setIsListening(false);
-      recognitionRef.current = null;
-      // Clean up zero-width space markers from interim results
-      setPrompt(prev => prev.replace(/\u200B/g, ''));
-    };
-    recognition.start();
-    setIsListening(true);
-  };
-
   const switchTab = (t: Tab) => { setTab(t); if (t === 'community' && communityPosts.length === 0) loadCommunityPosts(); };
   if (loading) return null;
 
   // AUTH GATE: Require login before accessing any part of the app
   if (!user) {
     return (
-      <div className="app-container" data-theme={theme}>
-        <nav className="navbar" role="navigation">
+      <div className="app-container">
+        <nav className="navbar">
           <div className="logo-section">
             <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI" />
             <span className="logo-text">{isPersonalMode ? 'NovaMind Personal' : 'NovaMind AI'}</span>
           </div>
         </nav>
-        <div className="main-content" role="main" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 120px)' }}>
+        <div className="main-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 120px)' }}>
           <div className="auth-modal" style={{ width: '100%', maxWidth: '420px', margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <img src="/icon-192.png" alt="NovaMind AI" style={{ width: '64px', height: '64px', marginBottom: '16px' }} />
               <h2 style={{ margin: '0 0 8px' }}>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Create Your Account'}</h2>
-              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: 14 }}>{authMode === 'login' ? 'Sign in to continue' : 'Start creating with AI'}</p>
+              <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: 14 }}>
+                {authMode === 'login'
+                  ? (isPersonalMode ? 'Sign in or create an account to get started' : 'Sign in or create an account to get started')
+                  : (isPersonalMode ? 'Join NovaMind Personal — AI for everyday life' : 'Start creating with NovaMind AI')}
+              </p>
             </div>
             {authError && <div className="auth-error">{authError}</div>}
-            <input className="auth-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} aria-label="Email" />
-            <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} aria-label="Password" />
+            <input className="auth-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
+            <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} />
             {authMode === 'login' && (
               <p style={{ textAlign: 'right', margin: '-4px 0 0 0' }}>
                 <span onClick={handleResetPassword} style={{ color: 'var(--accent, #a855f7)', fontSize: '13px', cursor: 'pointer' }}>Forgot Password?</span>
@@ -1541,58 +1161,29 @@ const App: React.FC = () => {
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
               Continue with Google
             </button>
-            <p className="auth-toggle" style={{ fontSize: '15px' }}>{authMode === 'login' ? "Don't have an account? " : "Already have an account? "}<span onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setResetSent(false); }} style={{ fontWeight: 700, textDecoration: 'underline' }}>{authMode === 'login' ? 'Create One Free' : 'Sign In'}</span></p>
+            <div style={{ textAlign: 'center', margin: '16px 0 0' }}>
+              {authMode === 'login' ? (
+                <button onClick={() => { setAuthMode('signup'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                  New here? Create a Free Account
+                </button>
+              ) : (
+                <button onClick={() => { setAuthMode('login'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                  Already have an account? Sign In
+                </button>
+              )}
+            </div>
+            <div className="powered-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <span>A Product of The PIE Group</span>
+            </div>
           </div>
         </div>
       </div>
     );
   }
-  
-  // Feature 3: Search filtering
-  const filteredHistory = history.filter(h => {
-    const matchesFilter = historyFilter === 'all' || h.isFavorite;
-    if (!searchQuery.trim()) return matchesFilter;
-    const q = searchQuery.toLowerCase();
-    return matchesFilter && ((h.prompt || '').toLowerCase().includes(q) || (h.resultPreview || '').toLowerCase().includes(q));
-  });
-
-  // Feature 13: Tag-filtered chats + Feature 3: Search
-  const filteredChats = chats.filter(chat => {
-    const matchesTag = !chatTag || (chat.tag === chatTag);
-    if (!searchQuery.trim()) return matchesTag;
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = (chat.title || '').toLowerCase().includes(q) ||
-      (chat.messages || []).some((m: ChatMessage) => m.content.toLowerCase().includes(q));
-    return matchesTag && matchesSearch;
-  });
-
-  // Feature 5: Dashboard stats computation
-  const dashboardStats = React.useMemo(() => {
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const thisMonth = history.filter(h => {
-      if (!h.createdAt) return false;
-      const d = h.createdAt instanceof Timestamp ? h.createdAt.toDate() : new Date((h.createdAt as unknown as { seconds: number }).seconds * 1000);
-      return d >= monthStart;
-    });
-    const textCount = thisMonth.filter(h => h.contentType === 'text').length;
-    const imageCount = thisMonth.filter(h => h.contentType === 'image').length;
-    const byAgent: Record<string, number> = {};
-    thisMonth.forEach(h => {
-      const name = h.agentMode || 'general';
-      byAgent[name] = (byAgent[name] || 0) + 1;
-    });
-    const recent = [...history].sort((a, b) => {
-      const at = a.createdAt instanceof Timestamp ? a.createdAt.seconds : (a.createdAt as unknown as { seconds: number })?.seconds || 0;
-      const bt = b.createdAt instanceof Timestamp ? b.createdAt.seconds : (b.createdAt as unknown as { seconds: number })?.seconds || 0;
-      return bt - at;
-    }).slice(0, 5);
-    return { total: thisMonth.length, textCount, imageCount, byAgent, recent };
-  }, [history]);
 
   const pct = Math.min((usage.used / usage.limit) * 100, 100);
   const currentAgent = AGENTS.find(a => a.id === agentMode);
-  // filteredHistory defined above with search support
+  const filteredHistory = historyFilter === 'favorites' ? history.filter(h => h.isFavorite) : history;
 
   const getEmailPlaceholder = (): string => {
     switch (emailMode) {
@@ -1636,166 +1227,16 @@ const App: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-
-  // ======= RENDER =======
   return (
-    <div className="app-container" data-theme={theme === 'light' ? 'light' : undefined}>
-      {/* ===== CSS for Features 1,7,8,9 ===== */}
-      <style>{`
-        [data-theme="light"] { --bg: #f5f5f7; --surface: #ffffff; --text-primary: #1a1a2e; --text-secondary: #666; --border-color: #e0e0e0; --primary: #6c63ff; }
-        [data-theme="light"] .navbar { background: #ffffff; border-bottom: 1px solid #e0e0e0; }
-        [data-theme="light"] .bottom-nav { background: #ffffff; border-top: 1px solid #e0e0e0; }
-        [data-theme="light"] .auth-modal { background: #ffffff; }
-        [data-theme="light"] .create-area { color: #1a1a2e; }
-        [data-theme="light"] .prompt-input { background: #f0f0f5; color: #1a1a2e; border-color: #d0d0d8; }
-        [data-theme="light"] .generate-btn { color: #fff; }
-        [data-theme="light"] .agent-card, [data-theme="light"] .tool-card, [data-theme="light"] .stat-card, [data-theme="light"] .gallery-card { background: #ffffff; border-color: #e0e0e0; color: #1a1a2e; }
-        [data-theme="light"] .industry-chip { background: #f0f0f5; color: #333; border-color: #d0d0d8; }
-        [data-theme="light"] .industry-chip.active { background: rgba(108,99,255,0.15); color: #6c63ff; border-color: #6c63ff; }
-        [data-theme="light"] .model-chip { background: #f0f0f5; color: #333; border-color: #d0d0d8; }
-        [data-theme="light"] .model-chip.active { background: #6c63ff; color: #fff; }
-        [data-theme="light"] .result-container { background: #ffffff; border-color: #e0e0e0; }
-        [data-theme="light"] .result-area { color: #1a1a2e; }
-        [data-theme="light"] .suggestion-chip { background: #f0f0f5; color: #333; border-color: #d0d0d8; }
-        [data-theme="light"] .agent-tab { color: #333; }
-        [data-theme="light"] .agent-tab.active { color: #6c63ff; }
-        [data-theme="light"] .section-title { color: #1a1a2e; }
-        [data-theme="light"] .markdown-content { color: #1a1a2e; }
-        [data-theme="light"] .markdown-content h1, [data-theme="light"] .markdown-content h2, [data-theme="light"] .markdown-content h3 { color: #1a1a2e; }
-        [data-theme="light"] .markdown-content code { background: #f0f0f5; color: #e11d48; }
-        [data-theme="light"] .markdown-content pre { background: #1a1a2e; color: #e0e0e0; }
-        [data-theme="light"] .empty-state { color: #666; }
-        [data-theme="light"] .hero-title { color: #1a1a2e; }
-        [data-theme="light"] .hero-subtitle { color: #666; }
-        [data-theme="light"] .usage-bar { background: #e0e0e0; }
-        [data-theme="light"] .powered-footer { color: #999; }
-        [data-theme="light"] .auth-error { background: rgba(239,68,68,0.1); }
-        [data-theme="light"] .auth-input { background: #f0f0f5; color: #1a1a2e; border-color: #d0d0d8; }
-        [data-theme="light"] .agent-info-banner { background: rgba(108,99,255,0.06); border-color: rgba(108,99,255,0.15); color: #333; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        @keyframes scaleIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        @keyframes toastSlideDown { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
-        @keyframes toastProgress { from { width: 100%; } to { width: 0%; } }
-        .fade-in { animation: fadeIn 0.3s ease-out; }
-        .slide-up { animation: slideUp 0.4s ease-out; }
-        .scale-in { animation: scaleIn 0.2s ease-out; }
-        .shimmer-dots span { background: linear-gradient(90deg, rgba(108,99,255,0.3), rgba(108,99,255,0.8), rgba(108,99,255,0.3)); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
-        .tool-card, .agent-card, .stat-card, .gallery-card { transition: transform 0.2s, box-shadow 0.2s; }
-        .tool-card:hover, .agent-card:hover, .gallery-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
-        @media (max-width: 768px) {
-          .agent-selector-bar { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
-          .agent-tab-name { display: none; }
-          .industry-chips { max-height: 120px; overflow-y: auto; }
-          .model-selector { flex-wrap: wrap; }
-          .result-actions { flex-wrap: wrap; }
-        }
-        @media (max-width: 480px) {
-          .hero-title { font-size: 1.3rem !important; }
-          .stats-row { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-          .tool-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-          .agent-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-        }
-        .toast-container { position: fixed; top: 24px; left: 50%; transform: translateX(-50%); z-index: 99999; animation: toastSlideDown 0.3s ease-out; }
-        .toast-box { display: flex; align-items: center; gap: 10px; padding: 14px 24px; border-radius: 14px; font-size: 14px; font-weight: 600; box-shadow: 0 8px 32px rgba(0,0,0,0.3); min-width: 280px; position: relative; overflow: hidden; }
-        .toast-success { background: linear-gradient(135deg, #059669, #10b981); color: #fff; }
-        .toast-info { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; }
-        .toast-warning { background: linear-gradient(135deg, #d97706, #f59e0b); color: #fff; }
-        .toast-error { background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff; }
-        .toast-progress { position: absolute; bottom: 0; left: 0; height: 3px; background: rgba(255,255,255,0.4); animation: toastProgress 3s linear forwards; }
-        .search-input-field { width: 100%; padding: 10px 16px 10px 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: var(--text-primary, #fff); font-size: 14px; outline: none; }
-        .search-input-field:focus { border-color: var(--primary, #6c63ff); }
-        [data-theme="light"] .search-input-field { background: #f0f0f5; color: #1a1a2e; border-color: #d0d0d8; }
-        .shortcuts-panel { position: absolute; top: 100%; right: 0; margin-top: 8px; background: var(--surface, #1a1a2e); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 16px; z-index: 100; box-shadow: 0 8px 32px rgba(0,0,0,0.4); min-width: 240px; animation: scaleIn 0.2s ease-out; }
-        [data-theme="light"] .shortcuts-panel { background: #fff; border-color: #e0e0e0; box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
-        .lang-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 6px 10px; font-size: 14px; cursor: pointer; transition: all 0.2s; }
-        .lang-btn:hover, .lang-btn.active { background: rgba(108,99,255,0.2); border-color: rgba(108,99,255,0.4); }
-        [data-theme="light"] .lang-btn { background: #f0f0f5; border-color: #d0d0d8; }
-        .offline-banner { background: linear-gradient(135deg, #d97706, #f59e0b); color: #fff; text-align: center; padding: 10px 20px; font-size: 14px; font-weight: 600; border-radius: 10px; margin-bottom: 12px; animation: fadeIn 0.3s ease-out; }
-        .export-btn { padding: 4px 12px; font-size: 12px; background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
-        .export-btn:hover { background: rgba(108,99,255,0.15); color: var(--primary, #6c63ff); }
-        [data-theme="light"] .export-btn { background: #f0f0f5; color: #333; border-color: #d0d0d8; }
-        .dashboard-bar { height: 24px; border-radius: 6px; background: linear-gradient(90deg, #6c63ff, #3b82f6); transition: width 0.5s ease; }
-        .dashboard-card { background: linear-gradient(135deg, rgba(108,99,255,0.1), rgba(59,130,246,0.1)); border: 1px solid rgba(108,99,255,0.2); border-radius: 14px; padding: 16px; }
-        [data-theme="light"] .dashboard-card { background: linear-gradient(135deg, rgba(108,99,255,0.06), rgba(59,130,246,0.06)); }
-        .starter-chip { padding: 8px 14px; font-size: 13px; background: rgba(108,99,255,0.1); color: var(--primary, #6c63ff); border: 1px solid rgba(108,99,255,0.25); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
-        .starter-chip:hover { background: rgba(108,99,255,0.2); transform: translateY(-1px); }
-        @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } }
-        .mic-btn-listening { animation: micPulse 1.2s ease-in-out infinite; background: #ef4444 !important; border-color: #ef4444 !important; color: #fff !important; }
-        .listening-indicator { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #ef4444; font-weight: 600; animation: pulse 1.5s ease-in-out infinite; }
-        .mood-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-        .mood-chip { padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 20px; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: var(--text-primary, #ccc); transition: all 0.2s ease; white-space: nowrap; }
-        .mood-chip:hover { background: rgba(108,99,255,0.12); border-color: rgba(108,99,255,0.3); transform: translateY(-1px); }
-        .mood-chip.active { background: var(--primary, #6c63ff); color: #fff; border-color: var(--primary, #6c63ff); box-shadow: 0 0 12px rgba(108,99,255,0.35); }
-        [data-theme="light"] .mood-chip { background: #f0f0f5; color: #333; border-color: #d0d0d8; }
-        [data-theme="light"] .mood-chip.active { background: #6c63ff; color: #fff; border-color: #6c63ff; }
-        .fact-check-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-right: 6px; }
-        .badge-verified { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
-        .badge-partial { background: rgba(234,179,8,0.15); color: #eab308; border: 1px solid rgba(234,179,8,0.3); }
-        .badge-unverified { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
-        .idea-card { background: rgba(108,99,255,0.06); border: 1px solid rgba(108,99,255,0.15); border-radius: 14px; padding: 16px; margin-bottom: 10px; position: relative; }
-        .idea-card h2 { font-size: 16px; margin: 0 0 8px 0; }
-        .idea-card-copy { position: absolute; top: 10px; right: 10px; padding: 4px 10px; font-size: 11px; background: rgba(108,99,255,0.15); color: var(--primary, #6c63ff); border: 1px solid rgba(108,99,255,0.25); border-radius: 8px; cursor: pointer; }
-        .idea-card-copy:hover { background: rgba(108,99,255,0.25); }
-      `}</style>
-
-      <nav className="navbar" role="navigation" aria-label="Main navigation">
+    <div className="app-container">
+      <nav className="navbar">
         <div className="logo-section">
-          <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI Logo" />
+          <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI" />
           <span className="logo-text">{isPersonalMode ? 'NovaMind Personal' : 'NovaMind AI'}</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {(['en', 'es', 'fr'] as const).map(lang => (
-              <button key={lang} className={`lang-btn ${language === lang ? 'active' : ''}`}
-                onClick={() => setLanguage(lang)} aria-label={`Switch to ${lang === 'en' ? 'English' : lang === 'es' ? 'Spanish' : 'French'}`}>
-                {lang === 'en' ? '🇺🇸' : lang === 'es' ? '🇪🇸' : '🇫🇷'}
-              </button>
-            ))}
-          </div>
-          <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-            aria-label={theme === 'dark' ? T.lightMode : T.darkMode}
-            style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 12px', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }}>
-            {theme === 'dark' ? '☀️' : '🌙'}
-          </button>
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowShortcuts(!showShortcuts)} aria-label={T.shortcuts}
-              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 12px', borderRadius: '8px', fontSize: '16px', cursor: 'pointer' }}>
-              ⌨️
-            </button>
-            {showShortcuts && (
-              <div className="shortcuts-panel scale-in" role="tooltip">
-                <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '12px' }}>⌨️ {T.shortcuts}</div>
-                {[
-                  ['⌘/Ctrl + Enter', 'Generate'],
-                  ['⌘/Ctrl + N', 'New Chat'],
-                  ['⌘/Ctrl + K', 'Focus Search/Prompt'],
-                  ['Escape', 'Close Menus'],
-                ].map(([key, desc]) => (
-                  <div key={key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                    <span style={{ color: 'var(--text-secondary, #999)' }}>{desc}</span>
-                    <kbd style={{ background: 'rgba(108,99,255,0.15)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontFamily: 'monospace' }}>{key}</kbd>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <button className="nav-btn btn-outline" onClick={handleSignOut} role="button"
-            style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600' }}>
-            🚪 {T.signOut}
-          </button>
-        </div>
+        <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600' }}>🚪 Sign Out</button>
       </nav>
-
-      <div className="main-content" role="main">
-        {isOffline && (
-          <div className="offline-banner" role="alert" aria-live="polite">
-            📡 {T.offline}
-          </div>
-        )}
-
+      <div className="main-content">
         {tab === 'home' && isPersonalMode && (
           <>
             <div className="hero-section" style={{ textAlign: 'center', padding: '20px 0' }}>
@@ -1803,50 +1244,9 @@ const App: React.FC = () => {
               <p className="hero-subtitle">12 tools designed for real life — not enterprise jargon.</p>
             </div>
             <div className="stats-row">
-              <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">{T.used}</div></div>
-              <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">{T.limit}</div></div>
-              <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">{T.created}</div></div>
-            </div>
-            {/* Feature 5: Personal Dashboard */}
-            <div style={{ marginBottom: '24px' }}>
-              <h3 className="section-title">{T.thisMonth}</h3>
-              <div className="dashboard-card" style={{ marginBottom: '12px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--primary, #6c63ff)' }}>{dashboardStats.total}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary, #999)' }}>{T.totalGenerations}</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#3b82f6' }}>{dashboardStats.textCount}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary, #999)' }}>{T.textGens}</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#a855f7' }}>{dashboardStats.imageCount}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary, #999)' }}>{T.imageGens}</div>
-                  </div>
-                </div>
-                {Object.entries(dashboardStats.byAgent).slice(0, 5).map(([agent, count]) => (
-                  <div key={agent} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--text-secondary, #999)', minWidth: '80px' }}>{agent}</span>
-                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.06)', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div className="dashboard-bar" style={{ width: `${Math.min(100, (count as number / Math.max(1, dashboardStats.total)) * 100)}%` }} />
-                    </div>
-                    <span style={{ fontSize: '12px', fontWeight: 600, minWidth: '24px', textAlign: 'right' }}>{count as number}</span>
-                  </div>
-                ))}
-              </div>
-              {dashboardStats.recent.length > 0 && (
-                <div>
-                  <h4 style={{ fontSize: '14px', color: 'var(--text-secondary, #999)', marginBottom: '8px' }}>{T.recentActivity}</h4>
-                  {dashboardStats.recent.map(item => (
-                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: '13px' }}>
-                      <span>{item.contentType === 'image' ? '🎨' : '📝'}</span>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(item.prompt || '').substring(0, 50)}</span>
-                      <span style={{ color: 'var(--text-secondary, #999)', fontSize: '11px' }}>{item.model}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
+              <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
+              <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
             </div>
             {Object.entries(PILLAR_INFO).map(([key, pillar]) => (
               <div key={key} style={{ marginBottom: '24px' }}>
@@ -1855,7 +1255,7 @@ const App: React.FC = () => {
                 </h3>
                 <div className="tool-grid">
                   {PERSONAL_TOOLS.filter(t => t.pillar === key).map(tool => (
-                    <div key={tool.id} className="tool-card" role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') (e.target as HTMLElement).click(); }} onClick={() => {
+                    <div key={tool.id} className="tool-card" onClick={() => {
                       setAgentMode('general');
                       setModel('deepseek');
                       setContentType('text');
@@ -1876,16 +1276,15 @@ const App: React.FC = () => {
             </div>
           </>
         )}
-        
         {tab === 'home' && !isPersonalMode && (<>
           <div className="hero-section">
             <h1 className="hero-title">Create Amazing Content with AI</h1>
             <p className="hero-subtitle">Text, images, code and more — powered by premium AI at a fraction of the cost.</p>
-            <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>{T.startCreating}</button>
+            <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
           <div className="stats-row">
-            <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">{T.used}</div></div>
-            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">{T.limit}</div></div>
+            <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
+            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
             <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
           </div>
           <div className="usage-bar-container">
@@ -1917,12 +1316,11 @@ const App: React.FC = () => {
             <span>A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">Contact</a>
           </div>
         </>)}
-        
         {tab === 'create' && (
           <div className="create-area">
             {!isPersonalMode && (<div className="agent-selector-bar">
               {AGENTS.map(agent => (
-                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } if (agent.id !== 'email-assistant') { setEmailMode('compose'); setEmailTone('Formal'); } if (agent.id === 'fact-checker' || agent.id === 'idea-spark') { setModel('deepseek'); setContentType('text'); } }}>
+                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } if (agent.id !== 'email-assistant') { setEmailMode('compose'); setEmailTone('Formal'); } }}>
                   <span className="agent-tab-icon">{agent.icon}</span>
                   <span className="agent-tab-name">{agent.name}</span>
                   {agent.badge && <span className="agent-tab-badge">{agent.badge}</span>}
@@ -1993,18 +1391,6 @@ const App: React.FC = () => {
                 <p>Describe your brand — get logo concepts with color palettes, typography, and usage guidelines. Switch to GPT Image for AI-generated visuals.</p>
               </div>
             )}
-            {agentMode === 'fact-checker' && (
-              <div className="agent-info-banner">
-                <strong>🔍 Fact-Check & Verify</strong>
-                <p>Paste any claim, article, or statement — get a detailed fact-check with accuracy ratings, plagiarism indicators, and source credibility assessment.</p>
-              </div>
-            )}
-            {agentMode === 'idea-spark' && (
-              <div className="agent-info-banner">
-                <strong>💡 Idea Spark</strong>
-                <p>Enter a keyword, topic, or challenge — get a creative burst with headlines, content angles, metaphors, and unexpected cross-industry connections.</p>
-              </div>
-            )}
 
             {user && templates.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
@@ -2035,30 +1421,6 @@ const App: React.FC = () => {
               {[{ id: 'deepseek', l: '⚡ DeepSeek' }, { id: 'gpt-image-1', l: '🎨 GPT Image' }, { id: 'gpt-4o', l: '✨ GPT-4o' }].map(m => (
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
               ))}
-            </div>
-
-            {/* 🎚️ Mood Writer — Tone Selector */}
-            <div style={{ marginBottom: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary, #888)', fontWeight: 500 }}>🎚️ {T.moodWriter}:</span>
-                {moodTone && <button onClick={() => setMoodTone('')} style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Clear</button>}
-              </div>
-              <div className="mood-bar">
-                {[
-                  { id: 'friendly', label: '😊 Friendly' },
-                  { id: 'professional', label: '💼 Professional' },
-                  { id: 'humorous', label: '😂 Humorous' },
-                  { id: 'urgent', label: '🔥 Urgent' },
-                  { id: 'empathetic', label: '💖 Empathetic' },
-                  { id: 'creative', label: '🎨 Creative' },
-                  { id: 'concise', label: '⚡ Concise' },
-                ].map(mood => (
-                  <button key={mood.id} className={`mood-chip ${moodTone === mood.id ? 'active' : ''}`}
-                    onClick={() => setMoodTone(prev => prev === mood.id ? '' : mood.id)}>
-                    {mood.label}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* 🎨 Image Studio — Style & Size Presets */}
@@ -2143,7 +1505,7 @@ const App: React.FC = () => {
                   const isLastAssistant = msg.role === 'assistant' && idx === chatMessages.length - 1;
                   const endsWithQuestion = msg.role === 'assistant' && /\?\s*$/.test(msg.content.trim());
                   return (
-                  <div key={idx} className="fade-in" style={{
+                  <div key={idx} style={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
@@ -2181,9 +1543,7 @@ const App: React.FC = () => {
                           <button onClick={() => { setChatMessages(prev => prev.filter((_, i) => i !== idx)); setPrompt(chatMessages.filter(m => m.role === 'user').pop()?.content || ''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>🔄 Try Again</button>
                           <button onClick={() => { setResult(null); setPrompt(''); setChatMessages([]); setCurrentChatId(null); setChatTitle(''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '2px solid var(--border-color, #333)', borderRadius: '10px', cursor: 'pointer' }}>← Start Over</button>
                         </>) : (<>
-                        <button onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 {T.copy}</button>
-                        {!msg.imageUrl && <button className="export-btn" onClick={() => exportToPDF(msg.content)} aria-label={T.exportPDF}>📄 {T.exportPDF}</button>}
-                        {!msg.imageUrl && <button className="export-btn" onClick={() => exportToWord(msg.content)} aria-label={T.exportWord}>📝 {T.exportWord}</button>}
+                        <button onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
                         <button onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
                         {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
                         {msg.imageUrl && (
@@ -2222,21 +1582,13 @@ const App: React.FC = () => {
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
               onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
               onDrop={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = ''; handleFileSelect(e.dataTransfer.files); }}>
-              {isListening && (
-                <div className="listening-indicator" style={{ marginBottom: '8px' }}>
-                  <span style={{ fontSize: '16px' }}>🔴</span> {T.listening}
-                  <button onClick={toggleVoiceRecognition} style={{ marginLeft: 'auto', padding: '4px 12px', fontSize: '12px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>⏹ Stop</button>
-                </div>
-              )}
-              <textarea className="prompt-input" style={{ paddingRight: '120px', ...(chatMessages.length > 0 ? { borderColor: 'rgba(108,99,255,0.3)', background: 'rgba(108,99,255,0.05)' } : {}), ...(isListening ? { borderColor: '#ef4444', background: 'rgba(239,68,68,0.05)' } : {}) }} placeholder={
+              <textarea className="prompt-input" style={{ paddingRight: '120px', ...(chatMessages.length > 0 ? { borderColor: 'rgba(108,99,255,0.3)', background: 'rgba(108,99,255,0.05)' } : {}) }} placeholder={
                 chatMessages.length > 0 ? 'Type your reply here...' :
                 agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
                 agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
                 agentMode === 'email-assistant' ? getEmailPlaceholder() :
                 agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
-                agentMode === 'fact-checker' ? 'Paste a claim, article, or statement to verify...' :
-                agentMode === 'idea-spark' ? 'Enter a keyword, topic, or challenge...' :
-                contentType === 'image' ? 'Describe the image...' : T.tapToDictate
+                contentType === 'image' ? 'Describe the image...' : 'What would you like to create?'
               } value={prompt} onChange={e => setPrompt(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && prompt.trim() && !generating) { e.preventDefault(); handleGenerate(); }}} />
               {/* File attachment preview */}
@@ -2257,20 +1609,31 @@ const App: React.FC = () => {
               )}
               <input type="file" ref={fileInputRef} onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} multiple accept="image/*,.pdf,.doc,.docx,.txt,.csv,.md" style={{ display: 'none' }} />
               <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <button onClick={() => fileInputRef.current?.click()} title="Attach file" aria-label="Attach file" style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.25)', color: '#6c63ff', fontSize: '16px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📎</button>
+                <button onClick={() => fileInputRef.current?.click()} title="Attach file" style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.25)', color: '#6c63ff', fontSize: '16px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📎</button>
                 {prompt && (
-                  <button onClick={() => setPrompt('')} title="Clear" aria-label="Clear prompt" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                  <button onClick={() => setPrompt('')} title="Clear" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 )}
-                <button onClick={toggleVoiceRecognition}
-                  title={isListening ? 'Stop listening' : 'Voice input'}
-                  aria-label={isListening ? 'Stop listening' : 'Voice input'}
-                  className={isListening ? 'mic-btn-listening' : ''}
-                  style={{ background: isListening ? '#ef4444' : 'rgba(108,99,255,0.2)', border: `1px solid ${isListening ? '#ef4444' : 'rgba(108,99,255,0.3)'}`, color: isListening ? '#fff' : '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎤</button>
+                <button onClick={() => {
+                  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+                  if (!SR) { alert('Speech recognition is not supported in this browser. Try Chrome or Safari.'); return; }
+                  const recognition = new SR();
+                  recognition.lang = 'en-US';
+                  recognition.interimResults = false;
+                  recognition.maxAlternatives = 1;
+                  recognition.onresult = (event: any) => {
+                    const transcript = event.results[0][0].transcript;
+                    setPrompt(prev => prev ? prev + ' ' + transcript : transcript);
+                  };
+                  recognition.onerror = (event: any) => {
+                    if (event.error === 'not-allowed') alert('Microphone access denied. Please allow microphone permissions.');
+                  };
+                  recognition.start();
+                }} title="Voice input" style={{ background: 'rgba(108,99,255,0.2)', border: '1px solid rgba(108,99,255,0.3)', color: '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎤</button>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || isOffline || (!prompt.trim() && pendingFiles.length === 0)}>
-                {generating ? '⏳ Thinking...' : chatMessages.length > 0 ? '💬 Reply' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : agentMode === 'fact-checker' ? '🔍 Fact-Check' : agentMode === 'idea-spark' ? '💡 Spark Ideas' : '✨ Generate'}
+              <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || (!prompt.trim() && pendingFiles.length === 0)}>
+                {generating ? '⏳ Thinking...' : chatMessages.length > 0 ? '💬 Reply' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : '✨ Generate'}
               </button>
               {user && prompt.trim() && !generating && (
                 <button className="generate-btn" onClick={saveTemplate} disabled={savingTemplate}
@@ -2286,17 +1649,15 @@ const App: React.FC = () => {
               </div>
             )}
             {generating && (
-              <div className="generating-animation" aria-live="polite">
-                <div className="typing-dots shimmer-dots"><span></span><span></span><span></span></div>
-                <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : agentMode === 'fact-checker' ? 'Verifying claims & checking facts...' : agentMode === 'idea-spark' ? 'Generating creative inspiration...' : 'AI is crafting your content...'}</p>
+              <div className="generating-animation">
+                <div className="typing-dots"><span></span><span></span><span></span></div>
+                <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : 'AI is crafting your content...'}</p>
               </div>
             )}
             {result && !result.error && (result.imageUrl || chatMessages.length === 0) && (
-              <div className="result-container slide-up">
+              <div className="result-container">
                 <div className="result-actions" style={{ position: 'relative' }}>
-                  {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 ' + T.copy}</button>}
-                  {!result.imageUrl && <button className="export-btn" onClick={() => exportToPDF(result.content || result.text || '')} aria-label={T.exportPDF}>📄 {T.exportPDF}</button>}
-                  {!result.imageUrl && <button className="export-btn" onClick={() => exportToWord(result.content || result.text || '')} aria-label={T.exportWord}>📝 {T.exportWord}</button>}
+                  {!result.imageUrl && <button className="action-btn" onClick={handleCopy}>{copied ? '✅ Copied!' : '📋 Copy'}</button>}
                   {result.imageUrl && <button className="action-btn" onClick={handleDownload}>⬇️ Download</button>}
                   <button className="action-btn" onClick={handleRegenerate}>🔄 Regenerate</button>
                   {result.imageUrl && (
@@ -2335,31 +1696,12 @@ const App: React.FC = () => {
                 </div>
               </div>
             )}
-            {/* Feature 6: Personal Tool Starters */}
-            {isPersonalMode && prompt && !generating && chatMessages.length === 0 && (() => {
-              const matchedTool = PERSONAL_TOOLS.find(t => prompt.startsWith(t.prompt.substring(0, 20)));
-              const toolId = matchedTool?.id;
-              const starters = toolId ? PERSONAL_TOOL_STARTERS[toolId] : null;
-              if (!starters) return null;
-              return (
-                <div style={{ marginBottom: '12px' }}>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary, #999)', marginBottom: '8px' }}>💡 Try one of these:</p>
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                    {starters.map((s, i) => (
-                      <button key={i} className="starter-chip" onClick={() => setPrompt(s.text)}>
-                        {s.icon} {s.text}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-                        {!result && !generating && !prompt && chatMessages.length === 0 && (
+            {!result && !generating && !prompt && chatMessages.length === 0 && (
               <div className="prompt-suggestions">
                 <p className="suggestions-label">Try one of these:</p>
                 <div className="suggestions-grid">
                   {(AGENT_SUGGESTIONS[agentMode] || AGENT_SUGGESTIONS['general']).map((s, i) => (
-                    <button key={i} className="suggestion-chip" role="button" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") (e.target as HTMLElement).click(); }} onClick={() => { setPrompt(s.text); if (s.icon === '🎨' && agentMode === 'general') { setModel('gpt-image-1'); setContentType('image'); } }}>
+                    <button key={i} className="suggestion-chip" onClick={() => { setPrompt(s.text); if (s.icon === '🎨' && agentMode === 'general') { setModel('gpt-image-1'); setContentType('image'); } }}>
                       <span>{s.icon}</span> {s.text}
                     </button>
                   ))}
@@ -2368,15 +1710,8 @@ const App: React.FC = () => {
             )}
           </div>
         )}
-        
         {tab === 'gallery' && (<>
-          <h3 className="section-title">{T.myCreations}</h3>
-          {/* Feature 3: Search Gallery */}
-          <div style={{ position: 'relative', marginBottom: '12px' }}>
-            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', pointerEvents: 'none' }}>🔍</span>
-            <input className="search-input-field" placeholder={T.searchHistory} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-            {searchQuery && <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '16px', cursor: 'pointer' }} aria-label="Clear search">✕</button>}
-          </div>
+          <h3 className="section-title">My Creations</h3>
           {history.length > 0 && (
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               {(['all', 'favorites'] as const).map(f => (
@@ -2386,14 +1721,12 @@ const App: React.FC = () => {
               ))}
             </div>
           )}
-          {searchQuery && filteredHistory.length === 0 ? (
-            <div className="empty-state"><p>{T.noResults}</p></div>
-          ) : filteredHistory.length === 0 && creations.length === 0 ? (
+          {filteredHistory.length === 0 && creations.length === 0 ? (
             <div className="empty-state"><p>{historyFilter === 'favorites' ? 'No favorites yet — star items to save them here' : 'No creations yet'}</p></div>
           ) : (
             <div className="gallery-grid">
               {filteredHistory.map((h) => (
-                <div key={h.id} className="gallery-card" role="button" tabIndex={0} style={{ cursor: 'pointer', position: 'relative' }}>
+                <div key={h.id} className="gallery-card" style={{ cursor: 'pointer', position: 'relative' }}>
                   <div onClick={() => toggleFavorite(h.id)} style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 2, cursor: 'pointer', fontSize: '20px', filter: h.isFavorite ? 'none' : 'grayscale(1) opacity(0.4)' }}>⭐</div>
                   <div onClick={() => loadHistoryPrompt(h)}>
                     {h.imageUrl && <img src={h.imageUrl} alt="" />}
@@ -2429,40 +1762,24 @@ const App: React.FC = () => {
           )}
         </>)}
 
-
-                {/* Chats Tab */}
+        {/* Chats Tab */}
         {tab === 'chats' && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h3 className="section-title" style={{ margin: 0 }}>💬 {T.myChats}</h3>
+              <h3 className="section-title" style={{ margin: 0 }}>💬 My Chats</h3>
               <button onClick={() => { startNewChat(); setTab('create'); }}
                 style={{ background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
-                ➕ {T.newChat}
+                ➕ New Chat
               </button>
             </div>
-            {/* Feature 3: Search Chats */}
-            <div style={{ position: 'relative', marginBottom: '12px' }}>
-              <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', pointerEvents: 'none' }}>🔍</span>
-              <input className="search-input-field" placeholder={T.searchChats} value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-              {searchQuery && <button onClick={() => setSearchQuery('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-secondary)', fontSize: '16px', cursor: 'pointer' }} aria-label="Clear search">✕</button>}
-            </div>
-            {/* Feature 13: Chat Tag Filter */}
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
-              {CHAT_TAGS.map(tag => (
-                <button key={tag.id} className={`model-chip ${chatTag === tag.id ? 'active' : ''}`}
-                  onClick={() => setChatTag(tag.id)} role="button" tabIndex={0}>
-                  {tag.icon} {tag.label}
-                </button>
-              ))}
-            </div>
-            {filteredChats.length === 0 ? (
+            {chats.length === 0 ? (
               <div className="empty-state">
-                <p>{searchQuery || chatTag ? T.noResults : T.noChats}</p>
+                <p>No chats yet. Start a conversation to see it here!</p>
                 <button className="nav-btn btn-primary" onClick={() => { startNewChat(); setTab('create'); }}>Start Chatting</button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {filteredChats.map(chat => {
+                {chats.map(chat => {
                   const agentInfo = AGENTS.find(a => a.id === chat.agentMode);
                   const lastMsg = chat.messages && chat.messages.length > 0 ? chat.messages[chat.messages.length - 1] : null;
                   const msgCount = chat.messages ? chat.messages.length : 0;
@@ -2478,9 +1795,8 @@ const App: React.FC = () => {
                           <span style={{ fontSize: '20px' }}>{agentInfo?.icon || '✨'}</span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.title || 'Untitled Chat'}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--text-secondary, #999)', marginTop: '2px' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', marginTop: '2px' }}>
                               {agentInfo?.name || 'General'} · {userMsgCount} {userMsgCount === 1 ? 'message' : 'messages'} · {formatChatDate(chat.updatedAt)}
-                              {chat.tag && <span onClick={e => { e.stopPropagation(); const tags: ChatTagLabel[] = ['Content', 'Email', 'Design', 'Research', 'Marketing', 'Ideas']; const idx = tags.indexOf(chat.tag || '' as ChatTagLabel); const nextTag = tags[(idx + 1) % tags.length]; updateDoc(doc(db, 'chats', chat.id), { tag: nextTag }).then(() => { setChats(prev => prev.map(c => c.id === chat.id ? { ...c, tag: nextTag } : c)); }); }} style={{ background: 'rgba(108,99,255,0.1)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', cursor: 'pointer' }} role="button" tabIndex={0}>{chat.tag}</span>}
                             </div>
                           </div>
                         </div>
@@ -2509,8 +1825,7 @@ const App: React.FC = () => {
           </>
         )}
 
-
-                {tab === 'community' && (<>
+        {tab === 'community' && (<>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
             <h3 className="section-title" style={{ margin: 0 }}>🌟 Community Gallery</h3>
             <button onClick={loadCommunityPosts} className="nav-btn btn-primary" style={{ padding: '8px 16px', fontSize: '13px' }}>
@@ -2574,31 +1889,26 @@ const App: React.FC = () => {
         {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
         {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
       </div>
-      {/* Feature 9: Enhanced Toast */}
-      {toastVisible && (
-        <div className="toast-container" aria-live="polite">
-          <div className={`toast-box toast-${toastType}`}>
-            <span>{toastType === 'success' ? '✅' : toastType === 'info' ? 'ℹ️' : toastType === 'warning' ? '⚠️' : '❌'}</span>
-            <span>{toastMsg}</span>
-            <div className="toast-progress" />
-          </div>
+      {shareToast && (
+        <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #6c63ff, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(108,99,255,0.4)', animation: 'fadeIn 0.3s ease' }}>
+          {shareToast}
         </div>
       )}
-      <nav className="bottom-nav" role="navigation" aria-label="Bottom navigation">
+      <nav className="bottom-nav">
         {(isPersonalMode 
             ? (['home','create','gallery','community','chats'] as Tab[])
             : (['home','create','chats','gallery','community','crm','projects'] as Tab[])
           ).map(id => (
-          <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)} aria-current={tab === id ? 'page' : undefined}>
+          <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
             <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋' }[id]}</span>
-            {{ home: T.home, create: T.create, gallery: T.gallery, chats: T.chats, community: T.community, crm: T.crm, projects: T.projects }[id]}
+            {{ home: 'Home', create: 'Create', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects' }[id]}
           </button>
         ))}
       </nav>
 
       {showOnboarding && user && (
         <div className="auth-overlay">
-          <div className="auth-modal scale-in" style={{ maxWidth: '480px', maxHeight: '90vh', overflow: 'auto' }}>
+          <div className="auth-modal" style={{ maxWidth: '480px', maxHeight: '90vh', overflow: 'auto' }}>
             {/* Progress bar */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '24px' }}>
               {[0,1,2,3,4].map(s => (
@@ -2709,7 +2019,7 @@ const App: React.FC = () => {
       )}
       {showAuth && (
         <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowAuth(false)}>
-          <div className="auth-modal scale-in">
+          <div className="auth-modal">
             <h2>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Create Your Account'}</h2>
             <p style={{ color: 'var(--text-secondary)', margin: '8px 0 20px', fontSize: 14 }}>{authMode === 'login' ? 'Sign in to NovaMind AI' : 'Start creating with NovaMind AI'}</p>
             {authError && <div className="auth-error">{authError}</div>}
