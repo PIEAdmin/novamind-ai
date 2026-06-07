@@ -8,7 +8,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 type ToastType = 'success' | 'info' | 'warning' | 'error';
 type ThemeMode = 'dark' | 'light';
@@ -76,6 +76,8 @@ const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
     reply: 'Reply', continue_: 'Continue', delete_: 'Delete', aiAgents: 'AI Agents', quickTools: 'Quick Tools',
     thisMonth: 'This Month', totalGenerations: 'Total Generations', textGens: 'Text', imageGens: 'Images', recentActivity: 'Recent Activity',
     industry: 'Industry', all: 'All', favorites: 'Favorites',
+    factCheck: 'Fact-Check & Verify', ideaSpark: 'Idea Spark', tapToDictate: '🎤 Tap to dictate',
+    listening: '🔴 Listening...', moodWriter: 'Mood / Tone', voiceNotSupported: 'Speech recognition is not supported in this browser. Try Chrome or Safari.',
   },
   es: {
     home: 'Inicio', create: 'Crear', gallery: 'Galería', chats: 'Chats', community: 'Comunidad', crm: 'CRM', projects: 'Proyectos',
@@ -90,6 +92,8 @@ const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
     reply: 'Responder', continue_: 'Continuar', delete_: 'Eliminar', aiAgents: 'Agentes IA', quickTools: 'Herramientas',
     thisMonth: 'Este Mes', totalGenerations: 'Total Generaciones', textGens: 'Texto', imageGens: 'Imágenes', recentActivity: 'Actividad Reciente',
     industry: 'Industria', all: 'Todos', favorites: 'Favoritos',
+    factCheck: 'Verificar Hechos', ideaSpark: 'Chispa de Ideas', tapToDictate: '🎤 Toca para dictar',
+    listening: '🔴 Escuchando...', moodWriter: 'Tono', voiceNotSupported: 'El reconocimiento de voz no es compatible con este navegador. Prueba Chrome o Safari.',
   },
   fr: {
     home: 'Accueil', create: 'Créer', gallery: 'Galerie', chats: 'Chats', community: 'Communauté', crm: 'CRM', projects: 'Projets',
@@ -104,6 +108,8 @@ const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
     reply: 'Répondre', continue_: 'Continuer', delete_: 'Supprimer', aiAgents: 'Agents IA', quickTools: 'Outils Rapides',
     thisMonth: 'Ce Mois', totalGenerations: 'Total Générations', textGens: 'Texte', imageGens: 'Images', recentActivity: 'Activité Récente',
     industry: 'Industrie', all: 'Tous', favorites: 'Favoris',
+    factCheck: 'Vérification des Faits', ideaSpark: 'Étincelle d\'Idées', tapToDictate: '🎤 Appuyez pour dicter',
+    listening: '🔴 Écoute en cours...', moodWriter: 'Ton', voiceNotSupported: 'La reconnaissance vocale n\'est pas prise en charge par ce navigateur. Essayez Chrome ou Safari.',
   },
 };
 
@@ -185,6 +191,8 @@ const detectChatTag = (agentMode: string, contentType: string): ChatTagLabel => 
   if (agentMode === 'ad-maker') return 'Marketing';
   if (agentMode === 'logo-maker') return 'Design';
   if (agentMode === 'competitor-analysis') return 'Research';
+  if (agentMode === 'fact-checker') return 'Research';
+  if (agentMode === 'idea-spark') return 'Ideas';
   if (agentMode === 'general' && contentType === 'image') return 'Design';
   if (agentMode === 'general' && contentType === 'text') return 'Content';
   return 'Content';
@@ -224,6 +232,8 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'ad-maker', name: 'Ad Maker', icon: '📢', desc: 'Ad copy & creatives' },
   { id: 'logo-maker', name: 'Logo Maker', icon: '🎨', desc: 'AI logo design' },
   { id: 'email-assistant', name: 'Email Assistant', icon: '📧', desc: 'Professional emails' },
+  { id: 'fact-checker', name: 'Fact-Check & Verify', icon: '🔍', desc: 'Verify claims & facts', badge: 'NEW' },
+  { id: 'idea-spark', name: 'Idea Spark', icon: '💡', desc: 'Creative brainstorming', badge: 'NEW' },
 ];
 
 const EMAIL_MODE_PROMPTS: Record<EmailMode, (tone: string) => string> = {
@@ -285,7 +295,23 @@ Be punchy, benefit-driven, and conversion-focused.`,
 ## 🔤 Typography (font recommendations)
 ## 📰 Layout (icon, horizontal, stacked variants)
 Suggest switching to GPT Image for AI-generated visuals.`,
-  'email-assistant': `You are a professional email writer. Write a polished email with Subject line, greeting, body, CTA, and sign-off. Include 2 alternative subject lines and a follow-up tip. Adapt tone to context.`
+  'email-assistant': `You are a professional email writer. Write a polished email with Subject line, greeting, body, CTA, and sign-off. Include 2 alternative subject lines and a follow-up tip. Adapt tone to context.`,
+  'fact-checker': `You are a rigorous fact-checker. Analyze the following text for:
+1) Factual accuracy — identify any claims that are false, misleading, or unverifiable.
+2) Potential plagiarism indicators — flag any text that appears to be commonly found verbatim in other sources.
+3) Source credibility assessment.
+Rate overall reliability on a scale: ✅ Verified / ⚠️ Partially Verified / ❌ Unverified.
+Format your response with clear sections and confidence levels.`,
+  'idea-spark': `You are a creative ideation engine. Given a keyword or topic, generate a burst of creative inspiration formatted as:
+## 🎯 Headlines
+(3 catchy, click-worthy headlines)
+## 📐 Content Angles
+(3 unique approaches to cover this topic)
+## 🔮 Metaphors & Hooks
+(3 vivid metaphors or opening hooks)
+## 🔗 Unexpected Connections
+(2 cross-industry or surprising angles)
+Be bold, original, and inspiring.`
 };
 
 const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
@@ -318,6 +344,18 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '📋', text: 'Follow-up email after a sales meeting where the client seemed interested' },
     { icon: '🙏', text: 'Professional apology email for a delayed project delivery' },
     { icon: '🎉', text: 'Customer welcome email sequence for new subscribers' }
+  ],
+  'fact-checker': [
+    { icon: '📰', text: 'Check if this article about AI replacing 80% of jobs by 2030 is accurate' },
+    { icon: '🔬', text: 'Verify: "Humans only use 10% of their brain capacity"' },
+    { icon: '📊', text: 'Fact-check this marketing claim about our competitor\'s market share' },
+    { icon: '🧪', text: 'Is this health article about intermittent fasting scientifically accurate?' }
+  ],
+  'idea-spark': [
+    { icon: '🚀', text: 'Sustainable fashion for Gen Z' },
+    { icon: '🍕', text: 'Local pizza restaurant social media content' },
+    { icon: '💡', text: 'AI in education — fresh angles for a blog series' },
+    { icon: '🎬', text: 'True crime podcast launch — unique hooks and angles' }
   ]
 };
 
@@ -510,6 +548,13 @@ const App: React.FC = () => {
   // Feature 13: Chat Tags
   const [chatTag, setChatTag] = useState<ChatTagLabel>('');
 
+  // Feature: Voice-to-Text
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<ReturnType<typeof Object> | null>(null);
+
+  // Feature: Mood Writer
+  const [moodTone, setMoodTone] = useState('');
+
   // Share & Community
   const [showShareMenu, setShowShareMenu] = useState<string | null>(null);
   const [communityPosts, setCommunityPosts] = useState<Array<Record<string, any>>>([]);
@@ -694,6 +739,7 @@ const App: React.FC = () => {
     setChatTitle('');
     setPrompt('');
     setResult(null);
+    setMoodTone('');
   };
 
   const saveChatToFirestore = async (
@@ -955,6 +1001,16 @@ const App: React.FC = () => {
       return { agent: 'email-assistant', notification: '📧 Switching to Email Assistant...' };
     }
 
+    // Fact-check detection
+    if (/\b(fact.?check|verify|plagiarism|is this true|check if|is it true|debunk|accurate|fake news|misinformation|check this)\b/.test(p)) {
+      return { agent: 'fact-checker', notification: '🔍 Switching to Fact-Check & Verify...' };
+    }
+
+    // Idea spark / brainstorm detection
+    if (/\b(brainstorm|ideas|inspire|spark|creative ideas|ideate|idea.*for|content ideas|angles|hooks for)\b/.test(p)) {
+      return { agent: 'idea-spark', notification: '💡 Switching to Idea Spark...' };
+    }
+
     // Competitor analysis detection
     if (/\b(competitor|competition|swot|market analysis|analyze.*company|compare.*with|vs\b|versus|competitive.*analysis|market.*research|industry.*analysis|benchmark)\b/.test(p)) {
       return { agent: 'competitor-analysis', notification: '🔍 Switching to Competitor Analysis...' };
@@ -1127,6 +1183,12 @@ const App: React.FC = () => {
         }
       } else if (currentIndustry !== 'general' && currentContentType === 'text') {
         systemPrefix = `You are an expert AI assistant specializing in the ${industryObj?.name} industry. Tailor your response specifically for ${industryObj?.name} professionals.`;
+      }
+
+      // Inject Mood Tone if selected
+      if (moodTone) {
+        systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+          `Write in a ${moodTone} tone.`;
       }
 
       // Personalize — address the user by name if available
@@ -1391,6 +1453,55 @@ const App: React.FC = () => {
     setTab('create');
   };
 
+  // Voice-to-Text toggle
+  const toggleVoiceRecognition = () => {
+    const win = window as unknown as Record<string, unknown>;
+    const SRConstructor = win.SpeechRecognition || win.webkitSpeechRecognition;
+    if (!SRConstructor) {
+      alert(T.voiceNotSupported);
+      return;
+    }
+    if (isListening && recognitionRef.current) {
+      (recognitionRef.current as { stop: () => void }).stop();
+      setIsListening(false);
+      return;
+    }
+    const recognition = new (SRConstructor as { new(): { lang: string; interimResults: boolean; continuous: boolean; onresult: ((e: { results: { isFinal: boolean; 0: { transcript: string } }[] }) => void) | null; onerror: ((e: { error: string }) => void) | null; onend: (() => void) | null; start: () => void; stop: () => void } })();
+    recognition.lang = language === 'es' ? 'es-ES' : language === 'fr' ? 'fr-FR' : 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognitionRef.current = recognition;
+    let finalTranscript = '';
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        if (result.isFinal) {
+          finalTranscript += result[0].transcript + ' ';
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      setPrompt(prev => {
+        const base = prev.replace(/\u200B.*$/, '').trimEnd();
+        const newText = finalTranscript + (interim ? '\u200B' + interim : '');
+        return base ? base + ' ' + newText : newText;
+      });
+    };
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed') alert('Microphone access denied. Please allow microphone permissions.');
+      setIsListening(false);
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+      recognitionRef.current = null;
+      // Clean up zero-width space markers from interim results
+      setPrompt(prev => prev.replace(/\u200B/g, ''));
+    };
+    recognition.start();
+    setIsListening(true);
+  };
+
   const switchTab = (t: Tab) => { setTab(t); if (t === 'community' && communityPosts.length === 0) loadCommunityPosts(); };
   if (loading) return null;
 
@@ -1611,6 +1722,23 @@ const App: React.FC = () => {
         [data-theme="light"] .dashboard-card { background: linear-gradient(135deg, rgba(108,99,255,0.06), rgba(59,130,246,0.06)); }
         .starter-chip { padding: 8px 14px; font-size: 13px; background: rgba(108,99,255,0.1); color: var(--primary, #6c63ff); border: 1px solid rgba(108,99,255,0.25); border-radius: 10px; cursor: pointer; transition: all 0.2s; }
         .starter-chip:hover { background: rgba(108,99,255,0.2); transform: translateY(-1px); }
+        @keyframes micPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); } 50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); } }
+        .mic-btn-listening { animation: micPulse 1.2s ease-in-out infinite; background: #ef4444 !important; border-color: #ef4444 !important; color: #fff !important; }
+        .listening-indicator { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #ef4444; font-weight: 600; animation: pulse 1.5s ease-in-out infinite; }
+        .mood-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .mood-chip { padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: 20px; cursor: pointer; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.05); color: var(--text-primary, #ccc); transition: all 0.2s ease; white-space: nowrap; }
+        .mood-chip:hover { background: rgba(108,99,255,0.12); border-color: rgba(108,99,255,0.3); transform: translateY(-1px); }
+        .mood-chip.active { background: var(--primary, #6c63ff); color: #fff; border-color: var(--primary, #6c63ff); box-shadow: 0 0 12px rgba(108,99,255,0.35); }
+        [data-theme="light"] .mood-chip { background: #f0f0f5; color: #333; border-color: #d0d0d8; }
+        [data-theme="light"] .mood-chip.active { background: #6c63ff; color: #fff; border-color: #6c63ff; }
+        .fact-check-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-right: 6px; }
+        .badge-verified { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); }
+        .badge-partial { background: rgba(234,179,8,0.15); color: #eab308; border: 1px solid rgba(234,179,8,0.3); }
+        .badge-unverified { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+        .idea-card { background: rgba(108,99,255,0.06); border: 1px solid rgba(108,99,255,0.15); border-radius: 14px; padding: 16px; margin-bottom: 10px; position: relative; }
+        .idea-card h2 { font-size: 16px; margin: 0 0 8px 0; }
+        .idea-card-copy { position: absolute; top: 10px; right: 10px; padding: 4px 10px; font-size: 11px; background: rgba(108,99,255,0.15); color: var(--primary, #6c63ff); border: 1px solid rgba(108,99,255,0.25); border-radius: 8px; cursor: pointer; }
+        .idea-card-copy:hover { background: rgba(108,99,255,0.25); }
       `}</style>
 
       <nav className="navbar" role="navigation" aria-label="Main navigation">
@@ -1794,7 +1922,7 @@ const App: React.FC = () => {
           <div className="create-area">
             {!isPersonalMode && (<div className="agent-selector-bar">
               {AGENTS.map(agent => (
-                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } if (agent.id !== 'email-assistant') { setEmailMode('compose'); setEmailTone('Formal'); } }}>
+                <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } if (agent.id !== 'email-assistant') { setEmailMode('compose'); setEmailTone('Formal'); } if (agent.id === 'fact-checker' || agent.id === 'idea-spark') { setModel('deepseek'); setContentType('text'); } }}>
                   <span className="agent-tab-icon">{agent.icon}</span>
                   <span className="agent-tab-name">{agent.name}</span>
                   {agent.badge && <span className="agent-tab-badge">{agent.badge}</span>}
@@ -1865,6 +1993,18 @@ const App: React.FC = () => {
                 <p>Describe your brand — get logo concepts with color palettes, typography, and usage guidelines. Switch to GPT Image for AI-generated visuals.</p>
               </div>
             )}
+            {agentMode === 'fact-checker' && (
+              <div className="agent-info-banner">
+                <strong>🔍 Fact-Check & Verify</strong>
+                <p>Paste any claim, article, or statement — get a detailed fact-check with accuracy ratings, plagiarism indicators, and source credibility assessment.</p>
+              </div>
+            )}
+            {agentMode === 'idea-spark' && (
+              <div className="agent-info-banner">
+                <strong>💡 Idea Spark</strong>
+                <p>Enter a keyword, topic, or challenge — get a creative burst with headlines, content angles, metaphors, and unexpected cross-industry connections.</p>
+              </div>
+            )}
 
             {user && templates.length > 0 && (
               <div style={{ marginBottom: '16px' }}>
@@ -1895,6 +2035,30 @@ const App: React.FC = () => {
               {[{ id: 'deepseek', l: '⚡ DeepSeek' }, { id: 'gpt-image-1', l: '🎨 GPT Image' }, { id: 'gpt-4o', l: '✨ GPT-4o' }].map(m => (
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
               ))}
+            </div>
+
+            {/* 🎚️ Mood Writer — Tone Selector */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary, #888)', fontWeight: 500 }}>🎚️ {T.moodWriter}:</span>
+                {moodTone && <button onClick={() => setMoodTone('')} style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Clear</button>}
+              </div>
+              <div className="mood-bar">
+                {[
+                  { id: 'friendly', label: '😊 Friendly' },
+                  { id: 'professional', label: '💼 Professional' },
+                  { id: 'humorous', label: '😂 Humorous' },
+                  { id: 'urgent', label: '🔥 Urgent' },
+                  { id: 'empathetic', label: '💖 Empathetic' },
+                  { id: 'creative', label: '🎨 Creative' },
+                  { id: 'concise', label: '⚡ Concise' },
+                ].map(mood => (
+                  <button key={mood.id} className={`mood-chip ${moodTone === mood.id ? 'active' : ''}`}
+                    onClick={() => setMoodTone(prev => prev === mood.id ? '' : mood.id)}>
+                    {mood.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* 🎨 Image Studio — Style & Size Presets */}
@@ -2058,13 +2222,21 @@ const App: React.FC = () => {
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
               onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
               onDrop={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = ''; handleFileSelect(e.dataTransfer.files); }}>
-              <textarea className="prompt-input" style={{ paddingRight: '120px', ...(chatMessages.length > 0 ? { borderColor: 'rgba(108,99,255,0.3)', background: 'rgba(108,99,255,0.05)' } : {}) }} placeholder={
+              {isListening && (
+                <div className="listening-indicator" style={{ marginBottom: '8px' }}>
+                  <span style={{ fontSize: '16px' }}>🔴</span> {T.listening}
+                  <button onClick={toggleVoiceRecognition} style={{ marginLeft: 'auto', padding: '4px 12px', fontSize: '12px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>⏹ Stop</button>
+                </div>
+              )}
+              <textarea className="prompt-input" style={{ paddingRight: '120px', ...(chatMessages.length > 0 ? { borderColor: 'rgba(108,99,255,0.3)', background: 'rgba(108,99,255,0.05)' } : {}), ...(isListening ? { borderColor: '#ef4444', background: 'rgba(239,68,68,0.05)' } : {}) }} placeholder={
                 chatMessages.length > 0 ? 'Type your reply here...' :
                 agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
                 agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
                 agentMode === 'email-assistant' ? getEmailPlaceholder() :
                 agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
-                contentType === 'image' ? 'Describe the image...' : 'What would you like to create?'
+                agentMode === 'fact-checker' ? 'Paste a claim, article, or statement to verify...' :
+                agentMode === 'idea-spark' ? 'Enter a keyword, topic, or challenge...' :
+                contentType === 'image' ? 'Describe the image...' : T.tapToDictate
               } value={prompt} onChange={e => setPrompt(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && prompt.trim() && !generating) { e.preventDefault(); handleGenerate(); }}} />
               {/* File attachment preview */}
@@ -2089,27 +2261,16 @@ const App: React.FC = () => {
                 {prompt && (
                   <button onClick={() => setPrompt('')} title="Clear" aria-label="Clear prompt" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 )}
-                <button onClick={() => {
-                  const SR = (window as unknown as Record<string, any>).SpeechRecognition || (window as unknown as Record<string, any>).webkitSpeechRecognition;
-                  if (!SR) { alert('Speech recognition is not supported in this browser. Try Chrome or Safari.'); return; }
-                  const recognition = new (SR as any)();
-                  recognition.lang = 'en-US';
-                  recognition.interimResults = false;
-                  recognition.maxAlternatives = 1;
-                  recognition.onresult = (event: any) => {
-                    const transcript = event.results[0][0].transcript;
-                    setPrompt(prev => prev ? prev + ' ' + transcript : transcript);
-                  };
-                  recognition.onerror = (event: any) => {
-                    if (event.error === 'not-allowed') alert('Microphone access denied. Please allow microphone permissions.');
-                  };
-                  recognition.start();
-                }} title="Voice input" aria-label="Voice input" style={{ background: 'rgba(108,99,255,0.2)', border: '1px solid rgba(108,99,255,0.3)', color: '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎤</button>
+                <button onClick={toggleVoiceRecognition}
+                  title={isListening ? 'Stop listening' : 'Voice input'}
+                  aria-label={isListening ? 'Stop listening' : 'Voice input'}
+                  className={isListening ? 'mic-btn-listening' : ''}
+                  style={{ background: isListening ? '#ef4444' : 'rgba(108,99,255,0.2)', border: `1px solid ${isListening ? '#ef4444' : 'rgba(108,99,255,0.3)'}`, color: isListening ? '#fff' : '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎤</button>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || isOffline || (!prompt.trim() && pendingFiles.length === 0)}>
-                {generating ? '⏳ Thinking...' : chatMessages.length > 0 ? '💬 Reply' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : '✨ Generate'}
+                {generating ? '⏳ Thinking...' : chatMessages.length > 0 ? '💬 Reply' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : agentMode === 'fact-checker' ? '🔍 Fact-Check' : agentMode === 'idea-spark' ? '💡 Spark Ideas' : '✨ Generate'}
               </button>
               {user && prompt.trim() && !generating && (
                 <button className="generate-btn" onClick={saveTemplate} disabled={savingTemplate}
@@ -2127,7 +2288,7 @@ const App: React.FC = () => {
             {generating && (
               <div className="generating-animation" aria-live="polite">
                 <div className="typing-dots shimmer-dots"><span></span><span></span><span></span></div>
-                <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : 'AI is crafting your content...'}</p>
+                <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : agentMode === 'fact-checker' ? 'Verifying claims & checking facts...' : agentMode === 'idea-spark' ? 'Generating creative inspiration...' : 'AI is crafting your content...'}</p>
               </div>
             )}
             {result && !result.error && (result.imageUrl || chatMessages.length === 0) && (
