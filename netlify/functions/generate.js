@@ -3,6 +3,8 @@
 // This runs server-side on Netlify — API keys are NOT exposed to the client
 
 const https = require('https');
+let pdfParse;
+try { pdfParse = require('pdf-parse'); } catch { pdfParse = null; }
 
 function callAPI(hostname, path, apiKey, body) {
   return new Promise((resolve, reject) => {
@@ -156,22 +158,35 @@ exports.handler = async (event) => {
     const docFiles = (files || []).filter((f) => f.type && !f.type.startsWith('image/'));
     if (docFiles.length > 0) {
       let totalChars = 0;
-      const docTexts = docFiles
-        .map((f) => {
-          try {
-            let text = Buffer.from(f.data, 'base64').toString('utf-8');
-            const remaining = MAX_DOC_CHARS - totalChars;
-            if (remaining <= 0) return '';
-            if (text.length > remaining) {
-              text = text.substring(0, remaining) + '\n\n[... Document truncated — too large to process in full. Summarizing available content above ...]';
+      const docTexts = [];
+      for (const f of docFiles) {
+        try {
+          const remaining = MAX_DOC_CHARS - totalChars;
+          if (remaining <= 0) break;
+          const rawBuffer = Buffer.from(f.data, 'base64');
+          let text = '';
+          // Use pdf-parse for PDF files to get actual readable text
+          const isPdf = (f.type && f.type.includes('pdf')) || (f.name && f.name.toLowerCase().endsWith('.pdf'));
+          if (isPdf && pdfParse) {
+            try {
+              const pdfData = await pdfParse(rawBuffer);
+              text = pdfData.text || '';
+            } catch {
+              // Fallback: raw decode if pdf-parse fails
+              text = rawBuffer.toString('utf-8');
             }
-            totalChars += text.length;
-            return `\n\n--- File: ${f.name} ---\n${text}`;
-          } catch {
-            return '';
+          } else {
+            text = rawBuffer.toString('utf-8');
           }
-        })
-        .filter(Boolean);
+          if (text.length > remaining) {
+            text = text.substring(0, remaining) + '\n\n[... Document truncated — too large to process in full. Summarizing available content above ...]';
+          }
+          totalChars += text.length;
+          docTexts.push(`\n\n--- File: ${f.name} ---\n${text}`);
+        } catch {
+          // skip unreadable files
+        }
+      }
       if (docTexts.length > 0) {
         fullPrompt += '\n\nAttached documents:' + docTexts.join('');
       }
