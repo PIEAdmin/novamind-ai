@@ -714,6 +714,23 @@ const App: React.FC = () => {
           setShowOnboarding(true);
           setOnboardingStep(0);
           if (u.displayName) setOnboardingData(prev => ({ ...prev, displayName: u.displayName || '' }));
+          // 📢 Notify admin of new signup
+          try {
+            await setDoc(doc(db, 'adminNotifications', u.uid), {
+              type: 'new_signup',
+              email: u.email || '',
+              displayName: u.displayName || '',
+              photoURL: u.photoURL || '',
+              signupAt: Timestamp.now(),
+              read: false
+            });
+            // Also call notify function for email alert
+            fetch('/.netlify/functions/notify-signup', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: u.email, name: u.displayName || '', uid: u.uid })
+            }).catch(() => {});
+          } catch (e) { console.error('Admin notify error:', e); }
         }
       } else {
         setTemplates([]);
