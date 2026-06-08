@@ -8,7 +8,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
 type ToastType = 'success' | 'info' | 'warning' | 'error';
@@ -101,6 +101,7 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'financial-advisor', name: 'Financial Advisor', icon: '💰', desc: 'Pricing strategy, profit margins, cash flow projections, break-even analysis & expense advice', badge: 'NEW' },
   { id: 'business-plan', name: 'Business Plan Generator', icon: '📋', desc: 'Complete business plans with executive summary, market analysis, revenue model & growth strategy', badge: 'NEW' },
   { id: 'sales-proposal', name: 'Sales Proposal Writer', icon: '📝', desc: 'Professional proposals, quotes, pitch decks & client presentations tailored by industry', badge: 'NEW' },
+  { id: 'flyer-maker', name: 'Flyer Maker', icon: '📄', desc: 'Professional print-ready flyers, posters & event promotions', badge: 'NEW' },
 ];
 
 const COMING_SOON_FEATURES: { icon: string; name: string; desc: string }[] = [
@@ -235,7 +236,44 @@ Make it investor-ready quality with compelling narrative and data-driven insight
 Format professionally with clear sections: Problem, Solution, Pricing, Timeline, Next Steps.
 Tailor tone and content to the specific industry.
 Include compelling value propositions and differentiators.
-Make it ready to send — professional and persuasive.`
+Make it ready to send — professional and persuasive.`,
+  'flyer-maker': `You are a professional flyer and promotional material designer. When users describe what they need, generate a stunning, print-ready flyer image.
+
+## 🎨 Design Principles
+- Bold, eye-catching headlines that grab attention instantly
+- Clean, professional layouts with clear visual hierarchy
+- Industry-appropriate color schemes and imagery
+- High contrast text for readability
+- Strategic use of white space
+
+## 📄 Flyer Elements to Include
+- **Headline** — Big, bold, attention-grabbing
+- **Subheadline** — Supporting details or tagline
+- **Key Details** — Date, time, location, pricing, offers
+- **Call to Action** — "Call Now", "Visit Us", "Book Today", etc.
+- **Contact Info** — Phone, email, website, social media handles
+- **Branding** — Business name and logo placement
+
+## 🎯 Flyer Types You Create
+- Grand opening announcements
+- Event promotions (workshops, sales, concerts)
+- Service/product promotions
+- Seasonal offers & holiday specials
+- Hiring/recruitment flyers
+- Menu specials & restaurant promotions
+- Real estate open houses
+- Church & community event flyers
+- Fitness & wellness promotions
+- Educational program announcements
+
+## 📐 Design Standards
+- Use professional typography — headline font large and bold, body text clean and readable
+- Include a clear visual focal point
+- Ensure all text is within safe margins (not cut off at edges)
+- Use vibrant, professional color palettes appropriate to the industry
+- Make the design print-ready at standard flyer sizes (8.5x11, A4, or 5x7)
+
+Always ask for business name, event details, and any specific branding preferences if not provided. Create designs that look like they came from a professional graphic designer.`
 };
 
 const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
@@ -298,6 +336,12 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '💼', text: 'Create a pitch deck outline for my marketing agency targeting healthcare clients' },
     { icon: '💰', text: 'Build a pricing quote for a 6-month social media management contract' },
     { icon: '🤝', text: 'Draft a follow-up email sequence after sending a proposal to a potential client' }
+  ],
+  'flyer-maker': [
+    { icon: '🎉', text: 'Create a grand opening flyer for a hair salon called Glamour Studio' },
+    { icon: '🍕', text: 'Design a flyer for a restaurant weekend special — buy one get one free' },
+    { icon: '🏋️', text: 'Make a flyer for a 30-day fitness challenge starting July 1st' },
+    { icon: '📚', text: 'Create an event flyer for a community AI training workshop' }
   ]
 };
 
@@ -489,6 +533,7 @@ const detectChatTag = (agentMode: string, contentType: string): ChatTagLabel => 
   if (agentMode === 'idea-spark') return 'Ideas';
   if (agentMode === 'financial-advisor') return 'Finance';
   if (agentMode === 'business-plan' || agentMode === 'sales-proposal') return 'Sales';
+  if (agentMode === 'flyer-maker') return 'Design';
   return 'Content';
 };
 
@@ -1037,6 +1082,11 @@ const App: React.FC = () => {
     // Sales proposal detection
     if (/\b(proposal|quote.*for|pitch.*deck|client.*presentation|sales.*pitch|rfp|scope.*of.*work|pricing.*quote|send.*quote|write.*proposal|draft.*proposal|contract.*scope)\b/.test(p)) {
       return { agent: 'sales-proposal', notification: '📝 Switching to Sales Proposal Writer...' };
+    }
+
+    // Flyer maker detection
+    if (/\b(flyer|flier|poster|promotional.*print|event.*flyer|grand.*opening.*flyer|print.*flyer|make.*a.*flyer|create.*a.*flyer|design.*a.*flyer|promo.*flyer|hiring.*flyer)/.test(p)) {
+      return { agent: 'flyer-maker', notification: '📄 Switching to Flyer Maker...' };
     }
 
     // Fact-checking detection
