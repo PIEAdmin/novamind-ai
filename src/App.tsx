@@ -956,11 +956,18 @@ const App: React.FC = () => {
     return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
   };
 
+  const notifyNewSignup = (userEmail: string, userName: string) => {
+    fetch('https://webhooks.tasklet.ai/v1/public/webhook/a_znxak6bqy5ewx6t3j659?token=cbcece223e80912c7bb051a147188d78', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: userEmail, name: userName, timestamp: new Date().toISOString(), source: 'novamind-app' })
+    }).catch(() => {});
+  };
+
   const handleAuth = async () => {
     setAuthError('');
     try {
       if (authMode === 'login') await signInWithEmailAndPassword(auth, email, password);
-      else await createUserWithEmailAndPassword(auth, email, password);
+      else { const cred = await createUserWithEmailAndPassword(auth, email, password); notifyNewSignup(cred.user.email || email, cred.user.displayName || ''); }
       setShowAuth(false);
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {} }
     } catch (e: unknown) { const err = e as { code?: string; message?: string }; 
@@ -989,7 +996,9 @@ const App: React.FC = () => {
     setAuthError('');
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const ct = new Date(result.user.metadata.creationTime || '').getTime();
+      if (Date.now() - ct < 60000) notifyNewSignup(result.user.email || '', result.user.displayName || '');
       setShowAuth(false);
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {} }
     } catch (e: unknown) {
