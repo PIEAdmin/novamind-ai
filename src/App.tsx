@@ -8,13 +8,13 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
 type ToastType = 'success' | 'info' | 'warning' | 'error';
 type ThemeMode = 'dark' | 'light';
 type LangCode = 'en' | 'es' | 'fr';
-type ChatTagLabel = '' | 'Content' | 'Email' | 'Design' | 'Research' | 'Marketing' | 'Ideas';
+type ChatTagLabel = '' | 'Content' | 'Email' | 'Design' | 'Research' | 'Marketing' | 'Ideas' | 'Finance' | 'Sales';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -98,6 +98,17 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'email-assistant', name: 'Email Assistant', icon: '📧', desc: 'Professional emails' },
   { id: 'fact-checker', name: 'Fact Checker', icon: '✅', desc: 'Verify claims & info', badge: 'NEW' },
   { id: 'idea-spark', name: 'Idea Spark', icon: '💡', desc: 'Brainstorm & ideation', badge: 'NEW' },
+  { id: 'financial-advisor', name: 'Financial Advisor', icon: '💰', desc: 'Pricing strategy, profit margins, cash flow projections, break-even analysis & expense advice', badge: 'NEW' },
+  { id: 'business-plan', name: 'Business Plan Generator', icon: '📋', desc: 'Complete business plans with executive summary, market analysis, revenue model & growth strategy', badge: 'NEW' },
+  { id: 'sales-proposal', name: 'Sales Proposal Writer', icon: '📝', desc: 'Professional proposals, quotes, pitch decks & client presentations tailored by industry', badge: 'NEW' },
+];
+
+const COMING_SOON_FEATURES: { icon: string; name: string; desc: string }[] = [
+  { icon: '📧', name: 'Smart Inbox', desc: 'AI reads, drafts & manages your email replies' },
+  { icon: '📱', name: 'Social Scheduler', desc: 'Create, schedule & auto-post to all platforms' },
+  { icon: '📊', name: 'CRM Lite', desc: 'Track clients, deals & follow-ups with AI insights' },
+  { icon: '📋', name: 'Project Board', desc: 'AI-powered task & project management' },
+  { icon: '🎯', name: 'Marketing Autopilot', desc: 'Automated campaigns, sequences & analytics' },
 ];
 
 const EMAIL_MODE_PROMPTS: Record<EmailMode, (tone: string) => string> = {
@@ -172,7 +183,59 @@ Be objective, cite sources when possible, and clearly distinguish between verifi
 ## \ud83d\ude80 Moonshot (1 ambitious, high-impact idea)
 ## \ud83d\udd17 Connections (unexpected links between the topic and other fields)
 ## \ud83d\udccb Next Steps (3 concrete actions to start with the best idea)
-Be creative, think laterally, and don't be afraid of unconventional suggestions.`
+Be creative, think laterally, and don't be afraid of unconventional suggestions.`,
+  'financial-advisor': `You are a comprehensive financial advisor for small businesses. Help users with:
+## 💰 Pricing Strategy & Profit Margins
+- Analyze pricing models and suggest optimal price points
+- Calculate profit margins and markup percentages
+## 📊 Cash Flow Forecasting
+- Create cash flow projections and forecasts
+- Identify potential cash flow gaps
+## 📈 Break-Even Analysis
+- Calculate break-even points with clear formulas
+- Show units/revenue needed to break even
+## 💸 Expense Management
+- Categorize and analyze expenses
+- Suggest cost reduction strategies
+## 🏦 Financial Health
+- Revenue model analysis and optimization
+- Financial health assessment and KPIs
+- Tax preparation guidance and deduction tips
+- Budget planning and allocation
+Format responses with clear tables, calculations, and actionable steps.
+Always ask what industry/business type for relevant benchmarks.
+Include specific numbers and percentages when possible.`,
+  'business-plan': `You are a professional business plan writer. Generate comprehensive, investor-ready business plans with:
+## 📋 Executive Summary
+## 🏢 Company Description & Mission
+## 📊 Market Analysis & Target Audience
+## 🏆 Competitive Landscape
+## 🛍️ Products/Services Description
+## 📣 Marketing & Sales Strategy
+## 💰 Revenue Model & Financial Projections
+## ⚙️ Operations Plan
+## 🚀 Growth Strategy & Milestones
+Format with clear headers, bullet points, and professional language.
+Ask for business type, target market, and goals if not provided.
+Include realistic financial projections and timelines.
+Make it investor-ready quality with compelling narrative and data-driven insights.`,
+  'sales-proposal': `You are a professional sales proposal and pitch writer. Create compelling, client-ready documents including:
+## 📝 Client-Facing Proposals
+- Professional proposals with company branding sections
+- Service/product quotes with detailed pricing breakdowns
+## 🎯 Pitch Materials
+- Pitch deck outlines and presentation scripts
+- Case study frameworks with measurable results
+## 💰 Financial Justification
+- ROI calculations tailored to the client's situation
+- Cost-benefit analysis and value propositions
+## 📋 Follow-Up & Contracts
+- Follow-up email sequences after proposals
+- Contract scope summaries
+Format professionally with clear sections: Problem, Solution, Pricing, Timeline, Next Steps.
+Tailor tone and content to the specific industry.
+Include compelling value propositions and differentiators.
+Make it ready to send — professional and persuasive.`
 };
 
 const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
@@ -217,6 +280,24 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '🎯', text: 'Brainstorm unique marketing ideas for a local bakery on a tight budget' },
     { icon: '🚀', text: 'What are some innovative app ideas that solve everyday problems?' },
     { icon: '🔗', text: 'Creative content ideas for a fitness Instagram account that stand out' }
+  ],
+  'financial-advisor': [
+    { icon: '💰', text: 'Help me set pricing for my consulting services to hit 40% profit margins' },
+    { icon: '📊', text: 'Create a 12-month cash flow projection for my new e-commerce store' },
+    { icon: '📈', text: 'Calculate break-even point for my restaurant with $15K monthly overhead' },
+    { icon: '💸', text: 'Review my business expenses and suggest where I can cut costs' }
+  ],
+  'business-plan': [
+    { icon: '📋', text: 'Write a complete business plan for a mobile dog grooming service' },
+    { icon: '🚀', text: 'Create a startup plan for a SaaS app targeting small business owners' },
+    { icon: '📊', text: 'Market analysis and business plan for a new fitness studio in Austin, TX' },
+    { icon: '🏢', text: 'Generate an investor-ready business plan for an online tutoring platform' }
+  ],
+  'sales-proposal': [
+    { icon: '📝', text: 'Write a proposal for my web design services to a local restaurant chain' },
+    { icon: '💼', text: 'Create a pitch deck outline for my marketing agency targeting healthcare clients' },
+    { icon: '💰', text: 'Build a pricing quote for a 6-month social media management contract' },
+    { icon: '🤝', text: 'Draft a follow-up email sequence after sending a proposal to a potential client' }
   ]
 };
 
@@ -314,7 +395,7 @@ const generateShareId = (): string => {
 };
 
 
-const CHAT_TAGS: ChatTagLabel[] = ['', 'Content', 'Email', 'Design', 'Research', 'Marketing', 'Ideas'];
+const CHAT_TAGS: ChatTagLabel[] = ['', 'Content', 'Email', 'Design', 'Research', 'Marketing', 'Ideas', 'Finance', 'Sales'];
 
 const TRANSLATIONS: Record<LangCode, Record<string, string>> = {
   en: {
@@ -406,6 +487,8 @@ const detectChatTag = (agentMode: string, contentType: string): ChatTagLabel => 
   if (agentMode === 'logo-maker' || contentType === 'image') return 'Design';
   if (agentMode === 'competitor-analysis' || agentMode === 'fact-checker') return 'Research';
   if (agentMode === 'idea-spark') return 'Ideas';
+  if (agentMode === 'financial-advisor') return 'Finance';
+  if (agentMode === 'business-plan' || agentMode === 'sales-proposal') return 'Sales';
   return 'Content';
 };
 
@@ -583,6 +666,10 @@ const App: React.FC = () => {
     setChatTitle('');
     setPrompt('');
     setResult(null);
+    setIndustry('general');
+    setAgentMode('general');
+    setContentType('text');
+    setModel('deepseek');
   };
 
   const saveChatToFirestore = async (
@@ -937,6 +1024,21 @@ const App: React.FC = () => {
     }
 
 
+    // Financial advisor detection
+    if (/\b(pricing.*strategy|profit.*margin|cash.*flow|break.?even|expense|budget.*plan|revenue.*model|financial.*health|tax.*prep|cost.*analysis|markup|forecast.*revenue|financial.*project|pricing.*model)\b/.test(p)) {
+      return { agent: 'financial-advisor', notification: '💰 Switching to Financial Advisor...' };
+    }
+
+    // Business plan detection
+    if (/\b(business.*plan|startup.*plan|launch.*plan|market.*analysis.*plan|executive.*summary|growth.*strategy|investor.*ready|business.*model|go.?to.?market)\b/.test(p)) {
+      return { agent: 'business-plan', notification: '📋 Switching to Business Plan Generator...' };
+    }
+
+    // Sales proposal detection
+    if (/\b(proposal|quote.*for|pitch.*deck|client.*presentation|sales.*pitch|rfp|scope.*of.*work|pricing.*quote|send.*quote|write.*proposal|draft.*proposal|contract.*scope)\b/.test(p)) {
+      return { agent: 'sales-proposal', notification: '📝 Switching to Sales Proposal Writer...' };
+    }
+
     // Fact-checking detection
     if (/\b(fact.?check|is it true|verify.*claim|debunk|myth.*bust|true or false)\b/.test(p)) {
       return { agent: 'fact-checker', notification: '\u2705 Switching to Fact Checker...' };
@@ -948,6 +1050,26 @@ const App: React.FC = () => {
     }
 
     return null; // Stay in General
+  };
+
+  // 🧠 Smart industry detection — override saved industry based on prompt context
+  const detectIndustryFromPrompt = (p: string): string => {
+    const lp = p.toLowerCase();
+    if (/\b(restaurant|food service|menu|dining|chef|cuisine|catering|food truck|bar |pub |cafe |bakery)\b/.test(lp)) return 'restaurant';
+    if (/\b(real estate|property|realtor|listing|mortgage|home buyer|rental|landlord|housing|apartment)\b/.test(lp)) return 'real-estate';
+    if (/\b(fitness|gym|workout|exercise|wellness|yoga|personal train|health coach|nutrition|weight loss)\b/.test(lp)) return 'fitness';
+    if (/\b(legal|law firm|attorney|lawyer|litigation|contract law|court|compliance|patent|trademark)\b/.test(lp)) return 'legal';
+    if (/\b(healthcare|medical|doctor|clinic|patient|hospital|dental|therapy|pharma|nursing|health care)\b/.test(lp)) return 'healthcare';
+    if (/\b(ecommerce|e-commerce|online store|shopify|amazon|dropship|product listing|online retail)\b/.test(lp)) return 'ecommerce';
+    if (/\b(salon|beauty|hair|nail|spa |skincare|cosmet|barber|makeup|esthetician)\b/.test(lp)) return 'salon';
+    if (/\b(automotive|car dealer|mechanic|auto repair|vehicle|car wash|tire |auto body)\b/.test(lp)) return 'automotive';
+    if (/\b(education|school|university|college|student|teacher|campus|curriculum|academic|workforce develop)\b/.test(lp)) return 'education';
+    if (/\b(finance|accounting|bookkeep|tax |invest|banking|financial plan|cpa |audit|payroll)\b/.test(lp)) return 'finance';
+    if (/\b(construction|contractor|builder|renovation|plumb|electric|hvac|roofing|remodel|architec)\b/.test(lp)) return 'construction';
+    if (/\b(photography|photographer|photo shoot|portrait|wedding photo|headshot)\b/.test(lp)) return 'photography';
+    if (/\b(nonprofit|non-profit|charity|donation|volunteer|fundrais|foundation|501c|ngo )\b/.test(lp)) return 'nonprofit';
+    if (/\b(tech startup|saas |startup|app develop|software company|tech company|ai company|fintech)\b/.test(lp)) return 'tech-startup';
+    return 'general';
   };
 
   const handleFileSelect = (files: FileList | null) => {
@@ -985,7 +1107,15 @@ const App: React.FC = () => {
     const currentContentType = contentType;
     const currentModel = model;
     const currentAgentMode = agentMode;
-    const currentIndustry = industry;
+    let currentIndustry = industry;
+    // 🧠 Smart industry: detect from prompt content, override saved default
+    const detectedIndustry = detectIndustryFromPrompt(currentPrompt);
+    if (detectedIndustry !== 'general') {
+      currentIndustry = detectedIndustry;
+    } else if (industry !== 'general') {
+      // Saved industry doesn't match prompt — use general to avoid wrong framing
+      currentIndustry = 'general';
+    }
     // 🧠 Smart routing: if in General, detect intent and auto-switch
     let activeAgentMode = currentAgentMode;
     let activeContentType = currentContentType;
@@ -1066,6 +1196,10 @@ const App: React.FC = () => {
         systemPrefix = getEmailSystemPrompt();
         if (currentIndustry !== 'general') {
           systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your email specifically for this industry.`;
+        }
+        // Auto-fill user info for email signatures
+        if (user?.displayName || user?.email) {
+          systemPrefix += `\n\nThe sender's name is ${user?.displayName || 'not provided'} and their email is ${user?.email || 'not provided'}. Use this information to fill in the email signature instead of placeholders like [Your Name]. If information is missing, use a placeholder.`;
         }
       } else if (activeAgentMode !== 'general') {
         systemPrefix = AGENT_SYSTEM_PROMPTS[activeAgentMode];
@@ -1578,6 +1712,22 @@ const App: React.FC = () => {
                 </div>
               </div>
             ))}
+            {/* 🚀 Coming Soon — compact row */}
+            <div style={{ marginTop: '24px', marginBottom: '20px' }}>
+              <h4 style={{ fontSize: '14px', color: 'var(--text-secondary, #888)', marginBottom: '10px', fontWeight: 600 }}>🚀 Coming Soon</h4>
+              <div style={{ display: 'flex', gap: '12px', overflowX: 'auto' as const, paddingBottom: '4px' }}>
+                {COMING_SOON_FEATURES.map((feature) => (
+                  <div key={feature.name} style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    opacity: 0.5, fontSize: '12px', color: 'var(--text-secondary, #888)',
+                    whiteSpace: 'nowrap' as const,
+                  }}>
+                    <span style={{ fontSize: '16px' }}>{feature.icon}</span>
+                    <span>{feature.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="powered-footer">
               <span>A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">Contact</a>
             </div>
@@ -1585,8 +1735,8 @@ const App: React.FC = () => {
         )}
         {tab === 'home' && !isPersonalMode && (<>
           <div className="hero-section">
-            <h1 className="hero-title">Create Amazing Content with AI</h1>
-            <p className="hero-subtitle">Text, images, code and more — powered by premium AI at a fraction of the cost.</p>
+            <h1 className="hero-title">{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}! ✨` : 'Create Amazing Content with AI'}</h1>
+            <p className="hero-subtitle">{user?.displayName ? 'What would you like to create today?' : 'Text, images, code and more — powered by premium AI at a fraction of the cost.'}</p>
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
           <div className="stats-row">
@@ -1627,6 +1777,44 @@ const App: React.FC = () => {
             ))}
           </div>
 
+          {/* 🚀 Coming Soon Section */}
+          <div style={{ marginTop: '32px' }}>
+            <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              🚀 Coming Soon
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary, #888)', marginTop: '-8px', marginBottom: '16px' }}>
+              Phase II features launching soon — stay tuned!
+            </p>
+            <div className="agent-grid">
+              {COMING_SOON_FEATURES.map((feature) => (
+                <div key={feature.name} className="agent-card" style={{
+                  opacity: 0.55,
+                  cursor: 'default',
+                  pointerEvents: 'none' as const,
+                  border: '2px dashed rgba(255,255,255,0.15)',
+                  background: 'rgba(255,255,255,0.02)',
+                  position: 'relative' as const,
+                }}>
+                  <span style={{
+                    position: 'absolute' as const,
+                    top: '8px',
+                    right: '8px',
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                    color: '#fff',
+                    letterSpacing: '0.5px',
+                  }}>COMING SOON</span>
+                  <div className="agent-icon">{feature.icon}</div>
+                  <div className="agent-name">{feature.name}</div>
+                  <div className="agent-desc">{feature.desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <h3 className="section-title">Quick Tools</h3>
           <div className="tool-grid">
             {[{ icon: '✍️', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '🎨', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '💻', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '📧', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '📄', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '💡', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
@@ -1647,6 +1835,13 @@ const App: React.FC = () => {
                   <span className="agent-tab-icon">{agent.icon}</span>
                   <span className="agent-tab-name">{agent.name}</span>
                   {agent.badge && <span className="agent-tab-badge">{agent.badge}</span>}
+                </button>
+              ))}
+              {COMING_SOON_FEATURES.map(feature => (
+                <button key={feature.name} className="agent-tab" style={{ opacity: 0.4, cursor: 'default', pointerEvents: 'none' as const }} disabled>
+                  <span className="agent-tab-icon">{feature.icon}</span>
+                  <span className="agent-tab-name">{feature.name}</span>
+                  <span className="agent-tab-badge" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', fontSize: '8px' }}>SOON</span>
                 </button>
               ))}
             </div>)}
