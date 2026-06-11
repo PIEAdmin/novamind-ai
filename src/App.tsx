@@ -1373,12 +1373,23 @@ const App: React.FC = () => {
     navigator.clipboard.writeText(text).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!result?.imageUrl) return;
-    const a = document.createElement('a');
-    a.href = result.imageUrl;
-    a.download = 'novamind-creation.png';
-    a.click();
+    try {
+      const resp = await fetch(result.imageUrl);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'novamind-creation.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
+      // Fallback: open in new tab instead of navigating away
+      window.open(result.imageUrl, '_blank');
+    }
   };
 
 
@@ -1463,12 +1474,16 @@ const App: React.FC = () => {
 
   const handleShareDownload = async (imageUrl: string, filename?: string) => {
     try {
+      const resp = await fetch(imageUrl);
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = imageUrl;
+      link.href = url;
       link.download = filename || `novamind-creation-${Date.now()}.webp`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       showToast('Downloaded! 📥');
     } catch { showToast('Download failed'); }
   };
