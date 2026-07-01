@@ -2322,7 +2322,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             ))}
           </div>
           <div className="powered-footer">
-            <span>A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">Contact</a>
+            <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">admin@allexapiegroup.com</a>
           </div>
         </>)}
         {tab === 'create' && (
