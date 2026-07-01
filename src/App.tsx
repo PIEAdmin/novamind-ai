@@ -2047,7 +2047,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               )}
             </div>
             <div className="powered-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-              <span>A Product of The PIE Group</span>
+              <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">admin@allexapiegroup.com</a>
             </div>
           </div>
         </div>
