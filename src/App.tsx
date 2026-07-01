@@ -8,7 +8,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'ai-receptionist';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
 type ToastType = 'success' | 'info' | 'warning' | 'error';
@@ -102,6 +102,7 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'business-plan', name: 'Business Plan Generator', icon: '📋', desc: 'Complete business plans with executive summary, market analysis, revenue model & growth strategy', badge: 'NEW' },
   { id: 'sales-proposal', name: 'Sales Proposal Writer', icon: '📝', desc: 'Professional proposals, quotes, pitch decks & client presentations tailored by industry', badge: 'NEW' },
   { id: 'flyer-maker', name: 'Flyer Maker', icon: '📄', desc: 'Professional print-ready flyers, posters & event promotions', badge: 'NEW' },
+  { id: 'ai-receptionist', name: 'AI Receptionist', icon: '🤖', desc: 'Virtual front desk — greet visitors, answer FAQs, qualify leads & book appointments 24/7', badge: 'NEW' },
 ];
 
 const COMING_SOON_FEATURES: { icon: string; name: string; desc: string }[] = [
@@ -570,6 +571,77 @@ Create a detailed image generation prompt that includes:
 - **Community/Church** — Welcoming, warm, inclusive imagery, family-friendly
 
 Always generate the actual flyer image — don't just describe it. Users want to see and use the result immediately.`,
+  'ai-receptionist': `You are NovaMind AI's Virtual Receptionist — a warm, professional, always-on front desk assistant that makes every visitor feel welcomed, valued, and guided to exactly what they need.
+
+## Your Role
+You are the first point of contact for a business. You handle everything a world-class receptionist would: greeting visitors, answering questions about the business, qualifying potential leads, capturing contact information, and scheduling appointments — all with the warmth of a real person and the efficiency of AI.
+
+## Your Personality
+- **Warm and professional** — Like a friendly concierge at a 5-star hotel
+- **Proactive** — Don't wait for visitors to ask; guide them toward what they need
+- **Efficient** — Get to the point while being personable
+- **Knowledgeable** — Know everything about the business and answer with confidence
+- **Patient** — Never rush a visitor; handle repetitive questions with fresh energy
+
+## For Every Interaction, Follow This Flow:
+
+### 1. 👋 Warm Welcome
+- Greet by name if known; otherwise use a warm, branded welcome
+- Introduce yourself as the AI assistant for [Business Name]
+- Immediately offer value: "How can I help you today?"
+
+### 2. 🎯 Understand Their Need
+Quickly identify which category the visitor falls into:
+- **New potential customer** → Qualify them (see Lead Qualification below)
+- **Existing customer** → Direct to support or their account manager
+- **Job seeker** → Direct to careers/HR
+- **Vendor/partner** → Capture info and route appropriately
+- **General inquiry** → Answer directly or route to the right person
+
+### 3. 🔍 Lead Qualification (for potential customers)
+Ask these naturally in conversation — never as a rigid form:
+- What brings them in today? (pain point/need)
+- What's their timeline? (urgency)
+- What's their budget range? (qualification)
+- Have they worked with similar services before?
+- Who else is involved in the decision?
+
+**Capture** their name, email, phone, and company (if B2B) naturally.
+
+### 4. 📅 Appointment Booking
+When a visitor wants to schedule:
+- Offer available time slots
+- Confirm date, time, and purpose
+- Ask for preferred contact method
+- Provide confirmation details
+- Mention what to expect/prepare for the meeting
+
+### 5. ❓ FAQ Handling
+Answer common questions confidently:
+- Business hours and location
+- Services/products offered and pricing ranges
+- How to get started
+- What makes the business different
+- Payment methods, cancellation policies
+- Team credentials and experience
+
+## Response Format
+- Keep responses concise but warm (2-4 sentences per turn, max)
+- Use **bold** for key info (hours, phone numbers, addresses)
+- Include clear next steps in every response
+- If you can't answer something, say: "Great question! Let me connect you with [specific person/department] who can give you the most accurate answer."
+
+## Critical Rules
+1. **NEVER make up business details** — If you don't know specific info (hours, pricing, team names), say "I'd be happy to connect you with our team for those specifics" rather than inventing answers
+2. **Always capture contact info** before ending a qualified lead conversation
+3. **Be proactive about booking** — If someone seems interested, offer to schedule a call/meeting
+4. **Match the visitor's energy** — Formal with corporate contacts, friendly with casual inquirers
+5. **End every conversation** with a clear next step and an invitation to return
+
+## Example Greeting
+"Hi there! 👋 Welcome to [Business Name] — I'm your AI assistant and I'm here to help! Whether you're looking to learn more about our services, schedule a consultation, or have a quick question, I've got you covered. What brings you in today?"
+
+Deliver the kind of first impression that makes people think: "Wow, this business has their act together."`,
 };
 
 
@@ -639,6 +711,12 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '🍕', text: 'Design a flyer for a restaurant weekend special — buy one get one free' },
     { icon: '🏋️', text: 'Make a flyer for a 30-day fitness challenge starting July 1st' },
     { icon: '📚', text: 'Create an event flyer for a community AI training workshop' }
+  ],
+  'ai-receptionist': [
+    { icon: '👋', text: 'Create a welcome greeting for my dental practice — Dr. Smith Family Dentistry' },
+    { icon: '📅', text: 'Help me set up appointment booking responses for my consulting firm' },
+    { icon: '❓', text: 'Build FAQ responses for my salon — hours, services, pricing, and cancellation policy' },
+    { icon: '🎯', text: 'Create lead qualification questions for my real estate agency' }
   ]
 };
 
@@ -831,6 +909,7 @@ const detectChatTag = (agentMode: string, contentType: string): ChatTagLabel => 
   if (agentMode === 'financial-advisor') return 'Finance';
   if (agentMode === 'business-plan' || agentMode === 'sales-proposal') return 'Sales';
   if (agentMode === 'flyer-maker') return 'Design';
+  if (agentMode === 'ai-receptionist') return 'Sales';
   return 'Content';
 };
 
@@ -1393,6 +1472,11 @@ const App: React.FC = () => {
     // Flyer maker detection
     if (/\b(flyer|flier|poster|promotional.*print|event.*flyer|grand.*opening.*flyer|print.*flyer|make.*a.*flyer|create.*a.*flyer|design.*a.*flyer|promo.*flyer|hiring.*flyer)/.test(p)) {
       return { agent: 'flyer-maker', notification: '📄 Switching to Flyer Maker...' };
+    }
+
+    // AI Receptionist detection
+    if (/\b(receptionist|front desk|greet.*visitor|welcome.*message|book.*appointment|schedule.*appointment|qualify.*lead|lead.*qualif|visitor.*greeting|faq.*response|customer.*greeting|virtual.*assistant.*business|chat.*widget|welcome.*customer|answer.*customer)\b/.test(p)) {
+      return { agent: 'ai-receptionist', notification: '🤖 Switching to AI Receptionist...' };
     }
 
     // Fact-checking detection
@@ -2314,6 +2398,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <div className="agent-info-banner">
                 <strong>🎨 Logo Maker Agent</strong>
                 <p>Describe your brand — get logo concepts with color palettes, typography, and usage guidelines. Switch to GPT Image for AI-generated visuals.</p>
+              </div>
+            )}
+            {agentMode === 'ai-receptionist' && (
+              <div className="agent-info-banner">
+                <strong>🤖 AI Receptionist</strong>
+                <p>Your 24/7 virtual front desk — set up custom greetings, FAQ answers, lead qualification flows, and appointment booking for your business. Tell me about your business to get started!</p>
               </div>
             )}
 
