@@ -2122,6 +2122,24 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         [data-theme="light"] .agent-info-banner { background: rgba(108,99,255,0.05); border-color: rgba(108,99,255,0.15); }
         [data-theme="light"] .auth-modal { background: #fff; color: #212529; }
         [data-theme="light"] .empty-state { color: #6c757d; }
+        [data-theme="light"] .hero-section { background: linear-gradient(135deg, #f0f0ff, #e8e6ff); }
+        [data-theme="light"] .hero-title { color: #1a1a2e !important; }
+        [data-theme="light"] .hero-subtitle { color: #4a4a6a !important; }
+        [data-theme="light"] .section-title { color: #1a1a2e; }
+        [data-theme="light"] .powered-footer { color: #6c757d; }
+        [data-theme="light"] .powered-footer a { color: #6c63ff; }
+        [data-theme="light"] .navbar .logo-text { color: #1a1a2e !important; }
+        [data-theme="light"] .chat-card, [data-theme="light"] .history-card { background: #fff; border-color: #dee2e6; }
+        [data-theme="light"] .usage-bar { background: #e9ecef; }
+        [data-theme="light"] .prompt-input::placeholder { color: #adb5bd; }
+        [data-theme="light"] .bottom-nav button { color: #6c757d; }
+        [data-theme="light"] .bottom-nav button.active { color: #6c63ff; }
+        [data-theme="light"] .agent-card { background: #fff; border-color: #e2e2e2; color: #212529; }
+        [data-theme="light"] .agent-card:hover { border-color: #6c63ff; }
+        [data-theme="light"] .agent-card .agent-name { color: #1a1a2e; }
+        [data-theme="light"] .agent-card .agent-desc { color: #6c757d; }
+        [data-theme="light"] .result-container pre { background: #f1f3f5; color: #212529; }
+        [data-theme="light"] .onboarding-modal { background: #fff; color: #212529; }
         @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(255,75,75,0.4)} 50%{box-shadow:0 0 0 12px rgba(255,75,75,0)} }
         @keyframes slideInUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
@@ -2146,7 +2164,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <button key={code} onClick={() => setLanguage(code)} style={{ background: language === code ? 'rgba(108,99,255,0.3)' : 'transparent', border: language === code ? '1px solid rgba(108,99,255,0.5)' : '1px solid transparent', borderRadius: '6px', padding: '4px 6px', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', color: 'var(--text-primary, #fff)' }}>{{ en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }[code]}</button>
             ))}
           </div>
-          <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
+          <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#212529' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
           <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer' }}>⌨️</button>
           <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600' }}>🚪 {t.signOut}</button>
         </div>
@@ -2198,8 +2216,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 {COMING_SOON_FEATURES.map((feature) => (
                   <div key={feature.name} style={{
                     display: 'flex', alignItems: 'center', gap: '6px',
-                    opacity: 0.5, fontSize: '12px', color: 'var(--text-secondary, #888)',
+                    opacity: 0.45, fontSize: '12px', color: 'var(--text-secondary, #888)',
                     whiteSpace: 'nowrap' as const,
+                    filter: 'grayscale(0.8)',
                   }}>
                     <span style={{ fontSize: '16px' }}>{feature.icon}</span>
                     <span>{feature.name}</span>
