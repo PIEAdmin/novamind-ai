@@ -1287,7 +1287,7 @@ const App: React.FC = () => {
     { id: 'marketing', label: '📣 Marketing & Ads', desc: 'Ad copy, social posts, campaigns' },
     { id: 'email', label: '📧 Email & Comms', desc: 'Professional emails, outreach' },
     { id: 'images', label: '🎨 Image Generation', desc: 'Logos, graphics, AI art' },
-    { id: 'code', label: '💻 Code & Tech', desc: 'Programming, debugging, scripts' },
+    { id: 'business-ops', label: '🏢 Business Operations', desc: 'SOPs, workflows, process docs' },
     { id: 'analysis', label: '📊 Analysis & Research', desc: 'Market research, competitor intel' },
   ];
 
@@ -2160,8 +2160,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         {tab === 'home' && isPersonalMode && (
           <>
             <div className="hero-section" style={{ textAlign: 'center', padding: '20px 0' }}>
-              <h1 className="hero-title" style={{ fontSize: '1.6rem' }}>Your AI Toolkit 🛠️</h1>
-              <p className="hero-subtitle">12 tools designed for real life — not enterprise jargon.</p>
+              <h1 className="hero-title" style={{ fontSize: '1.6rem' }}>{user?.displayName ? `Hey ${user.displayName.split(' ')[0]}! 🛠️` : 'Your AI Toolkit 🛠️'}</h1>
+              <p className="hero-subtitle">{user?.displayName ? '12 tools designed for real life — what are we making today?' : '12 tools designed for real life — not enterprise jargon.'}</p>
             </div>
             <div className="stats-row">
               <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
@@ -2208,14 +2208,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             </div>
             <div className="powered-footer">
-              <span>A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">Contact</a>
+              <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">admin@allexapiegroup.com</a>
             </div>
           </>
         )}
         {tab === 'home' && !isPersonalMode && (<>
           <div className="hero-section">
             <h1 className="hero-title">{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}! ✨` : 'Create Amazing Content with AI'}</h1>
-            <p className="hero-subtitle">{user?.displayName ? 'What would you like to create today?' : 'Text, images, code and more — powered by premium AI at a fraction of the cost.'}</p>
+            <p className="hero-subtitle">{user?.displayName ? 'What would you like to create today?' : 'Content, emails, images and more — powered by premium AI at a fraction of the cost.'}</p>
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
           <div className="stats-row">
@@ -2296,7 +2296,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
 
           <h3 className="section-title">Quick Tools</h3>
           <div className="tool-grid">
-            {[{ icon: '✍️', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '🎨', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '💻', name: 'Code', desc: 'Write code', type: 'text' },{ icon: '📧', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '📄', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '💡', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
+            {[{ icon: '✍️', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '🎨', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '📧', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '📋', name: 'Plans', desc: 'Business plans', type: 'text' },{ icon: '📄', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '💡', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
               <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); setAgentMode('general'); switchTab('create'); }}>
                 <div className="tool-icon">{t.icon}</div><div className="tool-name">{t.name}</div><div className="tool-desc">{t.desc}</div>
               </div>
