@@ -2051,10 +2051,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} />
             {authMode === 'login' && (
               <p style={{ textAlign: 'right', margin: '-4px 0 0 0' }}>
-                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #a855f7)', fontSize: '13px', cursor: 'pointer' }}>Forgot Password?</span>
+                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #a855f7)', fontSize: '14px', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px' }}>Forgot Password?</span>
               </p>
             )}
-            {resetSent && <p style={{ color: '#4ade80', fontSize: '13px', margin: 0, textAlign: 'center' }}>✅ Password reset email sent! Check your inbox.</p>}
+            {resetSent && <p style={{ color: '#4ade80', fontSize: '14px', margin: 0, textAlign: 'center', padding: '12px', background: 'rgba(74,222,128,0.1)', borderRadius: '10px', border: '1px solid rgba(74,222,128,0.3)' }}>✅ Password reset email sent! Check your inbox (and spam/junk folder).</p>}
             <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
               <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
@@ -2200,6 +2200,32 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         [data-theme="light"] .agent-tab { color: #5a5680; }
         [data-theme="light"] .agent-tab.active { color: #6c63ff; background: rgba(108,99,255,0.08); }
         [data-theme="light"] .agent-selector-bar { background: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(108,99,255,0.08); }
+        /* Light mode chat & inline element fixes */
+        [data-theme="light"] .chat-msg-label { color: rgba(0,0,0,0.45) !important; }
+        [data-theme="light"] .chat-bubble-assistant { background: rgba(108,99,255,0.06) !important; color: #1a1a2e !important; border: 1px solid rgba(108,99,255,0.12) !important; }
+        [data-theme="light"] .chat-bubble-assistant.question { background: rgba(108,99,255,0.1) !important; border: 1px solid rgba(108,99,255,0.25) !important; }
+        [data-theme="light"] .chat-bubble-user { background: var(--primary, #6c63ff) !important; color: #fff !important; }
+        [data-theme="light"] .chat-bubble-error { background: rgba(255,80,80,0.08) !important; color: #1a1a2e !important; border: 1px solid rgba(255,80,80,0.25) !important; }
+        [data-theme="light"] .chat-action-btn { background: rgba(108,99,255,0.06) !important; color: #5a5680 !important; border: 1px solid rgba(108,99,255,0.15) !important; }
+        [data-theme="light"] .chat-action-btn:hover { background: rgba(108,99,255,0.12) !important; color: #6c63ff !important; }
+        [data-theme="light"] .chat-share-btn { background: rgba(108,99,255,0.1) !important; color: #6c63ff !important; border: 1px solid rgba(108,99,255,0.25) !important; }
+        [data-theme="light"] .chat-img-caption { color: #5a5680 !important; }
+        [data-theme="light"] .chat-share-menu { background: #fff !important; border: 1px solid rgba(108,99,255,0.15) !important; box-shadow: 0 8px 32px rgba(108,99,255,0.12) !important; }
+        [data-theme="light"] .markdown-content { color: #1a1a2e !important; }
+        [data-theme="light"] .markdown-content h1, [data-theme="light"] .markdown-content h2, [data-theme="light"] .markdown-content h3 { color: #1a1a2e !important; }
+        [data-theme="light"] .markdown-content code { background: rgba(108,99,255,0.06) !important; color: #6c63ff !important; }
+        [data-theme="light"] .markdown-content pre { background: rgba(108,99,255,0.04) !important; color: #1a1a2e !important; border: 1px solid rgba(108,99,255,0.1) !important; }
+        [data-theme="light"] .markdown-content a { color: #6c63ff !important; }
+        [data-theme="light"] .markdown-content blockquote { border-left-color: #6c63ff !important; color: #5a5680 !important; }
+        [data-theme="light"] .markdown-content li::marker { color: #6c63ff !important; }
+        [data-theme="light"] .powered-footer { color: #5a5680 !important; }
+        [data-theme="light"] .powered-footer a { color: #6c63ff !important; }
+        [data-theme="light"] .auth-error { color: #dc2626 !important; }
+        [data-theme="light"] .chat-typing-indicator { color: #5a5680 !important; }
+        [data-theme="light"] .error-retry-btn { background: var(--primary, #6c63ff) !important; color: #fff !important; }
+        [data-theme="light"] .result-container { background: #fff !important; color: #1a1a2e !important; border: 1px solid rgba(108,99,255,0.12) !important; }
+        [data-theme="light"] .left-sidebar { background: rgba(255,255,255,0.8) !important; border-right: 1px solid rgba(108,99,255,0.1) !important; }
+
 
         /* Left Sidebar */
         .app-layout { display: flex; min-height: calc(100vh - 56px - 56px); }
@@ -2732,10 +2758,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
                     marginBottom: '14px'
                   }}>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: '4px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>
+                    <div className="chat-msg-label" style={{ fontSize: '11px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', marginBottom: '4px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>
                       {msg.role === 'user' ? '👤 You' : '✨ NovaMind'}
                     </div>
-                    <div style={{
+                    <div className={`chat-bubble-${msg.role}${msg.isError ? ' chat-bubble-error' : ''}${(endsWithQuestion && isLastAssistant) ? ' question' : ''}`} style={{
                       maxWidth: '95%',
                       width: msg.role === 'assistant' ? '100%' : 'auto',
                       padding: msg.role === 'assistant' ? '16px 18px' : '10px 16px',
@@ -2750,7 +2776,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       {msg.imageUrl ? (
                         <div>
                           <img src={msg.imageUrl} alt="Generated" style={{ width: '100%', maxWidth: '400px', borderRadius: '12px', marginBottom: '8px' }} />
-                          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0 }}>{msg.content}</p>
+                          <p className="chat-img-caption" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0 }}>{msg.content}</p>
                         </div>
                       ) : msg.role === 'assistant' ? (
                         <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
@@ -2764,19 +2790,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           <button onClick={() => { setChatMessages(prev => prev.filter((_, i) => i !== idx)); setPrompt(chatMessages.filter(m => m.role === 'user').pop()?.content || ''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>🔄 Try Again</button>
                           <button onClick={() => { setResult(null); setPrompt(''); setChatMessages([]); setCurrentChatId(null); setChatTitle(''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '2px solid var(--border-color, #333)', borderRadius: '10px', cursor: 'pointer' }}>← Start Over</button>
                         </>) : (<>
-                        <button onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
-                        <button onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
-                        {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
+                        <button className="chat-action-btn" onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
+                        <button className="chat-share-btn" onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
+                        {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} className="chat-action-btn" style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
                         {msg.imageUrl && (
                           <>
                             <button onClick={() => { const originalPrompt = chatMessages.filter(m => m.role === 'user').pop()?.content || ''; setPrompt(`Create 3 different variations of: ${originalPrompt}`); setModel('gpt-image-1'); setContentType('image'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(168,85,247,0.15)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🎲 Variations</button>
                             <button onClick={() => { const originalPrompt = chatMessages.filter(m => m.role === 'user').pop()?.content || ''; setPrompt(`Refine this image: ${originalPrompt}. Make it `); setModel('gpt-image-1'); setContentType('image'); setTimeout(() => { const ta = document.querySelector('.prompt-input') as HTMLTextAreaElement; if(ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 100); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', cursor: 'pointer' }}>✏️ Refine</button>
                           </>
                         )}
-                        <button onClick={() => publishToCommunity(chatMessages.find(m => m.role === 'user')?.content || '', msg.content, msg.imageUrl)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,165,0,0.15)', color: '#ffa500', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🌟 Publish</button>
+                        <button onClick={() => publishToCommunity(chatMessages.find(m => m.role === 'user')?.content || '', msg.content, msg.imageUrl)} className="chat-action-btn" style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,165,0,0.15)', color: '#ffa500', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🌟 Publish</button>
                         </>)}
                         {showShareMenu === `chat-${idx}` && (
-                          <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', background: 'var(--surface, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '8px', display: 'flex', gap: '6px', zIndex: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+                          <div className="chat-share-menu" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', background: 'var(--surface, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '8px', display: 'flex', gap: '6px', zIndex: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
                             <button onClick={() => shareToSocial('twitter', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(29,161,242,0.15)', color: '#1da1f2', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>𝕏</button>
                             <button onClick={() => shareToSocial('facebook', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(66,103,178,0.15)', color: '#4267b2', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>fb</button>
                             <button onClick={() => shareToSocial('linkedin', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(0,119,181,0.15)', color: '#0077b5', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>in</button>
@@ -3293,10 +3319,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} />
             {authMode === 'login' && (
               <p style={{ textAlign: 'right', margin: '-4px 0 0 0' }}>
-                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #a855f7)', fontSize: '13px', cursor: 'pointer' }}>Forgot Password?</span>
+                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #a855f7)', fontSize: '14px', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px' }}>Forgot Password?</span>
               </p>
             )}
-            {resetSent && <p style={{ color: '#4ade80', fontSize: '13px', margin: 0, textAlign: 'center' }}>✅ Password reset email sent! Check your inbox.</p>}
+            {resetSent && <p style={{ color: '#4ade80', fontSize: '14px', margin: 0, textAlign: 'center', padding: '12px', background: 'rgba(74,222,128,0.1)', borderRadius: '10px', border: '1px solid rgba(74,222,128,0.3)' }}>✅ Password reset email sent! Check your inbox (and spam/junk folder).</p>}
             <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
               <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
