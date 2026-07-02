@@ -923,6 +923,10 @@ const App: React.FC = () => {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [resetSent, setResetSent] = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(() => {
+    try { return !localStorage.getItem('novamind_whats_new_jul2026'); } catch { return false; }
+  });
+  const dismissWhatsNew = () => { setShowWhatsNew(false); try { localStorage.setItem('novamind_whats_new_jul2026', '1'); } catch {} };
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ content?: string; text?: string; imageUrl?: string; error?: string } | null>(null);
@@ -2196,6 +2200,29 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         </div>
       )}
       <div className="main-content">
+        {showWhatsNew && user && (
+          <div style={{
+            background: 'linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%)',
+            borderRadius: '12px', padding: '16px 20px', margin: '0 0 16px 0',
+            display: 'flex', alignItems: 'flex-start', gap: '12px',
+            boxShadow: '0 4px 15px rgba(124,58,237,0.3)', position: 'relative',
+          }}>
+            <div style={{ fontSize: '28px', lineHeight: 1 }}>🚀</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 700, fontSize: '15px', color: '#fff', marginBottom: '6px' }}>
+                NovaMind Just Got a Major Upgrade!
+              </div>
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', lineHeight: 1.5 }}>
+                ✨ Stunning dark theme &nbsp;·&nbsp; ⚡ Polished AI outputs &nbsp;·&nbsp; 🖼️ Simplified Logo Maker &nbsp;·&nbsp; 🤖 AI Receptionist
+              </div>
+            </div>
+            <button onClick={dismissWhatsNew} style={{
+              background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: '50%',
+              width: '28px', height: '28px', color: '#fff', fontSize: '16px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }} aria-label="Dismiss">✕</button>
+          </div>
+        )}
         {tab === 'home' && isPersonalMode && (
           <>
             <div className="hero-section" style={{ textAlign: 'center', padding: '20px 0' }}>
