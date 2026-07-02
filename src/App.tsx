@@ -146,7 +146,7 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'financial-advisor', name: 'Financial Advisor', icon: '💰', desc: 'Pricing strategy, profit margins, cash flow projections, break-even analysis & expense advice', badge: 'NEW' },
   { id: 'business-plan', name: 'Business Plan Generator', icon: '📋', desc: 'Complete business plans with executive summary, market analysis, revenue model & growth strategy', badge: 'NEW' },
   { id: 'sales-proposal', name: 'Sales Proposal Writer', icon: '📝', desc: 'Professional proposals, quotes, pitch decks & client presentations tailored by industry', badge: 'NEW' },
-  { id: 'flyer-maker', name: 'Flyer Maker', icon: '📄', desc: 'Professional print-ready flyers, posters & event promotions', badge: 'NEW' },
+  { id: 'flyer-maker', name: 'Flyer Maker', icon: '🎨', desc: 'Print-ready flyers & posters — generates real designs you can download as PDF', badge: 'NEW' },
   { id: 'ai-receptionist', name: 'AI Receptionist', icon: '🤖', desc: 'Virtual front desk — greet visitors, answer FAQs, qualify leads & book appointments 24/7', badge: 'NEW' },
   { id: 'doc-summarizer', name: 'Doc Summarizer', icon: '📑', desc: 'Upload contracts, docs or PDFs — get plain-English breakdowns, key terms & action items', badge: 'NEW' },
   { id: 'form-builder', name: 'Form Builder', icon: '📝', desc: 'Describe what you need — get professional forms, intake sheets & questionnaires instantly', badge: 'NEW' },
@@ -577,49 +577,55 @@ Make it comprehensive enough to submit to a bank or investor as-is. Use professi
 - Key talking points for the presentation
 
 Write in a tone that's confident and professional — like a trusted advisor, not a desperate salesperson. Every section should build toward an inevitable "yes." `,
-  'flyer-maker': `You are NovaMind AI's Professional Flyer & Promotional Design Specialist. You create stunning, print-ready visual materials using AI image generation.
+  'flyer-maker': `You are NovaMind AI's Professional Flyer Designer. You generate COMPLETE, READY-TO-PRINT flyers as self-contained HTML with inline CSS.
 
-## Your Design Philosophy
-- **Bold headlines that stop people mid-stride** — If someone walked past this on a bulletin board, would they stop?
-- **Clean visual hierarchy** — The eye should flow naturally: headline → key visual → details → CTA
-- **Professional color harmony** — Industry-appropriate palettes that evoke the right emotions
-- **Generous white space** — Crowded flyers get ignored; breathing room gets attention
+## CRITICAL RULES
+1. **ALWAYS output a complete HTML flyer** — never just describe one
+2. **Wrap your HTML in \`\`\`html code fences** so the app can detect and render it
+3. **ALL styles must be inline CSS** — no external stylesheets
+4. **Use web-safe fonts** — system-ui, Georgia, Arial, Impact, etc.
+5. **Include CSS @media print** rules for clean printing
+6. **Design at 8.5x11 inches (816x1056px)** for standard print size
+7. After the HTML block, add a brief note: "Click **Print / Download PDF** to save your flyer!"
 
-## When Creating Flyers:
+## Design Standards
+- **Bold headlines** that stop people mid-stride — large, high-contrast, attention-grabbing
+- **Clean visual hierarchy** — headline → key info → details → CTA → contact
+- **Professional color palettes** — use gradients, contrasting sections, decorative borders
+- **Generous spacing** — never crowded; elegant whitespace
+- **Visual elements via CSS** — use gradients, borders, shadows, shapes, emoji icons, decorative patterns
+- **Safe margins** — 0.5 inch margins for print safety
 
-### 1. Gather Key Information
-Ask for (if not provided):
-- Business/event name
-- Key details (date, time, location, pricing, offers)
-- Contact info (phone, website, social handles)
-- Brand colors or style preferences
-- Any logos or images to include
+## HTML Flyer Template Structure
+Your HTML MUST follow this structure:
+- A single container div with fixed width/height (816x1056px)
+- Background color/gradient
+- Header section with event/business name (big, bold)
+- Decorative divider or accent line
+- Body with key details (date, time, location, pricing) in organized sections
+- Call-to-action (bold button-style element)
+- Footer with contact info, website, social handles
+- Use emoji strategically for visual interest (🎉 📅 📍 📞 🌐)
 
-### 2. Generate the Image
-Create a detailed image generation prompt that includes:
-- **Layout structure** (headline placement, image zones, text zones)
-- **Typography direction** (bold sans-serif headlines, clean body text)
-- **Color scheme** with specific colors
-- **Visual elements** (photos, illustrations, patterns, textures)
-- **All text content** placed strategically within the design
-- **Safe margins** — keep everything 10% from edges
+## Gathering Info
+If the user gives minimal info, ask for:
+- Event/business name
+- Key details (date, time, location, pricing)
+- Contact info
+- Color preferences
 
-### 3. Deliver Professional Results
-- Provide the generated flyer image
-- Suggest a complementary color scheme with hex codes
-- Recommend print specifications (paper weight, finish)
-- Offer variations: "Want a social media version? A different color scheme? A matching business card?"
+But if they give enough to work with, GENERATE IMMEDIATELY — don't ask unnecessary questions.
 
-### Design Standards by Flyer Type
-- **Grand Openings** — Celebratory, bold, energetic colors, ribbon/confetti imagery
-- **Sales/Promotions** — Urgency-driven, price prominence, countdown/deadline
-- **Events** — Date/time/location hierarchy, atmospheric imagery, clear RSVP method
-- **Services** — Benefit-focused, professional photography style, trust elements
-- **Food/Restaurant** — Warm colors, appetizing imagery, menu highlights
-- **Fitness** — Dynamic, energetic, transformation imagery, bold typography
-- **Community/Church** — Welcoming, warm, inclusive imagery, family-friendly
+## Style by Type
+- **Grand Opening** — celebratory gradient (gold/purple), confetti-style decorative dots, ribbon emoji
+- **Sale/Promo** — urgency colors (red/orange/black), bold price callouts, countdown feel
+- **Event** — elegant gradient, clear date/time/location hierarchy, RSVP CTA
+- **Service** — professional blues/greens, benefit bullets, trust elements
+- **Food/Restaurant** — warm colors (orange/burgundy), appetizing emoji, menu highlights
+- **Fitness** — bold/energetic colors, dynamic angles via CSS transforms
+- **Community** — warm welcoming colors, inclusive language, family-friendly
 
-Always generate the actual flyer image — don't just describe it. Users want to see and use the result immediately.`,
+Generate the flyer NOW — users want to see it and print it immediately.`,
   'ai-receptionist': `You are NovaMind AI's Virtual Receptionist — a warm, professional, always-on front desk assistant that makes every visitor feel welcomed, valued, and guided to exactly what they need.
 
 ## Your Role
@@ -735,64 +741,40 @@ Numbered list of what the reader should:
 One paragraph: "Here's what this document really means for you..." — honest, direct, no legal hedging.
 
 Be thorough but never boring. Think of yourself as the user's brilliant friend who happens to be a lawyer AND a business advisor.`,
-  'form-builder': `You are NovaMind AI's Form Builder — you create professional, ready-to-use business forms, intake sheets, questionnaires, and surveys that look like they were designed by a top agency.
+  'form-builder': `You are NovaMind AI's Professional Form Builder. You create COMPLETE, FUNCTIONAL HTML forms with beautiful styling.
 
-## Your Form Design Standards
-- **Purpose-driven** — Every field must earn its place; no unnecessary friction
-- **Professional formatting** — Clean layout with logical sections and clear labels
-- **Smart field types** — Use the right input type (dropdown, checkbox, text, date, rating, etc.)
-- **User-friendly** — Clear instructions, helpful placeholders, and logical flow
+## CRITICAL RULES
+1. **ALWAYS output a complete, working HTML form** — never just describe one
+2. **Wrap your HTML in \`\`\`html code fences** so the app can detect and render it
+3. **ALL styles must be inline CSS or in a <style> tag within the HTML**
+4. **Forms must be interactive** — inputs, selects, checkboxes, radio buttons all work
+5. **Include form validation** via HTML5 required, pattern, type attributes
+6. **Design must be polished** — rounded corners, consistent spacing, professional colors
+7. After the HTML block, add: "Click **Print / Download PDF** to save or print your form!"
 
-## For Every Form Request, Deliver:
-
-### 📋 Form Overview
-- Form title and purpose
-- Estimated completion time
-- Target audience
-
-### 📝 Complete Form Layout
-Present the form in a clean, structured format with sections:
-
-**Section 1: [Section Name]**
-| # | Field Label | Type | Required | Options/Notes |
-|---|------------|------|----------|---------------|
-| 1 | Full Name | Text | ✅ | First and last name |
-| 2 | Email | Email | ✅ | Valid email format |
-
-Continue for all sections with appropriate field types:
-- Text, Email, Phone, Number, Date, Time
-- Dropdown (list all options)
-- Checkbox (multi-select options)
-- Radio (single-select options)
-- Textarea (long text)
-- File Upload
-- Rating Scale (1-5 or 1-10)
-- Signature
-
-### 🎨 Design Recommendations
-- Suggested color scheme and branding placement
-- Mobile-friendly layout tips
-- Recommended form tool (Google Forms, Jotform, Typeform, etc.)
-
-### 💡 Smart Additions
-- Conditional logic suggestions (show/hide fields based on answers)
-- Auto-response email template for form submissions
-- Data organization tips (how to use the collected data)
-
-### 📊 Analytics Setup
-- Key metrics to track (completion rate, drop-off points)
-- Follow-up workflow recommendations
+## Form Design Standards
+- Modern, clean design with a white/light card on subtle background
+- Clear section headers with icons (emoji)
+- Labeled fields with placeholder text showing example input
+- Consistent spacing (16px gap between fields)
+- Professional color scheme (purple/blue accents match NovaMind brand)
+- Submit button with hover effect
+- Responsive layout that looks great on screen and print
 
 ## Form Types You Excel At
-- **Client Intake Forms** — onboarding new customers/clients
-- **Feedback & Survey Forms** — customer satisfaction, event feedback
-- **Order/Booking Forms** — service requests, appointments, event registration
-- **Application Forms** — job applications, program enrollment
-- **Assessment Forms** — needs analysis, project scoping, health intake
-- **Consent & Agreement Forms** — waivers, terms acceptance, permission slips
-- **Lead Capture Forms** — landing page forms, contact forms, quote requests
+- **Client Intake Forms** — name, contact, service needed, budget, timeline
+- **Feedback/Survey Forms** — rating scales, text areas, multiple choice
+- **Order Forms** — product selection, quantities, pricing, shipping info
+- **Registration Forms** — event details, attendee info, dietary/accessibility needs
+- **Application Forms** — personal info, experience, qualifications, uploads
+- **Contact Forms** — name, email, phone, message, preferred contact method
+- **Booking/Appointment Forms** — service, date/time preferences, special requests
+- **Employee Onboarding Forms** — personal info, emergency contacts, tax forms, policies
 
-Make every form feel effortless to fill out and professionally impressive. The form should reflect well on the business using it.`,
+## Gathering Info
+If the user gives minimal info, ask what type of form and what fields. But if they describe it clearly enough, GENERATE IMMEDIATELY.
+
+Generate beautiful, functional forms that users can print, embed, or use immediately.`,
 };
 
 
@@ -907,6 +889,23 @@ const PILLAR_INFO: Record<string, { name: string; icon: string; color: string }>
   education: { name: 'Education & Learning', icon: '🎓', color: '#4ECDC4' },
   career: { name: 'Career & Money', icon: '💼', color: '#45B7D1' },
   creator: { name: 'Creator & Social', icon: '🎬', color: '#96CEB4' },
+};
+
+const detectHtmlBlock = (text: string): string | null => {
+  // Check for ```html code blocks containing full HTML
+  const htmlMatch = text.match(/\`\`\`html\s*\n([\s\S]*?)\`\`\`/);
+  if (htmlMatch) return htmlMatch[1].trim();
+  // Check for raw HTML starting with common tags
+  if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html') || text.trim().match(/^<div[^>]*style="[^"]*width:\s*816px/)) {
+    return text.trim();
+  }
+  return null;
+};
+
+const renderHtmlPreview = (html: string, idx: number): string => {
+  // Create a blob URL for the iframe
+  const fullHtml = html.includes('<html') ? html : \`<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;padding:20px;background:#f0f0f0;font-family:system-ui,sans-serif}</style></head><body>\${html}</body></html>\`;
+  return fullHtml;
 };
 
 const renderMarkdown = (text: string): string => {
@@ -1989,6 +1988,14 @@ Rules:
     else if (activeModel !== 'gpt-image-1') {
       activeModel = 'deepseek';
       setModel('deepseek');
+    }
+
+    // 🛡️ AGENT OVERRIDE: These agents MUST stay on text/DeepSeek — never image generation
+    if (['flyer-maker', 'form-builder', 'doc-summarizer'].includes(activeAgentMode)) {
+      activeModel = 'deepseek';
+      activeContentType = 'text';
+      setModel('deepseek');
+      setContentType('text');
     }
 
     setLastPrompt(currentPrompt);
@@ -3217,7 +3224,49 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           <p className="chat-img-caption" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', margin: 0 }}>{msg.content}</p>
                         </div>
                       ) : msg.role === 'assistant' ? (
-                        <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />
+                        (() => {
+                          const htmlContent = detectHtmlBlock(msg.content);
+                          if (htmlContent) {
+                            // Extract any text before/after the HTML block
+                            const parts = msg.content.split(/```html[\s\S]*?```/);
+                            const beforeText = parts[0]?.trim();
+                            const afterText = parts.slice(1).join('').trim();
+                            return (
+                              <div>
+                                {beforeText && <div className="markdown-content" style={{ marginBottom: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(beforeText) }} />}
+                                <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(108,99,255,0.3)', background: '#fff' }}>
+                                  <iframe
+                                    srcDoc={renderHtmlPreview(htmlContent, idx)}
+                                    style={{ width: '100%', height: '600px', border: 'none', borderRadius: '10px' }}
+                                    sandbox="allow-same-origin"
+                                    title="Generated content preview"
+                                  />
+                                  <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', background: 'rgba(108,99,255,0.08)', borderTop: '1px solid rgba(108,99,255,0.15)' }}>
+                                    <button onClick={() => {
+                                      const printWindow = window.open('', '_blank');
+                                      if (printWindow) {
+                                        const fullDoc = htmlContent.includes('<html') ? htmlContent : '<!DOCTYPE html><html><head><meta charset=\"utf-8\"><style>@media print{body{margin:0}@page{margin:0.5in}}</style></head><body>' + htmlContent + '</body></html>';
+                                        printWindow.document.write(fullDoc);
+                                        printWindow.document.close();
+                                        setTimeout(() => printWindow.print(), 500);
+                                      }
+                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>🖨️ Print / Download PDF</button>
+                                    <button onClick={() => {
+                                      const w = window.open('', '_blank');
+                                      if (w) {
+                                        const fullDoc = htmlContent.includes('<html') ? htmlContent : '<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>' + htmlContent + '</body></html>';
+                                        w.document.write(fullDoc);
+                                        w.document.close();
+                                      }
+                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>↗️ Full Screen</button>
+                                  </div>
+                                </div>
+                                {afterText && <div className="markdown-content" style={{ marginTop: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(afterText) }} />}
+                              </div>
+                            );
+                          }
+                          return <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }} />;
+                        })()
                       ) : (
                         <span>{msg.content}</span>
                       )}
@@ -3288,6 +3337,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
                 agentMode === 'email-assistant' ? getEmailPlaceholder() :
                 agentMode === 'logo-maker' ? 'Describe the logo you want (e.g., "Modern minimalist logo for a tech startup called NexGen")...' :
+                agentMode === 'flyer-maker' ? 'Describe your flyer (e.g., "Grand opening flyer for my salon, June 15, 20% off all services, pink and gold theme")...' :
+                agentMode === 'form-builder' ? 'Describe the form you need (e.g., "Client intake form for my consulting business with contact info, budget, and project details")...' :
+                agentMode === 'doc-summarizer' ? 'Paste or describe the document you want summarized (e.g., "Summarize this lease agreement: [paste text]")...' :
                 contentType === 'image' ? 'Describe the image...' : 'What would you like to create?'
               } value={prompt} onChange={e => setPrompt(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && prompt.trim() && !generating) { e.preventDefault(); handleGenerate(); }}} />
@@ -3366,7 +3418,49 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   )}
                 </div>
                 <div className="result-area">
-                  {result.imageUrl ? <img className="result-image" src={result.imageUrl} alt="" /> : <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(result.content || result.text || '') }} />}
+                  {result.imageUrl ? <img className="result-image" src={result.imageUrl} alt="" /> : (() => {
+                    const resultText = result.content || result.text || '';
+                    const htmlContent = detectHtmlBlock(resultText);
+                    if (htmlContent) {
+                      const parts = resultText.split(/```html[\s\S]*?```/);
+                      const beforeText = parts[0]?.trim();
+                      const afterText = parts.slice(1).join('').trim();
+                      return (
+                        <div>
+                          {beforeText && <div className="markdown-content" style={{ marginBottom: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(beforeText) }} />}
+                          <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(108,99,255,0.3)', background: '#fff' }}>
+                            <iframe
+                              srcDoc={renderHtmlPreview(htmlContent, 0)}
+                              style={{ width: '100%', height: '600px', border: 'none' }}
+                              sandbox="allow-same-origin"
+                              title="Generated content"
+                            />
+                            <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', background: 'rgba(108,99,255,0.08)', borderTop: '1px solid rgba(108,99,255,0.15)' }}>
+                              <button onClick={() => {
+                                const pw = window.open('', '_blank');
+                                if (pw) {
+                                  const fullDoc = htmlContent.includes('<html') ? htmlContent : '<!DOCTYPE html><html><head><meta charset="utf-8"><style>@media print{body{margin:0}@page{margin:0.5in}}</style></head><body>' + htmlContent + '</body></html>';
+                                  pw.document.write(fullDoc);
+                                  pw.document.close();
+                                  setTimeout(() => pw.print(), 500);
+                                }
+                              }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🖨️ Print / Download PDF</button>
+                              <button onClick={() => {
+                                const w = window.open('', '_blank');
+                                if (w) {
+                                  const fullDoc = htmlContent.includes('<html') ? htmlContent : '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' + htmlContent + '</body></html>';
+                                  w.document.write(fullDoc);
+                                  w.document.close();
+                                }
+                              }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>↗️ Full Screen</button>
+                            </div>
+                          </div>
+                          {afterText && <div className="markdown-content" style={{ marginTop: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(afterText) }} />}
+                        </div>
+                      );
+                    }
+                    return <div className="markdown-content" dangerouslySetInnerHTML={{ __html: renderMarkdown(resultText) }} />;
+                  })()}
                 </div>
               </div>
             )}
