@@ -903,8 +903,8 @@ const detectHtmlBlock = (text: string): string | null => {
 };
 
 const renderHtmlPreview = (html: string, idx: number): string => {
-  // Create a blob URL for the iframe
-  const fullHtml = html.includes('<html') ? html : \`<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;padding:20px;background:#f0f0f0;font-family:system-ui,sans-serif}</style></head><body>\${html}</body></html>\`;
+  const wrapper = '<!DOCTYPE html><html><head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;justify-content:center;padding:20px;background:#f0f0f0;font-family:system-ui,sans-serif}</style></head><body>';
+  const fullHtml = html.includes('<html') ? html : wrapper + html + '</body></html>';
   return fullHtml;
 };
 
