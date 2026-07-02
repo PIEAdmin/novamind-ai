@@ -984,7 +984,7 @@ const App: React.FC = () => {
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   // === NEW FEATURE STATE ===
-  const [theme, setTheme] = useState<ThemeMode>(() => (localStorage.getItem('novamind-theme') as ThemeMode) || 'dark');
+  const [theme, setTheme] = useState<ThemeMode>(() => (localStorage.getItem('novamind-theme') as ThemeMode) || 'light');
   const [searchQuery, setSearchQuery] = useState('');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
@@ -1685,6 +1685,25 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           `The user's name is ${firstName}. Address them by name naturally — use it in greetings, transitions, or when it feels conversational, but don't force it into every sentence.`;
       }
 
+      // 🧠 SMART AI ONBOARDING — detect first interaction and guide the user
+      const isFirstChat = updatedMessages.length <= 1;
+      if (isFirstChat && (usage.used <= 2 || chatMessages.length === 0)) {
+        const businessName = onboardingData.businessName || '';
+        const userUses = onboardingData.primaryUse || [];
+        systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+          `SMART ONBOARDING MODE: This appears to be one of the user's very first interactions with NovaMind. ` +
+          `Your goal is to make this moment magical — make them feel like they just found exactly what they needed. ` +
+          `DO NOT just answer their question plainly. Instead:\n` +
+          `1. Warmly welcome them and acknowledge what they're asking for\n` +
+          `2. Deliver an AMAZING first result that exceeds their expectations\n` +
+          `3. After your result, naturally suggest a logical next step: "Want me to [related action]?" ` +
+          `For example, if they ask about marketing, offer to draft their first social post or email campaign.\n` +
+          `4. Keep the energy fun and encouraging — make them want to come back\n` +
+          (businessName ? `Their business is called "${businessName}" — weave this into your response naturally.\n` : '') +
+          (userUses.length > 0 ? `They're interested in: ${userUses.join(', ')} — prioritize these in your suggestions.\n` : '') +
+          `Remember: This first interaction determines if they become a daily user or never return. Make it count!`;
+      }
+
       // Build conversation context from last 10 messages
       const contextMessages = updatedMessages.slice(-10);
       if (contextMessages.length > 1) {
@@ -2037,9 +2056,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {resetSent && <p style={{ color: '#4ade80', fontSize: '13px', margin: 0, textAlign: 'center' }}>✅ Password reset email sent! Check your inbox.</p>}
             <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.15)' }} />
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary, #999)' }}>or</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary, #5a5680)' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
             </div>
             <button className="generate-btn" onClick={handleGoogleSignIn} style={{ background: '#fff', color: '#333', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
@@ -2131,40 +2150,55 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           --glow-primary: 0 0 20px rgba(108, 99, 255, 0.3);
         }
         [data-theme="light"] {
-          --bg-primary: #f8f9fa; --bg-secondary: #e9ecef; --text-primary: #212529;
-          --text-secondary: #6c757d; --surface: #ffffff; --border-color: #dee2e6;
+          --bg-primary: #fafaff; --bg-secondary: #f0eef9; --bg-tertiary: #e8e5f5;
+          --text-primary: #1a1a2e; --text-secondary: #5a5680;
+          --surface: #ffffff; --border-color: #e0ddf0;
+          --primary: #6c63ff; --primary-hover: #5b52ee;
+          --accent: #06b6d4; --gradient-hero: linear-gradient(135deg, #6c63ff 0%, #06b6d4 100%);
+          --glass-bg: rgba(255, 255, 255, 0.8); --glass-border: rgba(108, 99, 255, 0.12);
+          --card-shadow: 0 4px 20px rgba(108, 99, 255, 0.08); --glow-primary: 0 0 20px rgba(108, 99, 255, 0.12);
         }
-        [data-theme="light"] .app-container { background: #f8f9fa; color: #212529; }
-        [data-theme="light"] .navbar { background: rgba(255,255,255,0.95); border-bottom: 1px solid #dee2e6; }
-        [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.95); border-top: 1px solid #dee2e6; }
-        [data-theme="light"] .auth-input, [data-theme="light"] .prompt-input { background: #fff; border-color: #dee2e6; color: #212529; }
-        [data-theme="light"] .stat-card { background: #fff; border-color: #dee2e6; }
-        [data-theme="light"] .tool-card, [data-theme="light"] .agent-card, [data-theme="light"] .gallery-card { background: #fff; border-color: #dee2e6; }
-        [data-theme="light"] .suggestion-chip { background: #fff; border-color: #dee2e6; color: #212529; }
-        [data-theme="light"] .industry-chip { background: rgba(0,0,0,0.04); border-color: #dee2e6; color: #212529; }
-        [data-theme="light"] .model-chip { background: rgba(0,0,0,0.04); color: #212529; }
-        [data-theme="light"] .result-container { background: #fff; border-color: #dee2e6; }
-        [data-theme="light"] .agent-info-banner { background: rgba(108,99,255,0.05); border-color: rgba(108,99,255,0.15); }
-        [data-theme="light"] .auth-modal { background: #fff; color: #212529; }
-        [data-theme="light"] .empty-state { color: #6c757d; }
-        [data-theme="light"] .hero-section { background: linear-gradient(135deg, #f0f0ff, #e8e6ff); }
+        [data-theme="light"] .app-container { background: linear-gradient(180deg, #fafaff 0%, #f0eef9 50%, #e8e5f5 100%); color: #1a1a2e; }
+        [data-theme="light"] .navbar { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); }
+        [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(108,99,255,0.1); box-shadow: 0 -2px 12px rgba(108,99,255,0.06); }
+        [data-theme="light"] .auth-input, [data-theme="light"] .prompt-input { background: #fff; border-color: #e0ddf0; color: #1a1a2e; box-shadow: 0 2px 8px rgba(108,99,255,0.04); }
+        [data-theme="light"] .auth-input:focus, [data-theme="light"] .prompt-input:focus { border-color: #6c63ff; box-shadow: 0 0 0 3px rgba(108,99,255,0.1); }
+        [data-theme="light"] .stat-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); }
+        [data-theme="light"] .tool-card, [data-theme="light"] .gallery-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); transition: all 0.25s ease; }
+        [data-theme="light"] .tool-card:hover, [data-theme="light"] .gallery-card:hover { border-color: #6c63ff; box-shadow: 0 6px 24px rgba(108,99,255,0.12); transform: translateY(-2px); }
+        [data-theme="light"] .suggestion-chip { background: #fff; border: 1px solid rgba(108,99,255,0.12); color: #1a1a2e; }
+        [data-theme="light"] .suggestion-chip:hover { border-color: #6c63ff; background: rgba(108,99,255,0.04); }
+        [data-theme="light"] .industry-chip { background: rgba(108,99,255,0.04); border-color: rgba(108,99,255,0.12); color: #1a1a2e; }
+        [data-theme="light"] .industry-chip.active { background: rgba(108,99,255,0.12); border-color: #6c63ff; color: #6c63ff; }
+        [data-theme="light"] .model-chip { background: rgba(108,99,255,0.04); color: #1a1a2e; }
+        [data-theme="light"] .result-container { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 4px 16px rgba(108,99,255,0.06); }
+        [data-theme="light"] .agent-info-banner { background: linear-gradient(135deg, rgba(108,99,255,0.05), rgba(6,182,212,0.05)); border-color: rgba(108,99,255,0.12); }
+        [data-theme="light"] .auth-modal { background: #fff; color: #1a1a2e; box-shadow: 0 20px 60px rgba(108,99,255,0.15); }
+        [data-theme="light"] .empty-state { color: #5a5680; }
+        [data-theme="light"] .hero-section { background: linear-gradient(135deg, rgba(108,99,255,0.08) 0%, rgba(6,182,212,0.06) 50%, rgba(168,85,247,0.06) 100%); border-radius: 16px; }
         [data-theme="light"] .hero-title { color: #1a1a2e !important; }
-        [data-theme="light"] .hero-subtitle { color: #4a4a6a !important; }
+        [data-theme="light"] .hero-subtitle { color: #5a5680 !important; }
         [data-theme="light"] .section-title { color: #1a1a2e; }
-        [data-theme="light"] .powered-footer { color: #6c757d; }
+        [data-theme="light"] .powered-footer { color: #5a5680; }
         [data-theme="light"] .powered-footer a { color: #6c63ff; }
         [data-theme="light"] .navbar .logo-text { color: #1a1a2e !important; }
-        [data-theme="light"] .chat-card, [data-theme="light"] .history-card { background: #fff; border-color: #dee2e6; }
-        [data-theme="light"] .usage-bar { background: #e9ecef; }
-        [data-theme="light"] .prompt-input::placeholder { color: #adb5bd; }
-        [data-theme="light"] .bottom-nav button { color: #6c757d; }
+        [data-theme="light"] .chat-card, [data-theme="light"] .history-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); }
+        [data-theme="light"] .chat-card:hover, [data-theme="light"] .history-card:hover { border-color: #6c63ff; box-shadow: 0 6px 24px rgba(108,99,255,0.12); }
+        [data-theme="light"] .usage-bar { background: rgba(108,99,255,0.08); }
+        [data-theme="light"] .prompt-input::placeholder { color: #9890b8; }
+        [data-theme="light"] .bottom-nav button { color: #5a5680; }
         [data-theme="light"] .bottom-nav button.active { color: #6c63ff; }
-        [data-theme="light"] .agent-card { background: #fff; border-color: #e2e2e2; color: #212529; }
-        [data-theme="light"] .agent-card:hover { border-color: #6c63ff; }
+        [data-theme="light"] .agent-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); color: #1a1a2e; box-shadow: 0 2px 12px rgba(108,99,255,0.06); transition: all 0.25s ease; }
+        [data-theme="light"] .agent-card:hover { border-color: #6c63ff; box-shadow: 0 6px 24px rgba(108,99,255,0.15); transform: translateY(-2px); }
         [data-theme="light"] .agent-card .agent-name { color: #1a1a2e; }
-        [data-theme="light"] .agent-card .agent-desc { color: #6c757d; }
-        [data-theme="light"] .result-container pre { background: #f1f3f5; color: #212529; }
-        [data-theme="light"] .onboarding-modal { background: #fff; color: #212529; }
+        [data-theme="light"] .agent-card .agent-desc { color: #5a5680; }
+        [data-theme="light"] .result-container pre { background: rgba(108,99,255,0.04); color: #1a1a2e; border: 1px solid rgba(108,99,255,0.08); }
+        [data-theme="light"] .onboarding-modal { background: #fff; color: #1a1a2e; }
+        [data-theme="light"] .generate-btn { box-shadow: 0 4px 16px rgba(108,99,255,0.25); }
+        [data-theme="light"] .generate-btn:hover { box-shadow: 0 6px 24px rgba(108,99,255,0.35); transform: translateY(-1px); }
+        [data-theme="light"] .agent-tab { color: #5a5680; }
+        [data-theme="light"] .agent-tab.active { color: #6c63ff; background: rgba(108,99,255,0.08); }
+        [data-theme="light"] .agent-selector-bar { background: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(108,99,255,0.08); }
         @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(255,75,75,0.4)} 50%{box-shadow:0 0 0 12px rgba(255,75,75,0)} }
         @keyframes slideInUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
@@ -2190,8 +2224,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             ))}
           </div>
           <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#212529' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
-          <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer' }}>⌨️</button>
-          <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.3)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600' }}>🚪 {t.signOut}</button>
+          <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680' }}>⌨️</button>
+          <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(108,99,255,0.15)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: theme === 'dark' ? '#fff' : '#1a1a2e' }}>🚪 {t.signOut}</button>
         </div>
       </nav>
       {isOffline && (
@@ -2210,10 +2244,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <div style={{ fontSize: '28px', lineHeight: 1 }}>🚀</div>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 700, fontSize: '15px', color: '#fff', marginBottom: '6px' }}>
-                NovaMind Just Got a Major Upgrade!
+                NovaMind Just Got a Fresh New Look!
               </div>
               <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.9)', lineHeight: 1.5 }}>
-                ✨ Stunning dark theme &nbsp;·&nbsp; ⚡ Polished AI outputs &nbsp;·&nbsp; 🖼️ Simplified Logo Maker &nbsp;·&nbsp; 🤖 AI Receptionist
+                ✨ Beautiful new design &nbsp;·&nbsp; ⚡ Polished AI outputs &nbsp;·&nbsp; 🖼️ Simplified Logo Maker &nbsp;·&nbsp; 🤖 AI Receptionist
               </div>
             </div>
             <button onClick={dismissWhatsNew} style={{
@@ -3020,7 +3054,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {/* Progress bar */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '24px' }}>
               {[0,1,2,3,4].map(s => (
-                <div key={s} style={{ flex: 1, height: '4px', borderRadius: '2px', background: s <= onboardingStep ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.1)', transition: 'background 0.3s' }} />
+                <div key={s} style={{ flex: 1, height: '4px', borderRadius: '2px', background: s <= onboardingStep ? 'var(--primary, #6c63ff)' : (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.1)'), transition: 'background 0.3s' }} />
               ))}
             </div>
             
@@ -3158,9 +3192,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {resetSent && <p style={{ color: '#4ade80', fontSize: '13px', margin: 0, textAlign: 'center' }}>✅ Password reset email sent! Check your inbox.</p>}
             <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
               <span style={{ fontSize: '13px', color: 'var(--text-secondary, #999)' }}>or</span>
-              <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.15)' }} />
+              <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
             </div>
             <button className="generate-btn" onClick={handleGoogleSignIn} style={{ background: '#fff', color: '#333', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
               <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
