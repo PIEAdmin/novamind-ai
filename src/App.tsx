@@ -2217,6 +2217,27 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         [data-theme="light"] .agent-tab { color: #5a5680; }
         [data-theme="light"] .agent-tab.active { color: #6c63ff; background: rgba(108,99,255,0.08); }
         [data-theme="light"] .agent-selector-bar { background: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(108,99,255,0.08); }
+        /* === DARK MODE explicit fixes === */
+        [data-theme="dark"] .result-container { background: rgba(18,18,42,0.95); color: #f0f0ff; border: 1px solid rgba(108,99,255,0.2); }
+        [data-theme="dark"] .result-area { color: #f0f0ff; }
+        [data-theme="dark"] .markdown-content { color: #f0f0ff !important; }
+        [data-theme="dark"] .markdown-content h1, [data-theme="dark"] .markdown-content h2, [data-theme="dark"] .markdown-content h3 { color: #fff !important; }
+        [data-theme="dark"] .markdown-content strong { color: #fff !important; }
+        [data-theme="dark"] .markdown-content em { color: #e0e0ff !important; }
+        [data-theme="dark"] .markdown-content code { background: rgba(108,99,255,0.2) !important; color: #a8a0ff !important; }
+        [data-theme="dark"] .markdown-content pre { background: rgba(0,0,0,0.3) !important; color: #f0f0ff !important; border: 1px solid rgba(108,99,255,0.2) !important; }
+        [data-theme="dark"] .markdown-content a { color: #00d4ff !important; }
+        [data-theme="dark"] .markdown-content blockquote { border-left-color: #6c63ff !important; color: #c0c0e0 !important; }
+        [data-theme="dark"] .markdown-content li { color: #f0f0ff !important; }
+        [data-theme="dark"] .markdown-content p { color: #f0f0ff !important; }
+        [data-theme="dark"] .chat-bubble-assistant { background: rgba(108,99,255,0.12) !important; color: #f0f0ff !important; border: 1px solid rgba(108,99,255,0.25) !important; }
+        [data-theme="dark"] .chat-bubble-assistant.question { background: rgba(108,99,255,0.18) !important; border: 1px solid rgba(108,99,255,0.35) !important; }
+        [data-theme="dark"] .chat-bubble-user { background: var(--primary, #6c63ff) !important; color: #fff !important; }
+        [data-theme="dark"] .chat-msg-label { color: rgba(255,255,255,0.65) !important; }
+        [data-theme="dark"] .chat-action-btn { background: rgba(255,255,255,0.1) !important; color: rgba(255,255,255,0.8) !important; border: 1px solid rgba(255,255,255,0.15) !important; }
+        [data-theme="dark"] .chat-img-caption { color: rgba(255,255,255,0.75) !important; }
+        [data-theme="dark"] .chat-share-menu { background: #1a1a3e !important; border: 1px solid rgba(108,99,255,0.3) !important; }
+        [data-theme="dark"] .result-container pre { background: rgba(0,0,0,0.3) !important; color: #f0f0ff !important; border: 1px solid rgba(108,99,255,0.15) !important; }
         /* Light mode chat & inline element fixes */
         [data-theme="light"] .chat-msg-label { color: rgba(0,0,0,0.45) !important; }
         [data-theme="light"] .chat-bubble-assistant { background: rgba(108,99,255,0.06) !important; color: #1a1a2e !important; border: 1px solid rgba(108,99,255,0.12) !important; }
