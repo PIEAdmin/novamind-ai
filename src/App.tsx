@@ -162,6 +162,50 @@ const COMING_SOON_FEATURES: { icon: string; name: string; desc: string }[] = [
   { icon: '🎯', name: 'Marketing Autopilot', desc: 'Automated campaigns, sequences & analytics' },
 ];
 
+// Workflow Chains — smart "Continue with..." suggestions after each AI response
+const WORKFLOW_CHAINS: Record<string, Array<{icon: string; label: string; agent: string; promptPrefix: string}>> = {
+  'email-assistant': [
+    { icon: '📱', label: 'Turn into Social Post', agent: 'social-media', promptPrefix: 'Turn this email content into an engaging social media post:\n\n' },
+    { icon: '📄', label: 'Make a Flyer', agent: 'flyer-maker', promptPrefix: 'Create a professional flyer based on this content:\n\n' },
+    { icon: '📋', label: 'Write Follow-up', agent: 'email-assistant', promptPrefix: 'Write a follow-up email to this:\n\n' },
+  ],
+  'social-media': [
+    { icon: '📧', label: 'Email Campaign', agent: 'email-assistant', promptPrefix: 'Turn this social media content into a professional email campaign:\n\n' },
+    { icon: '🎨', label: 'Create Visual', agent: 'general', promptPrefix: 'Create an eye-catching social media graphic for this post:\n\n' },
+    { icon: '📝', label: 'Blog Article', agent: 'blog-writer', promptPrefix: 'Expand this social post into a full blog article:\n\n' },
+  ],
+  'blog-writer': [
+    { icon: '📱', label: 'Social Posts', agent: 'social-media', promptPrefix: 'Create 3 social media posts from this blog article:\n\n' },
+    { icon: '📧', label: 'Newsletter', agent: 'email-assistant', promptPrefix: 'Turn this blog post into an email newsletter:\n\n' },
+    { icon: '🎨', label: 'Blog Banner', agent: 'general', promptPrefix: 'Create a professional blog header image about:\n\n' },
+  ],
+  'logo-maker': [
+    { icon: '📄', label: 'Brand Flyer', agent: 'flyer-maker', promptPrefix: 'Create a branded promotional flyer for my business:\n\n' },
+    { icon: '📧', label: 'Brand Announcement', agent: 'email-assistant', promptPrefix: 'Write a brand announcement email about our new look:\n\n' },
+    { icon: '📱', label: 'Logo Reveal Post', agent: 'social-media', promptPrefix: 'Write an exciting social media post revealing our new brand identity:\n\n' },
+  ],
+  'flyer-maker': [
+    { icon: '📱', label: 'Promote on Social', agent: 'social-media', promptPrefix: 'Create a social media post promoting this event/offer:\n\n' },
+    { icon: '📧', label: 'Email Blast', agent: 'email-assistant', promptPrefix: 'Write a promotional email about this event/offer:\n\n' },
+    { icon: '📝', label: 'Ad Copy', agent: 'ad-maker', promptPrefix: 'Create compelling ad copy for this promotion:\n\n' },
+  ],
+  'ad-maker': [
+    { icon: '📧', label: 'Email Version', agent: 'email-assistant', promptPrefix: 'Convert this ad into an email marketing campaign:\n\n' },
+    { icon: '📱', label: 'Social Version', agent: 'social-media', promptPrefix: 'Adapt this ad copy for social media posts:\n\n' },
+    { icon: '📄', label: 'Flyer Version', agent: 'flyer-maker', promptPrefix: 'Turn this ad into a printable flyer:\n\n' },
+  ],
+  'competitor-analysis': [
+    { icon: '📧', label: 'Outreach Email', agent: 'email-assistant', promptPrefix: 'Based on this competitive analysis, write an email highlighting why we\'re the better choice:\n\n' },
+    { icon: '📱', label: 'Differentiator Post', agent: 'social-media', promptPrefix: 'Create a social post showcasing our competitive advantages:\n\n' },
+    { icon: '📝', label: 'Counter Strategy', agent: 'general', promptPrefix: 'Based on this competitor analysis, create a detailed counter-strategy:\n\n' },
+  ],
+  'general': [
+    { icon: '📧', label: 'Email It', agent: 'email-assistant', promptPrefix: 'Turn this into a professional email:\n\n' },
+    { icon: '📱', label: 'Social Post', agent: 'social-media', promptPrefix: 'Turn this into an engaging social media post:\n\n' },
+    { icon: '📄', label: 'Make a Flyer', agent: 'flyer-maker', promptPrefix: 'Create a professional flyer based on this:\n\n' },
+  ],
+};
+
 const EMAIL_MODE_PROMPTS: Record<EmailMode, (tone: string) => string> = {
   'compose': (tone: string) => `You are a professional email writer. Compose a polished, ready-to-send email based on the user's request.
 Include: Subject line, greeting, body, call-to-action, professional sign-off.
@@ -1581,6 +1625,33 @@ const App: React.FC = () => {
     setProfileSaving(false);
   };
 
+  // 🧠 AI Action Plan — personalized business automation recommendations
+  const generateActionPlan = () => {
+    setShowProfileModal(false);
+    switchTab('create');
+    setAgentMode('general');
+    setChatMessages([]);
+    setCurrentChatId(null);
+    setChatTitle('');
+    setResult(null);
+    const profile = editingProfile || businessProfile;
+    const planPrompt = `🧠 Analyze my business "${profile?.businessName || 'my business'}" and create my personalized AI Action Plan.
+
+As my AI Business Consultant, recommend the TOP 5 things I should automate or create RIGHT NOW using NovaMind. For each recommendation:
+1. **What to create** — be specific (not generic)
+2. **Why it matters** — tie it to my industry, audience, and goals
+3. **Which NovaMind tool** — Email Writer ✉️, Social Media 📱, Logo Maker 🎨, Flyer Maker 📄, Ad Creator 🎯, Blog Writer 📝, etc.
+4. **Quick win example** — give me a sample prompt I can use right now
+
+End with a 🗓️ "Your 30-Day Quick Win Plan" — a week-by-week timeline for getting maximum ROI from NovaMind.
+
+Make this specific to MY business — not generic advice anyone could get.`;
+    setTimeout(() => {
+      setPrompt(planPrompt);
+      setTimeout(() => handleGenerate(), 300);
+    }, 400);
+  };
+
   // Logo upload handler — converts to base64 data URL
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -2938,6 +3009,47 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           </div>
 
+          {/* 💰 Value Calculator — Replace $345/mo */}
+          <div style={{
+            marginBottom: '24px', padding: '20px', borderRadius: '16px',
+            background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(99,102,241,0.08) 50%, rgba(168,85,247,0.08) 100%)',
+            border: '1px solid rgba(99,102,241,0.2)',
+            position: 'relative' as const, overflow: 'hidden'
+          }}>
+            <div style={{ position: 'absolute' as const, top: '-20px', right: '-20px', fontSize: '80px', opacity: 0.06 }}>💰</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '20px' }}>💡</span>
+              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>You're Replacing $345+/month of Tools</h3>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', marginBottom: '14px' }}>
+              {[
+                { tool: 'ChatGPT Pro', cost: '$20/mo', icon: '🤖' },
+                { tool: 'Canva Pro', cost: '$13/mo' , icon: '🎨' },
+                { tool: 'Mailchimp', cost: '$20/mo', icon: '📧' },
+                { tool: 'Hootsuite', cost: '$99/mo', icon: '📱' },
+                { tool: 'Grammarly Biz', cost: '$25/mo', icon: '✍️' },
+                { tool: 'Logo Maker', cost: '$10/mo', icon: '💎' },
+                { tool: 'Ad Tools', cost: '$50/mo', icon: '🎯' },
+                { tool: 'Freelancer', cost: '$100+/mo', icon: '👤' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', fontSize: '12px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>{item.icon} {item.tool}</span>
+                  <span style={{ color: '#ef4444', fontWeight: 600, textDecoration: 'line-through', opacity: 0.7 }}>{item.cost}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.06))', border: '1px solid rgba(34,197,94,0.25)' }}>
+              <div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>NovaMind — All of this for</div>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>$49<span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>/mo</span></div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: 700 }}>SAVE $296+/mo</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>That's $3,500+/year</div>
+              </div>
+            </div>
+          </div>
+
           <h3 className="section-title">{t.aiAgents}</h3>
           <div className="agent-grid">
             {AGENTS.map((agent) => (
@@ -3248,6 +3360,37 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         )}
                         <button onClick={() => publishToCommunity(chatMessages.find(m => m.role === 'user')?.content || '', msg.content, msg.imageUrl)} className="chat-action-btn" style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,165,0,0.15)', color: '#ffa500', border: '1px solid rgba(255,165,0,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🌟 Publish</button>
                         </>)}
+                        {/* 🔗 Workflow Chain — Continue with... */}
+                        {isLastAssistant && !msg.isError && (WORKFLOW_CHAINS[agentMode] || WORKFLOW_CHAINS['general']).length > 0 && (
+                          <div style={{ width: '100%', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span>🔗</span> Continue with...
+                            </div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {(WORKFLOW_CHAINS[agentMode] || WORKFLOW_CHAINS['general']).map((chain, ci) => (
+                                <button key={ci} onClick={() => {
+                                  const lastContent = msg.content.substring(0, 500);
+                                  setAgentMode(chain.agent as AgentMode);
+                                  setChatMessages([]);
+                                  setCurrentChatId(null);
+                                  setChatTitle('');
+                                  setResult(null);
+                                  setPrompt(chain.promptPrefix + lastContent);
+                                  showToast(`Switched to ${chain.label} — hit Generate! 🚀`, 'info');
+                                }} style={{
+                                  padding: '6px 14px', fontSize: '12px', fontWeight: 600,
+                                  background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.08))',
+                                  color: 'var(--primary, #6c63ff)',
+                                  border: '1px solid rgba(99,102,241,0.25)',
+                                  borderRadius: '20px', cursor: 'pointer',
+                                  transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '4px'
+                                }}>
+                                  {chain.icon} {chain.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         {showShareMenu === `chat-${idx}` && (
                           <div className="chat-share-menu" style={{ position: 'absolute', top: '100%', left: 0, marginTop: '8px', background: 'var(--surface, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '8px', display: 'flex', gap: '6px', zIndex: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
                             <button onClick={() => shareToSocial('twitter', msg.content, msg.imageUrl)} style={{ padding: '8px 12px', fontSize: '13px', background: 'rgba(29,161,242,0.15)', color: '#1da1f2', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>𝕏</button>
@@ -3940,6 +4083,22 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       ✅ <strong style={{ color: 'var(--text-primary)' }}>Profile Active</strong> — AI responses are personalized for <strong style={{ color: '#22c55e' }}>{businessProfile.businessName}</strong>
                     </div>
                   )}
+
+                  {/* 🧠 AI Action Plan CTA */}
+                  <button onClick={generateActionPlan}
+                    style={{
+                      marginTop: '16px', width: '100%', padding: '16px', borderRadius: '14px', border: 'none',
+                      background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #a855f7 100%)',
+                      color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                      boxShadow: '0 4px 20px rgba(99,102,241,0.35)', transition: 'all 0.3s',
+                      letterSpacing: '0.3px'
+                    }}>
+                    🧠 Get Your Personalized AI Action Plan
+                  </button>
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center', margin: '6px 0 0', opacity: 0.7 }}>
+                    AI analyzes your business and tells you exactly what to automate first
+                  </p>
                 </>
               )}
 
