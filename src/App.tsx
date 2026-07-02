@@ -77,6 +77,8 @@ interface BusinessProfile {
   uniqueValue: string;
   teamSize: string;
   yearFounded: string;
+  logoUrl: string;
+  socialMedia: string;
 }
 
 interface TeamMember {
@@ -92,7 +94,8 @@ interface TeamMember {
 const DEFAULT_PROFILE: BusinessProfile = {
   businessName: '', industry: 'general', location: '', website: '', phone: '',
   description: '', targetAudience: '', brandVoice: 'professional', brandColors: '',
-  services: '', uniqueValue: '', teamSize: '', yearFounded: ''
+  services: '', uniqueValue: '', teamSize: '', yearFounded: '',
+  logoUrl: '', socialMedia: ''
 };
 
 const BRAND_VOICES: { id: BusinessProfile['brandVoice']; label: string; icon: string; desc: string }[] = [
@@ -1050,6 +1053,8 @@ const App: React.FC = () => {
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [invitingMember, setInvitingMember] = useState(false);
+  const [polishingProfile, setPolishingProfile] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
 
   // Scroll to bottom of chat when messages change
@@ -1442,6 +1447,83 @@ const App: React.FC = () => {
       showToast('❌ Failed to save profile', 'error');
     }
     setProfileSaving(false);
+  };
+
+  // Logo upload handler — converts to base64 data URL
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('⚠️ Logo must be under 2MB', 'error');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      setEditingProfile(p => ({ ...p, logoUrl: dataUrl }));
+      showToast('✅ Logo uploaded!', 'success');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // AI Polish — takes rough profile info and makes it sharp & professional
+  const polishProfile = async () => {
+    if (!editingProfile.businessName && !editingProfile.description && !editingProfile.services) {
+      showToast('💡 Add at least a business name, description, or services first', 'info');
+      return;
+    }
+    setPolishingProfile(true);
+    try {
+      const polishPrompt = `You are a branding expert. Polish and enhance this business profile. Make it sound professional, compelling, and sharp — like a top-tier consultant wrote it. Keep it authentic to what the user provided, just elevate the language.
+
+CURRENT PROFILE:
+- Business Name: ${editingProfile.businessName || '(not provided)'}
+- Industry: ${editingProfile.industry || 'general'}
+- Location: ${editingProfile.location || '(not provided)'}
+- Description: ${editingProfile.description || '(not provided)'}
+- Services: ${editingProfile.services || '(not provided)'}
+- Target Audience: ${editingProfile.targetAudience || '(not provided)'}
+- Unique Value: ${editingProfile.uniqueValue || '(not provided)'}
+
+RESPOND IN EXACTLY THIS JSON FORMAT (no markdown, no code blocks, just raw JSON):
+{
+  "description": "polished business description (2-3 compelling sentences)",
+  "services": "polished services list (clear, professional phrasing)",
+  "targetAudience": "polished target audience (specific and well-defined)",
+  "uniqueValue": "polished unique value proposition (compelling and memorable)"
+}
+
+Rules:
+- Only polish fields that had content — leave empty ones as empty strings ""
+- Don't invent information — enhance what was given
+- Make it sound confident, specific, and impressive
+- Use active voice and strong language`;
+      
+      const res = await generateContent(polishPrompt, 'text', 'deepseek', 'You are a branding expert. Return ONLY valid JSON — no markdown, no explanation, no code fences.');
+      const text = res?.content || res?.text || '';
+      // Extract JSON from response
+      let jsonStr = text;
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) jsonStr = jsonMatch[0];
+      
+      try {
+        const polished = JSON.parse(jsonStr);
+        setEditingProfile(p => ({
+          ...p,
+          description: polished.description || p.description,
+          services: polished.services || p.services,
+          targetAudience: polished.targetAudience || p.targetAudience,
+          uniqueValue: polished.uniqueValue || p.uniqueValue,
+        }));
+        showToast('✨ Profile polished! Review the changes and save.', 'success');
+      } catch {
+        showToast('⚠️ AI returned unexpected format — try again', 'error');
+      }
+    } catch (e) {
+      console.error('Polish failed:', e);
+      showToast('❌ Polish failed — try again', 'error');
+    }
+    setPolishingProfile(false);
   };
 
   const inviteTeamMember = async () => {
@@ -1858,6 +1940,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           businessProfile.uniqueValue ? `Unique Value: ${businessProfile.uniqueValue}` : '',
           businessProfile.website ? `Website: ${businessProfile.website}` : '',
           businessProfile.teamSize ? `Team Size: ${businessProfile.teamSize}` : '',
+          businessProfile.socialMedia ? `Social Media: ${businessProfile.socialMedia}` : '',
         ].filter(Boolean).join('\n');
         if (bpLines) {
           systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
@@ -3530,7 +3613,35 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {profileTab === 'profile' && (
                 <>
                   <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    <div style={{ fontSize: '40px', marginBottom: '8px' }}>🏢</div>
+                    {/* Logo upload area */}
+                    <div 
+                      onClick={() => logoInputRef.current?.click()}
+                      style={{ 
+                        width: '80px', height: '80px', borderRadius: '16px', margin: '0 auto 12px',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                        border: editingProfile.logoUrl ? 'none' : `2px dashed ${theme === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(108,99,255,0.3)'}`,
+                        background: editingProfile.logoUrl ? 'transparent' : (theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(108,99,255,0.04)'),
+                        overflow: 'hidden', transition: 'all 0.2s',
+                        position: 'relative' as const
+                      }}
+                      title="Upload your company logo"
+                    >
+                      {editingProfile.logoUrl ? (
+                        <img src={editingProfile.logoUrl} alt="Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                      ) : (
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '24px' }}>📷</div>
+                          <div style={{ fontSize: '9px', color: 'var(--text-secondary)', marginTop: '2px' }}>Add Logo</div>
+                        </div>
+                      )}
+                    </div>
+                    <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
+                    {editingProfile.logoUrl && (
+                      <button onClick={(e) => { e.stopPropagation(); setEditingProfile(p => ({ ...p, logoUrl: '' })); }} 
+                        style={{ fontSize: '11px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', marginBottom: '4px' }}>
+                        Remove Logo
+                      </button>
+                    )}
                     <h2 style={{ margin: '0 0 4px', fontSize: '1.3rem' }}>Business Profile</h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>Tell us about your business — AI will personalize every response to your brand.</p>
                   </div>
@@ -3616,6 +3727,31 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Brand Colors <span style={{ opacity: 0.5 }}>(optional)</span></label>
                     <input className="auth-input" placeholder="e.g., Navy blue #1a2b5e, Gold #d4af37" value={editingProfile.brandColors} onChange={e => setEditingProfile(p => ({ ...p, brandColors: e.target.value }))} style={{ margin: 0 }} />
                   </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Social Media <span style={{ opacity: 0.5 }}>(optional)</span></label>
+                    <input className="auth-input" placeholder="@yourhandle on Instagram, Facebook, LinkedIn, etc." value={editingProfile.socialMedia} onChange={e => setEditingProfile(p => ({ ...p, socialMedia: e.target.value }))} style={{ margin: 0 }} />
+                  </div>
+
+                  {/* ✨ AI Polish Button */}
+                  <button onClick={polishProfile} disabled={polishingProfile}
+                    style={{ 
+                      marginTop: '20px', width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                      background: polishingProfile ? 'rgba(108,99,255,0.3)' : 'linear-gradient(135deg, #6c63ff 0%, #a855f7 100%)',
+                      color: '#fff', fontSize: '15px', fontWeight: 700, cursor: polishingProfile ? 'wait' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                      boxShadow: polishingProfile ? 'none' : '0 4px 15px rgba(108,99,255,0.3)',
+                      transition: 'all 0.3s'
+                    }}>
+                    {polishingProfile ? (
+                      <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⚡</span> AI is polishing your profile...</>
+                    ) : (
+                      <>✨ AI Polish — Make It Sharp</>
+                    )}
+                  </button>
+                  <p style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center', margin: '6px 0 0', opacity: 0.7 }}>
+                    AI will enhance your description, services, audience & value proposition
+                  </p>
 
                   <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
                     <button className="generate-btn" onClick={() => setShowProfileModal(false)}
