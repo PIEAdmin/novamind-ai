@@ -2492,7 +2492,7 @@ Your output represents a premium AI platform. Every response MUST meet these non
               </div>
             )}
 
-            {!isPersonalMode && (<div className="industry-selector">
+            {!isPersonalMode && agentMode !== 'logo-maker' && (<div className="industry-selector">
               <label className="selector-label">Industry</label>
               <div className="industry-chips">
                 {INDUSTRIES.map(ind => (
@@ -2686,6 +2686,7 @@ Your output represents a premium AI platform. Every response MUST meet these non
                 </button>
               ))}
             </div>
+            )}
             <div style={{ position: 'relative' }}
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
               onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
