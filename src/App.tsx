@@ -1424,9 +1424,9 @@ const App: React.FC = () => {
 
         // Load business profile & team
         try {
-          const profileDoc = await getDoc(doc(db, 'users', u.uid, 'settings', 'businessProfile'));
-          if (profileDoc.exists()) {
-            const pd = profileDoc.data() as BusinessProfile;
+          const userProfileDoc = await getDoc(doc(db, 'users', u.uid));
+          if (userProfileDoc.exists() && userProfileDoc.data().businessProfile) {
+            const pd = userProfileDoc.data().businessProfile as BusinessProfile;
             setBusinessProfile(pd);
             setEditingProfile(pd);
           }
@@ -1568,10 +1568,9 @@ const App: React.FC = () => {
     if (!user) return;
     setProfileSaving(true);
     try {
-      await setDoc(doc(db, 'users', user.uid, 'settings', 'businessProfile'), {
-        ...editingProfile,
-        updatedAt: Timestamp.now()
-      });
+      await setDoc(doc(db, 'users', user.uid), {
+        businessProfile: { ...editingProfile, updatedAt: Timestamp.now() }
+      }, { merge: true });
       setBusinessProfile(editingProfile);
       showToast('✅ Business profile saved!', 'success');
       setShowProfileModal(false);
