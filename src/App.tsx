@@ -62,6 +62,48 @@ interface HistoryItem {
   createdAt: Timestamp;
 }
 
+
+interface BusinessProfile {
+  businessName: string;
+  industry: string;
+  location: string;
+  website: string;
+  phone: string;
+  description: string;
+  targetAudience: string;
+  brandVoice: 'professional' | 'casual' | 'bold' | 'friendly' | 'luxury' | 'playful';
+  brandColors: string;
+  services: string;
+  uniqueValue: string;
+  teamSize: string;
+  yearFounded: string;
+}
+
+interface TeamMember {
+  id: string;
+  email: string;
+  displayName: string;
+  role: 'admin' | 'member';
+  status: 'active' | 'pending';
+  invitedAt: Timestamp;
+  joinedAt?: Timestamp;
+}
+
+const DEFAULT_PROFILE: BusinessProfile = {
+  businessName: '', industry: 'general', location: '', website: '', phone: '',
+  description: '', targetAudience: '', brandVoice: 'professional', brandColors: '',
+  services: '', uniqueValue: '', teamSize: '', yearFounded: ''
+};
+
+const BRAND_VOICES: { id: BusinessProfile['brandVoice']; label: string; icon: string; desc: string }[] = [
+  { id: 'professional', label: 'Professional', icon: '👔', desc: 'Polished & corporate' },
+  { id: 'casual', label: 'Casual', icon: '😎', desc: 'Relaxed & approachable' },
+  { id: 'bold', label: 'Bold', icon: '🔥', desc: 'Confident & direct' },
+  { id: 'friendly', label: 'Friendly', icon: '🤝', desc: 'Warm & conversational' },
+  { id: 'luxury', label: 'Luxury', icon: '✨', desc: 'Premium & sophisticated' },
+  { id: 'playful', label: 'Playful', icon: '🎉', desc: 'Fun & energetic' },
+];
+
 const INDUSTRIES = [
   { id: 'general', name: 'General', icon: '🌐' },
   { id: 'real-estate', name: 'Real Estate', icon: '🏠' },
@@ -998,6 +1040,18 @@ const App: React.FC = () => {
   const recognitionRef = useRef<any>(null);
   const [moodTone, setMoodTone] = useState('');
 
+  // === BUSINESS PROFILE & TEAM STATE ===
+  const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
+  const [editingProfile, setEditingProfile] = useState<BusinessProfile>(DEFAULT_PROFILE);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileTab, setProfileTab] = useState<'profile' | 'team'>('profile');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [showTeamModal, setShowTeamModal] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [invitingMember, setInvitingMember] = useState(false);
+
+
   // Scroll to bottom of chat when messages change
   useEffect(() => {
     if (chatEndRef.current) {
@@ -1229,6 +1283,20 @@ const App: React.FC = () => {
         loadTemplates(u.uid);
         loadHistory(u.uid);
         loadChats(u.uid);
+
+        // Load business profile & team
+        try {
+          const profileDoc = await getDoc(doc(db, 'users', u.uid, 'settings', 'businessProfile'));
+          if (profileDoc.exists()) {
+            const pd = profileDoc.data() as BusinessProfile;
+            setBusinessProfile(pd);
+            setEditingProfile(pd);
+          }
+        } catch {}
+        try {
+          const teamSnap = await getDocs(collection(db, 'users', u.uid, 'team'));
+          setTeamMembers(teamSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeamMember)));
+        } catch {}
         // Check if onboarding is needed
         if (usageDoc.exists()) {
           const data = usageDoc.data();
@@ -1348,6 +1416,80 @@ const App: React.FC = () => {
       await setDoc(doc(db, 'users', user.uid), { onboardingComplete: true, onboardedAt: Timestamp.now() }, { merge: true });
     } catch (e) { console.error(e); }
     setShowOnboarding(false);
+  };
+
+
+  // === BUSINESS PROFILE FUNCTIONS ===
+  const openProfileModal = () => {
+    setEditingProfile(businessProfile || DEFAULT_PROFILE);
+    setProfileTab('profile');
+    setShowProfileModal(true);
+  };
+
+  const saveBusinessProfile = async () => {
+    if (!user) return;
+    setProfileSaving(true);
+    try {
+      await setDoc(doc(db, 'users', user.uid, 'settings', 'businessProfile'), {
+        ...editingProfile,
+        updatedAt: Timestamp.now()
+      });
+      setBusinessProfile(editingProfile);
+      showToast('✅ Business profile saved!', 'success');
+      setShowProfileModal(false);
+    } catch (e) {
+      console.error('Failed to save profile:', e);
+      showToast('❌ Failed to save profile', 'error');
+    }
+    setProfileSaving(false);
+  };
+
+  const inviteTeamMember = async () => {
+    if (!user || !inviteEmail.trim()) return;
+    const emailLower = inviteEmail.trim().toLowerCase();
+    if (teamMembers.some(m => m.email === emailLower)) {
+      showToast('This person is already on your team', 'warning');
+      return;
+    }
+    setInvitingMember(true);
+    try {
+      const memberDoc = await addDoc(collection(db, 'users', user.uid, 'team'), {
+        email: emailLower,
+        displayName: '',
+        role: 'member',
+        status: 'pending',
+        invitedAt: Timestamp.now(),
+        invitedBy: user.uid
+      });
+      setTeamMembers(prev => [...prev, {
+        id: memberDoc.id, email: emailLower, displayName: '', role: 'member' as const,
+        status: 'pending' as const, invitedAt: Timestamp.now()
+      }]);
+      setInviteEmail('');
+      showToast(`✅ Invitation sent to ${emailLower}`, 'success');
+    } catch (e) {
+      console.error('Failed to invite:', e);
+      showToast('❌ Failed to send invitation', 'error');
+    }
+    setInvitingMember(false);
+  };
+
+  const removeTeamMember = async (memberId: string) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'users', user.uid, 'team', memberId));
+      setTeamMembers(prev => prev.filter(m => m.id !== memberId));
+      showToast('Team member removed', 'info');
+    } catch {}
+  };
+
+  const updateMemberRole = async (memberId: string, newRole: 'admin' | 'member') => {
+    if (!user) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid, 'team', memberId), { role: newRole });
+      setTeamMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+      showToast(`Role updated to ${newRole}`, 'success');
+    } catch {}
   };
 
   const toggleOnboardingArray = (arr: string[], item: string) => {
@@ -1701,6 +1843,27 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       if (firstName) {
         systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
           `The user's name is ${firstName}. Address them by name naturally — use it in greetings, transitions, or when it feels conversational, but don't force it into every sentence.`;
+      }
+
+
+      // 🏢 BUSINESS PROFILE CONTEXT — personalize all AI responses
+      if (businessProfile) {
+        const bpLines = [
+          businessProfile.businessName ? `Business: ${businessProfile.businessName}` : '',
+          businessProfile.industry && businessProfile.industry !== 'general' ? `Industry: ${businessProfile.industry}` : '',
+          businessProfile.location ? `Location: ${businessProfile.location}` : '',
+          businessProfile.targetAudience ? `Target Audience: ${businessProfile.targetAudience}` : '',
+          businessProfile.brandVoice ? `Brand Voice: ${businessProfile.brandVoice}` : '',
+          businessProfile.services ? `Services/Products: ${businessProfile.services}` : '',
+          businessProfile.uniqueValue ? `Unique Value: ${businessProfile.uniqueValue}` : '',
+          businessProfile.website ? `Website: ${businessProfile.website}` : '',
+          businessProfile.teamSize ? `Team Size: ${businessProfile.teamSize}` : '',
+        ].filter(Boolean).join('\n');
+        if (bpLines) {
+          systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+            `BUSINESS CONTEXT — Use this profile to personalize every response. Write in their brand voice. ` +
+            `Reference their business naturally. Make industry-specific recommendations:\n${bpLines}`;
+        }
       }
 
       // 🧠 SMART AI ONBOARDING — detect first interaction and guide the user
@@ -2356,6 +2519,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           </div>
           <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#212529' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
           <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680' }}>⌨️</button>
+          <button onClick={openProfileModal} title="Business Profile & Team" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680', position: 'relative' as const }}>{businessProfile?.businessName ? '🏢' : '🏢'}{!businessProfile?.businessName && <span style={{ position: 'absolute' as const, top: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />}</button>
           <button className="nav-btn btn-outline" onClick={handleChangePassword} title="Change your password" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680' }}>🔑</button>
           <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(108,99,255,0.15)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: theme === 'dark' ? '#fff' : '#1a1a2e' }}>🚪 {t.signOut}</button>
         </div>
@@ -2393,6 +2557,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <span className="sidebar-item-name">{t.name}</span>
             </button>
           ))}
+
+          <div className="sidebar-divider" />
+          <p className="sidebar-section-label">Settings</p>
+          <button className="sidebar-item" onClick={() => { openProfileModal(); setSidebarOpen(false); }}>
+            <span className="sidebar-item-icon">🏢</span>
+            <span className="sidebar-item-name">Business Profile</span>
+            {!businessProfile?.businessName && <span className="sidebar-item-badge" style={{ background: '#ef4444' }}>SET UP</span>}
+          </button>
+          <button className="sidebar-item" onClick={() => { setProfileTab('team'); setShowProfileModal(true); setSidebarOpen(false); }}>
+            <span className="sidebar-item-icon">👥</span>
+            <span className="sidebar-item-name">Team</span>
+            {teamMembers.length > 0 && <span className="sidebar-item-badge" style={{ background: '#22c55e' }}>{teamMembers.length}</span>}
+          </button>
           <div className="sidebar-divider" />
           <p className="sidebar-section-label">Coming Soon</p>
           {COMING_SOON_FEATURES.map(feature => (
@@ -3336,6 +3513,200 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           </div>
         </div>
       )}
+
+      {/* === BUSINESS PROFILE & TEAM MODAL === */}
+      {showProfileModal && user && (
+        <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowProfileModal(false)}>
+          <div className="auth-modal" style={{ maxWidth: '560px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+            {/* Tab header */}
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(108,99,255,0.04)', borderRadius: '12px', padding: '4px' }}>
+              <button onClick={() => setProfileTab('profile')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'profile' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'profile' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>🏢 Business Profile</button>
+              <button onClick={() => setProfileTab('team')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'team' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'team' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s', position: 'relative' as const }}>
+                👥 Team {teamMembers.length > 0 && <span style={{ background: '#22c55e', color: '#fff', fontSize: '10px', borderRadius: '10px', padding: '1px 6px', marginLeft: '4px' }}>{teamMembers.length}</span>}
+              </button>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1, paddingRight: '4px' }}>
+              {profileTab === 'profile' && (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '8px' }}>🏢</div>
+                    <h2 style={{ margin: '0 0 4px', fontSize: '1.3rem' }}>Business Profile</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>Tell us about your business — AI will personalize every response to your brand.</p>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Business Name *</label>
+                      <input className="auth-input" placeholder="Your Company Name" value={editingProfile.businessName} onChange={e => setEditingProfile(p => ({ ...p, businessName: e.target.value }))} style={{ margin: 0 }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Industry</label>
+                      <select className="auth-input" value={editingProfile.industry} onChange={e => setEditingProfile(p => ({ ...p, industry: e.target.value }))} style={{ margin: 0, cursor: 'pointer' }}>
+                        {INDUSTRIES.map(ind => <option key={ind.id} value={ind.id}>{ind.icon} {ind.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Location</label>
+                      <input className="auth-input" placeholder="City, State" value={editingProfile.location} onChange={e => setEditingProfile(p => ({ ...p, location: e.target.value }))} style={{ margin: 0 }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Website</label>
+                      <input className="auth-input" placeholder="www.example.com" value={editingProfile.website} onChange={e => setEditingProfile(p => ({ ...p, website: e.target.value }))} style={{ margin: 0 }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Phone</label>
+                      <input className="auth-input" placeholder="(555) 123-4567" value={editingProfile.phone} onChange={e => setEditingProfile(p => ({ ...p, phone: e.target.value }))} style={{ margin: 0 }} />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Team Size</label>
+                      <select className="auth-input" value={editingProfile.teamSize} onChange={e => setEditingProfile(p => ({ ...p, teamSize: e.target.value }))} style={{ margin: 0, cursor: 'pointer' }}>
+                        <option value="">Select...</option>
+                        <option value="solo">Just Me</option>
+                        <option value="2-5">2-5 people</option>
+                        <option value="6-15">6-15 people</option>
+                        <option value="16-50">16-50 people</option>
+                        <option value="50+">50+ people</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Year Founded</label>
+                      <input className="auth-input" placeholder="2020" value={editingProfile.yearFounded} onChange={e => setEditingProfile(p => ({ ...p, yearFounded: e.target.value }))} style={{ margin: 0 }} />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Business Description</label>
+                    <textarea className="auth-input" placeholder="What does your business do? (2-3 sentences)" value={editingProfile.description} onChange={e => setEditingProfile(p => ({ ...p, description: e.target.value }))} rows={3} style={{ margin: 0, resize: 'vertical' as const, fontFamily: 'inherit' }} />
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Services / Products</label>
+                    <textarea className="auth-input" placeholder="List your main services or products" value={editingProfile.services} onChange={e => setEditingProfile(p => ({ ...p, services: e.target.value }))} rows={2} style={{ margin: 0, resize: 'vertical' as const, fontFamily: 'inherit' }} />
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Target Audience</label>
+                    <input className="auth-input" placeholder="Who are your ideal customers? (e.g., Small business owners aged 30-55)" value={editingProfile.targetAudience} onChange={e => setEditingProfile(p => ({ ...p, targetAudience: e.target.value }))} style={{ margin: 0 }} />
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', display: 'block' }}>Brand Voice</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {BRAND_VOICES.map(v => (
+                        <div key={v.id} onClick={() => setEditingProfile(p => ({ ...p, brandVoice: v.id }))}
+                          style={{ padding: '10px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
+                            border: editingProfile.brandVoice === v.id ? '2px solid var(--primary, #6c63ff)' : `2px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.1)'}`,
+                            background: editingProfile.brandVoice === v.id ? 'rgba(108,99,255,0.12)' : 'transparent',
+                            transition: 'all 0.2s' }}>
+                          <div style={{ fontSize: '20px' }}>{v.icon}</div>
+                          <div style={{ fontSize: '12px', fontWeight: 600, marginTop: '2px' }}>{v.label}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '1px' }}>{v.desc}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>What Makes You Different?</label>
+                    <textarea className="auth-input" placeholder="Your unique value proposition — what sets you apart from competitors?" value={editingProfile.uniqueValue} onChange={e => setEditingProfile(p => ({ ...p, uniqueValue: e.target.value }))} rows={2} style={{ margin: 0, resize: 'vertical' as const, fontFamily: 'inherit' }} />
+                  </div>
+
+                  <div style={{ marginTop: '16px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px', display: 'block' }}>Brand Colors <span style={{ opacity: 0.5 }}>(optional)</span></label>
+                    <input className="auth-input" placeholder="e.g., Navy blue #1a2b5e, Gold #d4af37" value={editingProfile.brandColors} onChange={e => setEditingProfile(p => ({ ...p, brandColors: e.target.value }))} style={{ margin: 0 }} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
+                    <button className="generate-btn" onClick={() => setShowProfileModal(false)}
+                      style={{ flex: 'none', width: 'auto', padding: '12px 20px', background: 'transparent', border: `2px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(108,99,255,0.2)'}`, color: 'var(--text-primary)' }}>Cancel</button>
+                    <button className="generate-btn" onClick={saveBusinessProfile} disabled={profileSaving} style={{ flex: 1 }}>
+                      {profileSaving ? '💾 Saving...' : '💾 Save Profile'}
+                    </button>
+                  </div>
+
+                  {businessProfile?.businessName && (
+                    <div style={{ marginTop: '16px', padding: '12px 16px', borderRadius: '10px', background: theme === 'dark' ? 'rgba(34,197,94,0.1)' : 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.2)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      ✅ <strong style={{ color: 'var(--text-primary)' }}>Profile Active</strong> — AI responses are personalized for <strong style={{ color: '#22c55e' }}>{businessProfile.businessName}</strong>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {profileTab === 'team' && (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '8px' }}>👥</div>
+                    <h2 style={{ margin: '0 0 4px', fontSize: '1.3rem' }}>Team Members</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>Add your team so they can access NovaMind under your account.</p>
+                  </div>
+
+                  {/* Invite form */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+                    <input className="auth-input" type="email" placeholder="teammate@company.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && inviteTeamMember()} style={{ margin: 0, flex: 1 }} />
+                    <button className="generate-btn" onClick={inviteTeamMember} disabled={invitingMember || !inviteEmail.trim()} style={{ width: 'auto', padding: '10px 20px', whiteSpace: 'nowrap' as const, margin: 0 }}>
+                      {invitingMember ? '...' : '➕ Invite'}
+                    </button>
+                  </div>
+
+                  {/* Team list */}
+                  {teamMembers.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-secondary)' }}>
+                      <div style={{ fontSize: '48px', marginBottom: '12px', opacity: 0.5 }}>👥</div>
+                      <p style={{ fontWeight: 600, marginBottom: '4px' }}>No team members yet</p>
+                      <p style={{ fontSize: '13px' }}>Invite your first teammate to start collaborating!</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {/* Owner (current user) */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(108,99,255,0.08)' : 'rgba(108,99,255,0.04)', border: `1px solid ${theme === 'dark' ? 'rgba(108,99,255,0.2)' : 'rgba(108,99,255,0.1)'}` }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--primary, #6c63ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
+                          {(user.displayName || user.email || '?')[0].toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.displayName || 'You'}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.email}</div>
+                        </div>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#fff' }}>OWNER</span>
+                      </div>
+
+                      {teamMembers.map(member => (
+                        <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(108,99,255,0.02)', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(108,99,255,0.08)'}`, transition: 'all 0.2s' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: member.status === 'pending' ? (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.08)') : '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: member.status === 'pending' ? 'var(--text-secondary)' : '#fff', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
+                            {member.status === 'pending' ? '⏳' : (member.displayName || member.email)[0].toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{member.displayName || member.email}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                              {member.status === 'pending' ? '⏳ Invite pending' : `✅ ${member.role === 'admin' ? 'Admin' : 'Member'}`}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                            <select value={member.role} onChange={e => updateMemberRole(member.id, e.target.value as 'admin' | 'member')}
+                              style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#fff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(108,99,255,0.15)'}`, borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                              <option value="member">Member</option>
+                              <option value="admin">Admin</option>
+                            </select>
+                            <button onClick={() => removeTeamMember(member.id)}
+                              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', padding: '4px 8px', fontSize: '12px', cursor: 'pointer', color: '#ef4444' }}>✕</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: '20px', padding: '14px 16px', borderRadius: '10px', background: theme === 'dark' ? 'rgba(108,99,255,0.06)' : 'rgba(108,99,255,0.03)', border: `1px solid ${theme === 'dark' ? 'rgba(108,99,255,0.15)' : 'rgba(108,99,255,0.08)'}`, fontSize: '13px', color: 'var(--text-secondary)' }}>
+                    💡 <strong style={{ color: 'var(--text-primary)' }}>Tip:</strong> Team members share your subscription and business profile. <strong>Admins</strong> can manage the team; <strong>Members</strong> can use all AI tools.
+                  </div>
+
+                  <button className="generate-btn" onClick={() => setShowProfileModal(false)} style={{ marginTop: '16px' }}>Done</button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {showShortcuts && (
         <div className="auth-overlay" onClick={() => setShowShortcuts(false)}>
           <div className="auth-modal" style={{ maxWidth: '420px' }} onClick={e => e.stopPropagation()}>
