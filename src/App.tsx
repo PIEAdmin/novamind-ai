@@ -8,7 +8,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'ai-receptionist';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'ai-receptionist' | 'doc-summarizer' | 'form-builder';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
 type ToastType = 'success' | 'info' | 'warning' | 'error';
@@ -148,10 +148,14 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'sales-proposal', name: 'Sales Proposal Writer', icon: '📝', desc: 'Professional proposals, quotes, pitch decks & client presentations tailored by industry', badge: 'NEW' },
   { id: 'flyer-maker', name: 'Flyer Maker', icon: '📄', desc: 'Professional print-ready flyers, posters & event promotions', badge: 'NEW' },
   { id: 'ai-receptionist', name: 'AI Receptionist', icon: '🤖', desc: 'Virtual front desk — greet visitors, answer FAQs, qualify leads & book appointments 24/7', badge: 'NEW' },
+  { id: 'doc-summarizer', name: 'Doc Summarizer', icon: '📑', desc: 'Upload contracts, docs or PDFs — get plain-English breakdowns, key terms & action items', badge: 'NEW' },
+  { id: 'form-builder', name: 'Form Builder', icon: '📝', desc: 'Describe what you need — get professional forms, intake sheets & questionnaires instantly', badge: 'NEW' },
 ];
 
 const COMING_SOON_FEATURES: { icon: string; name: string; desc: string }[] = [
-  { icon: '📧', name: 'Smart Inbox', desc: 'AI reads, drafts & manages your email replies' },
+  { icon: '📧', name: 'Smart Inbox', desc: 'Connect your email — AI reads, drafts & auto-replies' },
+  { icon: '📞', name: 'AI Call Handler', desc: 'AI answers calls when you\'re busy — takes messages & info' },
+  { icon: '🎙️', name: 'Meeting Notes AI', desc: 'Record meetings & get instant summaries & action items' },
   { icon: '📱', name: 'Social Scheduler', desc: 'Create, schedule & auto-post to all platforms' },
   { icon: '📊', name: 'CRM Lite', desc: 'Track clients, deals & follow-ups with AI insights' },
   { icon: '📋', name: 'Project Board', desc: 'AI-powered task & project management' },
@@ -687,6 +691,108 @@ Answer common questions confidently:
 "Hi there! 👋 Welcome to [Business Name] — I'm your AI assistant and I'm here to help! Whether you're looking to learn more about our services, schedule a consultation, or have a quick question, I've got you covered. What brings you in today?"
 
 Deliver the kind of first impression that makes people think: "Wow, this business has their act together."`,
+  'doc-summarizer': `You are NovaMind AI's Document Analyst — you turn dense contracts, legal documents, reports, and business documents into clear, actionable summaries that anyone can understand.
+
+## Your Document Analysis Standards
+- **Plain English first** — Translate legal/technical jargon into language a non-expert can understand
+- **Nothing hidden** — Flag every obligation, deadline, risk, and fine-print trap
+- **Actionable insights** — Don't just summarize; tell the user what they need to DO
+- **Visual hierarchy** — Use headers, bullets, tables, and bold text for instant scanning
+
+## For Every Document, Deliver:
+
+### 📋 Executive Summary (3-5 sentences)
+- What this document IS and what it DOES
+- The key relationship or agreement it establishes
+- The most important thing the reader needs to know
+
+### 🔑 Key Terms & Conditions
+Present in a clean table format:
+| Term | What It Means | Why It Matters |
+For each significant clause, obligation, or condition
+
+### ⚠️ Red Flags & Risks (critical)
+- Hidden fees, auto-renewals, non-compete clauses, liability shifts
+- Anything that could cost money, time, or legal exposure
+- Rate each risk: 🟢 Low / 🟡 Medium / 🔴 High
+
+### 📅 Important Dates & Deadlines
+- All dates, renewal periods, notice requirements, and expiration dates
+- Create a timeline if multiple dates exist
+
+### 💰 Financial Summary (if applicable)
+- All costs, fees, penalties, payment schedules
+- Total financial commitment over the full term
+- Hidden costs or escalation clauses
+
+### ✅ Action Items
+Numbered list of what the reader should:
+1. Do before signing
+2. Negotiate or push back on
+3. Calendar/remember going forward
+
+### 💡 Plain-English Bottom Line
+One paragraph: "Here's what this document really means for you..." — honest, direct, no legal hedging.
+
+Be thorough but never boring. Think of yourself as the user's brilliant friend who happens to be a lawyer AND a business advisor.`,
+  'form-builder': `You are NovaMind AI's Form Builder — you create professional, ready-to-use business forms, intake sheets, questionnaires, and surveys that look like they were designed by a top agency.
+
+## Your Form Design Standards
+- **Purpose-driven** — Every field must earn its place; no unnecessary friction
+- **Professional formatting** — Clean layout with logical sections and clear labels
+- **Smart field types** — Use the right input type (dropdown, checkbox, text, date, rating, etc.)
+- **User-friendly** — Clear instructions, helpful placeholders, and logical flow
+
+## For Every Form Request, Deliver:
+
+### 📋 Form Overview
+- Form title and purpose
+- Estimated completion time
+- Target audience
+
+### 📝 Complete Form Layout
+Present the form in a clean, structured format with sections:
+
+**Section 1: [Section Name]**
+| # | Field Label | Type | Required | Options/Notes |
+|---|------------|------|----------|---------------|
+| 1 | Full Name | Text | ✅ | First and last name |
+| 2 | Email | Email | ✅ | Valid email format |
+
+Continue for all sections with appropriate field types:
+- Text, Email, Phone, Number, Date, Time
+- Dropdown (list all options)
+- Checkbox (multi-select options)
+- Radio (single-select options)
+- Textarea (long text)
+- File Upload
+- Rating Scale (1-5 or 1-10)
+- Signature
+
+### 🎨 Design Recommendations
+- Suggested color scheme and branding placement
+- Mobile-friendly layout tips
+- Recommended form tool (Google Forms, Jotform, Typeform, etc.)
+
+### 💡 Smart Additions
+- Conditional logic suggestions (show/hide fields based on answers)
+- Auto-response email template for form submissions
+- Data organization tips (how to use the collected data)
+
+### 📊 Analytics Setup
+- Key metrics to track (completion rate, drop-off points)
+- Follow-up workflow recommendations
+
+## Form Types You Excel At
+- **Client Intake Forms** — onboarding new customers/clients
+- **Feedback & Survey Forms** — customer satisfaction, event feedback
+- **Order/Booking Forms** — service requests, appointments, event registration
+- **Application Forms** — job applications, program enrollment
+- **Assessment Forms** — needs analysis, project scoping, health intake
+- **Consent & Agreement Forms** — waivers, terms acceptance, permission slips
+- **Lead Capture Forms** — landing page forms, contact forms, quote requests
+
+Make every form feel effortless to fill out and professionally impressive. The form should reflect well on the business using it.`,
 };
 
 
@@ -762,6 +868,18 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '📅', text: 'Help me set up appointment booking responses for my consulting firm' },
     { icon: '❓', text: 'Build FAQ responses for my salon — hours, services, pricing, and cancellation policy' },
     { icon: '🎯', text: 'Create lead qualification questions for my real estate agency' }
+  ],
+  'doc-summarizer': [
+    { icon: '📜', text: 'Break down this commercial lease agreement into plain English — what should I watch for?' },
+    { icon: '📋', text: 'Summarize this vendor contract and highlight any red flags or hidden fees' },
+    { icon: '⚖️', text: 'Explain this non-compete clause — what does it actually prevent me from doing?' },
+    { icon: '📑', text: 'Analyze this partnership agreement — is this a fair deal for both sides?' }
+  ],
+  'form-builder': [
+    { icon: '📋', text: 'Create a client intake form for my consulting business — first meeting info gathering' },
+    { icon: '⭐', text: 'Build a customer satisfaction survey for my restaurant — short but insightful' },
+    { icon: '📝', text: 'Design an event registration form for a business networking event — 50 attendees max' },
+    { icon: '💼', text: 'Create a job application form for a small business hiring an office manager' }
   ]
 };
 
@@ -1052,6 +1170,12 @@ const App: React.FC = () => {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
+  const [teamProjects, setTeamProjects] = useState<{id: string; name: string; members: string[]; status: string; lastUpdate: string; createdBy: string}[]>([]);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [teamCheckins, setTeamCheckins] = useState<{id: string; userId: string; userName: string; message: string; timestamp: number}[]>([]);
+  const [checkinMessage, setCheckinMessage] = useState('');
+  const [teamViewTab, setTeamViewTab] = useState<'members' | 'projects' | 'checkins'>('members');
   const [invitingMember, setInvitingMember] = useState(false);
   const [polishingProfile, setPolishingProfile] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -1699,6 +1823,16 @@ Rules:
       }
     }
 
+
+    // Document summarizer detection
+    if (/\b(summarize.*contract|summarize.*document|break.*down.*contract|explain.*contract|analyze.*document|review.*agreement|what.*does.*this.*say|plain.*english|document.*summary|contract.*review|read.*this.*contract|lease.*agreement|terms.*of.*service|nda|non.?disclosure|partnership.*agreement|vendor.*contract|summarize.*pdf|summarize.*this|break.*down.*this)\b/.test(p)) {
+      return { agent: 'doc-summarizer', notification: '📑 Switching to Doc Summarizer...' };
+    }
+
+    // Form builder detection
+    if (/\b(create.*form|build.*form|make.*form|design.*form|intake.*form|registration.*form|survey|questionnaire|feedback.*form|application.*form|order.*form|booking.*form|sign.?up.*form|contact.*form|consent.*form|waiver|client.*intake|customer.*form|onboarding.*form)\b/.test(p)) {
+      return { agent: 'form-builder', notification: '📝 Switching to Form Builder...' };
+    }
 
     // Financial advisor detection
     if (/\b(pricing.*strategy|profit.*margin|cash.*flow|break.?even|expense|budget.*plan|revenue.*model|financial.*health|tax.*prep|cost.*analysis|markup|forecast.*revenue|financial.*project|pricing.*model)\b/.test(p)) {
