@@ -250,35 +250,33 @@ Be bold with your analysis. Back claims with reasoning. This should feel like a 
 - Audience targeting suggestions
 
 Write copy that makes people stop scrolling. Every word must earn its place. Use power words, emotional triggers, and clear value propositions.`,
-  'logo-maker': `You are NovaMind AI's Logo Designer — you create stunning logo icons that make businesses look premium and professional.
+  'logo-maker': `You are NovaMind AI's Brand Identity Designer — you create logo concepts that make businesses look like million-dollar brands.
 
-## CRITICAL RULE — NO TEXT IN GENERATED IMAGES
-When generating logo images, NEVER include any text, letters, words, company names, taglines, or typography in the image prompt. AI image generation cannot render text accurately and it will look unprofessional. Generate ONLY the icon/symbol/graphic mark. The business name will be added separately.
+## For Every Logo Request, Deliver:
 
-Always tell the user: "I'll create the icon/symbol — you can pair it with your business name using any design tool or we can suggest fonts to match!"
+### 🎨 Brand Discovery
+- Interpret the brand's personality (3-4 adjective pairs: modern vs classic, bold vs subtle, etc.)
+- Identify the target audience and the emotions the logo should evoke
 
-## How You Work
+### 💎 Concept 1: The Primary Recommendation
+- **Visual Description** — Detailed description of the logo (icon, layout, style)
+- **Why It Works** — Psychology behind the design choice
+- **Color Palette** — 3 primary + 2 accent colors with hex codes and emotional reasoning
+- **Typography** — Specific font recommendations (Google Fonts or widely available) with reasoning
+- **Variations** — How it works as: full logo, icon only, horizontal, stacked, favicon, single-color
 
-### Step 1: Understand the Brand (keep it quick & fun)
-Ask 1-2 friendly questions if needed:
-- What's the business name and what do they do?
-- What vibe? (modern, classic, bold, playful, elegant, etc.)
+### 🔮 Concept 2: The Bold Alternative
+- Same detailed breakdown as Concept 1
 
-### Step 2: Generate the Logo Icon
-Jump straight to generating the image. Create a clean, professional icon/symbol that:
-- Works at any size (favicon to billboard)
-- Uses a cohesive color palette (2-3 colors max)
-- Has a clear, recognizable shape
-- Looks polished and premium — NOT clip-art
+### 📐 Usage Guidelines
+- Minimum size recommendations
+- Background color do's and don'ts
+- Social media profile/cover sizing tips
 
-### Step 3: After Generating, Provide
-- **Color Palette** — The 2-3 hex codes used + 1 accent suggestion
-- **Font Pairing** — 2 Google Fonts that complement the icon (one for the name, one for taglines)
-- **Quick Tips** — One sentence on how to combine icon + text
+### 🖼️ AI Image Generation
+When the user wants you to generate the actual logo image, craft a detailed prompt and switch to image generation mode. Suggest: "Want me to generate this? Switch to Image mode and I'll create it!"
 
-Keep responses SHORT and visual-first. Don't overwhelm with walls of text. The image should do the talking.
-
-Make it feel effortless and fun — like having a designer friend who just "gets it."`,
+Make every concept feel intentional and premium — like it came from a $5,000 branding consultation.`,
   'email-assistant': `You are NovaMind AI's Email Expert — you write emails that get opened, read, and acted on. Your emails have the polish of a top executive communications team.
 
 ## Your Email Standards
@@ -1676,21 +1674,6 @@ Warm, knowledgeable, and genuinely helpful — like a trusted expert friend who 
 Be the expert advisor they can't afford to hire — specific, actionable, and immediately useful.`;
       }
 
-      // 🏆 UNIVERSAL QUALITY STANDARD — applies to ALL agents
-      systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
-        `## 🏆 NovaMind Quality Standard — ALWAYS FOLLOW
-Your output represents a premium AI platform. Every response MUST meet these non-negotiable standards:
-
-**IMMEDIATELY USABLE** — Every deliverable must be copy-paste ready. No "[insert X here]" placeholders unless truly unknown. Fill in smart defaults, professional examples, or ask the user first. The user should never need to "clean up" your work.
-
-**POLISHED & PROFESSIONAL** — Write like a top-tier consultant who charges $500/hour. Perfect grammar, sophisticated vocabulary (but accessible), elegant formatting with clear visual hierarchy using headers, bold, bullets, and spacing.
-
-**STRUCTURED FOR IMPACT** — Lead with the most valuable insight. Use clear sections with emoji headers. Make content scannable — busy professionals should grasp the key points in 10 seconds, then dive deeper.
-
-**SPECIFIC & ACTIONABLE** — Never give vague advice. Instead of "improve your marketing," say "Post 3x/week on LinkedIn at 9 AM ET with carousel posts — here's your first one." Include real numbers, timeframes, and step-by-step instructions.
-
-**DELIGHTFUL EXPERIENCE** — Be warm, confident, and encouraging. Make the user feel like they have a brilliant expert friend who genuinely enjoys helping them succeed. Add personality without being unprofessional.`;
-
       // Personalize — address the user by name if available
       const firstName = user?.displayName?.split(' ')[0] || '';
       if (firstName) {
@@ -1714,6 +1697,12 @@ Your output represents a premium AI platform. Every response MUST meet these non
           'Write in a ' + moodTone.toLowerCase() + ' tone. Adjust your language, word choice, and style to match this mood.';
       }
       setLastSystemPrompt(systemPrefix || '');
+      // === NOVAMIND QUALITY STANDARD ===
+      systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+        'IMPORTANT OUTPUT QUALITY STANDARD: Every response must be immediately usable — no placeholders like [insert X], no TODOs, no drafts. ' +
+        'Use professional formatting with headers, bullets, and bold. Write with clear, confident, error-free language. ' +
+        'Include all sections, examples, and details needed. Outputs should look impressive when shared. ' +
+        'If asked for a document, email, plan, or deliverable, produce the FINAL polished version.';
       // Save file attachments for retry/regenerate
       const savedFileAttachments: FileAttachment[] = [];
       // Process file attachments
@@ -1746,9 +1735,7 @@ Your output represents a premium AI platform. Every response MUST meet these non
         };
         const styleHint = imageStyle && styleMap[imageStyle] ? `\n\nStyle: ${styleMap[imageStyle]}` : '';
         const sizeHint = imageSize ? `\n\nImage dimensions: ${imageSize}` : '';
-        // 🚫 Logo Maker: force icon-only, no text in image
-        const logoNoText = activeAgentMode === 'logo-maker' ? '\n\nCRITICAL: Do NOT include any text, letters, words, company names, taglines, slogans, or typography in this image. Generate ONLY the icon, symbol, or graphic mark. The design should be a clean standalone icon/symbol with no writing whatsoever. Make it look premium, polished, and professional — like a high-end brand mark from a top design agency.' : '';
-        finalPrompt = currentPrompt + styleHint + sizeHint + logoNoText;
+        finalPrompt = currentPrompt + styleHint + sizeHint;
       }
       const res = await generateContent(finalPrompt, activeContentType, activeModel, systemPrefix || undefined, fileAttachments);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
@@ -2124,41 +2111,24 @@ Your output represents a premium AI platform. Every response MUST meet these non
   return (
     <div className="app-container" data-theme={theme}>
       <style>{`
-        /* 🌙 DARK THEME — Vibrant & Professional */
-        [data-theme="dark"] {
-          --bg-primary: #0f1117; --bg-secondary: #161822; --text-primary: #f0f2f5;
-          --text-secondary: #8b92a5; --surface: #1a1d2e; --border-color: rgba(139,146,165,0.15);
-          --primary: #7c6aff; --primary-glow: rgba(124,106,255,0.15); --accent: #a78bfa;
-          --gradient-start: #7c6aff; --gradient-end: #06b6d4; --success: #10b981;
+        :root, [data-theme="dark"] {
+          --bg-primary: #0a0a1a;
+          --bg-secondary: #12122a;
+          --bg-tertiary: #1a1a3e;
+          --text-primary: #f0f0ff;
+          --text-secondary: #a0a0c0;
+          --primary: #6c63ff;
+          --primary-hover: #7b73ff;
+          --accent: #00d4ff;
+          --gradient-hero: linear-gradient(135deg, #6c63ff 0%, #00d4ff 100%);
+          --glass-bg: rgba(18, 18, 42, 0.85);
+          --glass-border: rgba(108, 99, 255, 0.15);
+          --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+          --glow-primary: 0 0 20px rgba(108, 99, 255, 0.3);
         }
-        [data-theme="dark"] .app-container { background: linear-gradient(180deg, #0f1117 0%, #131520 50%, #0f1117 100%); color: #f0f2f5; }
-        [data-theme="dark"] .navbar { background: rgba(15,17,23,0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-bottom: 1px solid rgba(124,106,255,0.1); }
-        [data-theme="dark"] .bottom-nav { background: rgba(15,17,23,0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(124,106,255,0.1); }
-        [data-theme="dark"] .agent-card { background: rgba(26,29,46,0.8); border: 1px solid rgba(139,146,165,0.1); backdrop-filter: blur(10px); transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
-        [data-theme="dark"] .agent-card:hover { border-color: rgba(124,106,255,0.4); box-shadow: 0 8px 32px rgba(124,106,255,0.12), 0 0 0 1px rgba(124,106,255,0.2); transform: translateY(-2px); }
-        [data-theme="dark"] .tool-card { background: rgba(26,29,46,0.6); border: 1px solid rgba(139,146,165,0.08); transition: all 0.3s ease; }
-        [data-theme="dark"] .tool-card:hover { border-color: rgba(124,106,255,0.3); box-shadow: 0 4px 20px rgba(124,106,255,0.1); }
-        [data-theme="dark"] .stat-card { background: rgba(26,29,46,0.7); border: 1px solid rgba(139,146,165,0.1); }
-        [data-theme="dark"] .suggestion-chip { background: rgba(124,106,255,0.08); border: 1px solid rgba(124,106,255,0.15); transition: all 0.2s ease; }
-        [data-theme="dark"] .suggestion-chip:hover { background: rgba(124,106,255,0.15); border-color: rgba(124,106,255,0.3); transform: translateY(-1px); }
-        [data-theme="dark"] .result-container { background: rgba(26,29,46,0.5); border: 1px solid rgba(139,146,165,0.1); }
-        [data-theme="dark"] .generate-btn { background: linear-gradient(135deg, #7c6aff, #06b6d4) !important; box-shadow: 0 4px 15px rgba(124,106,255,0.3); transition: all 0.3s ease; }
-        [data-theme="dark"] .generate-btn:hover { box-shadow: 0 6px 25px rgba(124,106,255,0.45); transform: translateY(-1px); }
-        [data-theme="dark"] .prompt-input { background: rgba(26,29,46,0.6); border: 1px solid rgba(139,146,165,0.12); color: #f0f2f5; }
-        [data-theme="dark"] .prompt-input:focus { border-color: rgba(124,106,255,0.4); box-shadow: 0 0 0 3px rgba(124,106,255,0.1); }
-        [data-theme="dark"] .hero-section { background: radial-gradient(ellipse at 50% 0%, rgba(124,106,255,0.12) 0%, transparent 60%), linear-gradient(180deg, #0f1117, #131520); }
-        [data-theme="dark"] .auth-modal { background: rgba(22,24,34,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(124,106,255,0.15); }
-        [data-theme="dark"] .chat-card, [data-theme="dark"] .history-card { background: rgba(26,29,46,0.5); border: 1px solid rgba(139,146,165,0.08); transition: all 0.2s ease; }
-        [data-theme="dark"] .chat-card:hover, [data-theme="dark"] .history-card:hover { border-color: rgba(124,106,255,0.25); }
-        [data-theme="dark"] .gallery-card { background: rgba(26,29,46,0.6); border: 1px solid rgba(139,146,165,0.1); }
-        [data-theme="dark"] .agent-info-banner { background: linear-gradient(135deg, rgba(124,106,255,0.08), rgba(6,182,212,0.06)); border: 1px solid rgba(124,106,255,0.15); }
-        [data-theme="dark"] .onboarding-modal { background: rgba(22,24,34,0.97); backdrop-filter: blur(20px); }
-        @keyframes subtleGlow { 0%,100%{box-shadow:0 0 20px rgba(124,106,255,0.1)} 50%{box-shadow:0 0 40px rgba(124,106,255,0.2)} }
-        /* 🌞 LIGHT THEME */
         [data-theme="light"] {
           --bg-primary: #f8f9fa; --bg-secondary: #e9ecef; --text-primary: #212529;
           --text-secondary: #6c757d; --surface: #ffffff; --border-color: #dee2e6;
-          --primary: #6c63ff; --accent: #a855f7;
         }
         [data-theme="light"] .app-container { background: #f8f9fa; color: #212529; }
         [data-theme="light"] .navbar { background: rgba(255,255,255,0.95); border-bottom: 1px solid #dee2e6; }
@@ -2466,9 +2436,8 @@ Your output represents a premium AI platform. Every response MUST meet these non
             )}
             {agentMode === 'logo-maker' && (
               <div className="agent-info-banner">
-                <strong>🎨 Logo Maker</strong>
-                <p>Tell me your business name and vibe — I'll design a stunning logo icon for you! ✨</p>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px', opacity: 0.8 }}>💡 Tip: I create the icon/symbol — pair it with your favorite font for the complete logo.</p>
+                <strong>🎨 Logo Maker Agent</strong>
+                <p>Describe your brand — get logo concepts with color palettes, typography, and usage guidelines. Switch to GPT Image for AI-generated visuals.</p>
               </div>
             )}
             {agentMode === 'ai-receptionist' && (
@@ -2502,32 +2471,25 @@ Your output represents a premium AI platform. Every response MUST meet these non
                 ))}
               </div>
             </div>)}
-            <div className="model-selector" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div className="model-selector" style={{ display: agentMode === 'logo-maker' ? 'none' : 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '11px', color: 'var(--text-secondary, #888)', fontWeight: 500 }}>🤖 AI Model (auto-selected):</span>
               {[{ id: 'deepseek', l: '⚡ DeepSeek' }, { id: 'gpt-image-1', l: '🎨 GPT Image' }, { id: 'gpt-4o', l: '✨ GPT-4o' }].map(m => (
                 <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
               ))}
             </div>
 
-            {/* 🎨 Image Studio — Style & Size Presets (simplified for Logo Maker) */}
+            {/* 🎨 Image Studio — Style & Size Presets */}
             {(model === 'gpt-image-1' || contentType === 'image') && (
               <div style={{ background: 'linear-gradient(135deg, rgba(108,99,255,0.08), rgba(168,85,247,0.08))', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '18px' }}>{agentMode === 'logo-maker' ? '✨' : '🎨'}</span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{agentMode === 'logo-maker' ? 'Logo Style' : 'Image Studio'}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', marginLeft: 'auto' }}>{agentMode === 'logo-maker' ? 'Pick a vibe for your logo' : 'Optional — enhance your prompt automatically'}</span>
+                  <span style={{ fontSize: '18px' }}>🎨</span>
+                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary, #fff)' }}>Image Studio</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', marginLeft: 'auto' }}>Optional — enhance your prompt automatically</span>
                 </div>
-                <div style={{ marginBottom: agentMode === 'logo-maker' ? '0' : '12px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #aaa)', marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>{agentMode === 'logo-maker' ? 'Vibe' : 'Style'}</div>
+                <div style={{ marginBottom: '12px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #aaa)', marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Style</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {(agentMode === 'logo-maker' ? [
-                      { id: '', label: '✨ Auto', desc: 'AI picks the best style' },
-                      { id: 'minimalist', label: '⬜ Clean & Modern', desc: 'Simple, modern, clean lines' },
-                      { id: 'professional', label: '💼 Corporate', desc: 'Clean, corporate, polished' },
-                      { id: 'luxury', label: '👑 Premium', desc: 'Gold accents, premium, elegant' },
-                      { id: 'playful', label: '🎉 Fun & Bold', desc: 'Bright colors, fun, energetic' },
-                      { id: 'flat', label: '📐 Flat & Geometric', desc: 'Bold shapes, solid colors' },
-                    ] : [
+                    {[
                       { id: '', label: '🔘 Auto', desc: '' },
                       { id: 'professional', label: '💼 Professional', desc: 'Clean, corporate, polished' },
                       { id: 'minimalist', label: '⬜ Minimalist', desc: 'Simple, modern, clean lines' },
@@ -2538,7 +2500,7 @@ Your output represents a premium AI platform. Every response MUST meet these non
                       { id: 'watercolor', label: '🎨 Watercolor', desc: 'Soft, artistic, painterly' },
                       { id: 'flat', label: '📐 Flat Design', desc: 'Bold shapes, solid colors' },
                       { id: '3d', label: '🧊 3D Render', desc: 'Realistic 3D, depth, shadows' },
-                    ]).map(s => (
+                    ].map(s => (
                       <button key={s.id} onClick={() => setImageStyle(s.id)}
                         title={s.desc}
                         style={{
@@ -2553,7 +2515,6 @@ Your output represents a premium AI platform. Every response MUST meet these non
                     ))}
                   </div>
                 </div>
-                {agentMode !== 'logo-maker' && (
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #aaa)', marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Size / Format</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -2580,7 +2541,8 @@ Your output represents a premium AI platform. Every response MUST meet these non
                     ))}
                   </div>
                 </div>
-                )}
+              </div>
+            )}
 
             {/* Chat Messages Thread */}
             {chatMessages.length > 0 && (
@@ -2672,7 +2634,7 @@ Your output represents a premium AI platform. Every response MUST meet these non
             )}
 
             {/* Mood Writer Chips */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', alignItems: 'center' }}>
+            <div style={{ display: agentMode === 'logo-maker' ? 'none' : 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', alignItems: 'center' }}>
               <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>{'✍️'} Mood:</span>
               {['', 'Professional', 'Casual', 'Witty', 'Empathetic', 'Bold', 'Minimalist'].map(tone => (
                 <button key={tone} className="mood-chip" onClick={() => setMoodTone(tone)}
@@ -2686,7 +2648,6 @@ Your output represents a premium AI platform. Every response MUST meet these non
                 </button>
               ))}
             </div>
-            )}
             <div style={{ position: 'relative' }}
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
               onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
