@@ -926,6 +926,7 @@ const App: React.FC = () => {
   const [showWhatsNew, setShowWhatsNew] = useState(() => {
     try { return !localStorage.getItem('novamind_whats_new_jul2026'); } catch { return false; }
   });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const dismissWhatsNew = () => { setShowWhatsNew(false); try { localStorage.setItem('novamind_whats_new_jul2026', '1'); } catch {} };
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -2199,6 +2200,72 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         [data-theme="light"] .agent-tab { color: #5a5680; }
         [data-theme="light"] .agent-tab.active { color: #6c63ff; background: rgba(108,99,255,0.08); }
         [data-theme="light"] .agent-selector-bar { background: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(108,99,255,0.08); }
+
+        /* Left Sidebar */
+        .app-layout { display: flex; min-height: calc(100vh - 56px - 56px); }
+        .left-sidebar {
+          width: 220px; min-width: 220px; max-height: calc(100vh - 56px - 56px); overflow-y: auto;
+          background: var(--glass-bg); border-right: 1px solid var(--glass-border);
+          padding: 12px 8px; display: flex; flex-direction: column; gap: 4px;
+          backdrop-filter: blur(12px); scrollbar-width: thin;
+        }
+        .left-sidebar::-webkit-scrollbar { width: 4px; }
+        .left-sidebar::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.2); border-radius: 4px; }
+        .sidebar-section-label {
+          font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
+          color: var(--text-secondary); padding: 12px 10px 6px; margin: 0;
+        }
+        .sidebar-item {
+          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
+          cursor: pointer; border: none; background: transparent; text-align: left; width: 100%;
+          font-size: 13px; font-weight: 500; color: var(--text-primary); transition: all 0.2s ease;
+          position: relative;
+        }
+        .sidebar-item:hover { background: rgba(108,99,255,0.08); transform: translateX(2px); }
+        .sidebar-item.active { background: rgba(108,99,255,0.15); color: var(--primary); font-weight: 600; }
+        .sidebar-item.active::before {
+          content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+          width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--primary);
+        }
+        .sidebar-item-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+        .sidebar-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .sidebar-item-badge {
+          font-size: 8px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+          background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #fff; margin-left: auto; flex-shrink: 0;
+        }
+        .sidebar-item.coming-soon {
+          opacity: 0.45; cursor: default; pointer-events: none;
+        }
+        .sidebar-item.coming-soon .sidebar-item-badge {
+          background: linear-gradient(135deg, #6366F1, #8B5CF6);
+        }
+        .sidebar-divider { height: 1px; background: var(--glass-border); margin: 8px 10px; }
+        .sidebar-toggle {
+          display: none; position: fixed; left: 12px; bottom: 72px; z-index: 1001;
+          background: var(--primary); color: #fff; border: none; border-radius: 50%;
+          width: 44px; height: 44px; font-size: 20px; cursor: pointer;
+          box-shadow: 0 4px 16px rgba(108,99,255,0.4); transition: transform 0.2s;
+        }
+        .sidebar-toggle:hover { transform: scale(1.1); }
+        .main-content-area { flex: 1; min-width: 0; overflow-y: auto; }
+        [data-theme="light"] .left-sidebar { background: rgba(255,255,255,0.85); border-right: 1px solid rgba(108,99,255,0.1); }
+        [data-theme="light"] .sidebar-item:hover { background: rgba(108,99,255,0.06); }
+        [data-theme="light"] .sidebar-item.active { background: rgba(108,99,255,0.1); }
+        @media (max-width: 768px) {
+          .left-sidebar {
+            position: fixed; left: -260px; top: 56px; bottom: 56px; z-index: 1000;
+            width: 240px; min-width: 240px; transition: left 0.3s ease;
+            box-shadow: 4px 0 24px rgba(0,0,0,0.3);
+          }
+          .left-sidebar.open { left: 0; }
+          .sidebar-toggle { display: flex; align-items: center; justify-content: center; }
+          .sidebar-overlay {
+            position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(2px);
+          }
+          .app-layout { display: block; }
+        }
+
         @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(255,75,75,0.4)} 50%{box-shadow:0 0 0 12px rgba(255,75,75,0)} }
         @keyframes slideInUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
         @keyframes fadeIn { from{opacity:0} to{opacity:1} }
@@ -2233,6 +2300,44 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           ⚠️ {t.offline}
         </div>
       )}
+      <div className="app-layout">
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
+        {/* Left Sidebar */}
+        <aside className={`left-sidebar ${sidebarOpen ? 'open' : ''}`}>
+          <p className="sidebar-section-label">AI Agents</p>
+          {AGENTS.map(agent => (
+            <button key={agent.id} className={`sidebar-item ${agentMode === agent.id && tab === 'create' ? 'active' : ''}`}
+              onClick={() => { selectAgent(agent.id); setSidebarOpen(false); }}>
+              <span className="sidebar-item-icon">{agent.icon}</span>
+              <span className="sidebar-item-name">{agent.name}</span>
+              {agent.badge && <span className="sidebar-item-badge">{agent.badge}</span>}
+            </button>
+          ))}
+          <div className="sidebar-divider" />
+          <p className="sidebar-section-label">Quick Tools</p>
+          {[{ icon: '✍️', name: 'Write', type: 'text' },{ icon: '🎨', name: 'Image', type: 'image' },{ icon: '📧', name: 'Email', type: 'text' },{ icon: '📋', name: 'Plans', type: 'text' },{ icon: '📄', name: 'Summary', type: 'text' },{ icon: '💡', name: 'Ideas', type: 'text' }].map((t, i) => (
+            <button key={i} className="sidebar-item"
+              onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); setAgentMode('general'); switchTab('create'); setSidebarOpen(false); }}>
+              <span className="sidebar-item-icon">{t.icon}</span>
+              <span className="sidebar-item-name">{t.name}</span>
+            </button>
+          ))}
+          <div className="sidebar-divider" />
+          <p className="sidebar-section-label">Coming Soon</p>
+          {COMING_SOON_FEATURES.map(feature => (
+            <div key={feature.name} className="sidebar-item coming-soon">
+              <span className="sidebar-item-icon">{feature.icon}</span>
+              <span className="sidebar-item-name">{feature.name}</span>
+              <span className="sidebar-item-badge">SOON</span>
+            </div>
+          ))}
+        </aside>
+        {/* Mobile sidebar toggle */}
+        <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar">
+          {sidebarOpen ? '✕' : '☰'}
+        </button>
+      <div className="main-content-area">
       <div className="main-content">
         {showWhatsNew && user && (
           <div style={{
@@ -3031,6 +3136,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
         {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
       </div>
+      </div>{/* main-content-area */}
+      </div>{/* app-layout */}
       {toastVisible && (
         <div className="toast-enter" style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: toastType === 'error' ? '#ef4444' : toastType === 'success' ? '#22c55e' : toastType === 'warning' ? '#f59e0b' : 'linear-gradient(135deg, #6c63ff, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
           {toastMsg}
