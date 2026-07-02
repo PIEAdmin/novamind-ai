@@ -176,7 +176,7 @@ exports.handler = async (event) => {
         prompt: safePrompt,
         n: 1,
         size: finalSize,
-        quality: 'low',
+        quality: 'medium',
         output_format: 'webp',
         output_compression: 50,
       });

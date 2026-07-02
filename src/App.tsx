@@ -2164,23 +2164,24 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         savedFileAttachments.push(...fileAttachments);
       }
       setLastFiles(savedFileAttachments);
-      // 🎨 Inject Image Studio enhancements into prompt
+      // 🎨 Inject smart prompt engineering for image generation
       let finalPrompt = currentPrompt;
       if (activeContentType === 'image' || activeModel === 'gpt-image-1') {
-        const styleMap: Record<string, string> = {
-          professional: 'Professional style — clean, corporate, polished, high-end commercial quality.',
-          minimalist: 'Minimalist style — simple, modern, clean lines, lots of white space, elegant.',
-          luxury: 'Luxury style — gold accents, premium feel, elegant, sophisticated, rich colors.',
-          playful: 'Playful style — bright vibrant colors, fun, energetic, cheerful, dynamic.',
-          vintage: 'Vintage/retro style — warm muted tones, nostalgic feel, classic typography.',
-          neon: 'Neon/cyberpunk style — vibrant glowing colors, futuristic, dark background with neon lights.',
-          watercolor: 'Watercolor art style — soft washes of color, artistic, painterly, delicate textures.',
-          flat: 'Flat design style — bold geometric shapes, solid colors, no gradients or shadows, modern graphic design.',
-          '3d': '3D render style — realistic 3D rendering, depth, shadows, volumetric lighting, photorealistic.',
-        };
-        const styleHint = imageStyle && styleMap[imageStyle] ? `\n\nStyle: ${styleMap[imageStyle]}` : '';
-        const sizeHint = imageSize ? `\n\nImage dimensions: ${imageSize}` : '';
-        finalPrompt = currentPrompt + styleHint + sizeHint;
+        // 🎨 LOGO MAKER — icon/symbol only, NO text in image
+        if (activeAgentMode === 'logo-maker') {
+          finalPrompt = `Professional brand logo icon design: ${currentPrompt}. CRITICAL RULES: This is a SYMBOL/ICON ONLY logo — absolutely NO text, NO letters, NO words, NO numbers, NO typography anywhere in the image. Create a clean, modern, scalable brand mark or symbol. Use bold shapes, clean geometry, and professional color palette. The icon should work at any size from favicon to billboard. Style: flat vector-style logo on a clean solid background. High contrast, sharp edges, premium brand quality. Think Apple logo, Nike swoosh, Twitter bird — iconic symbol only.`;
+        } else {
+          // Auto-detect style from prompt content
+          const promptLower = currentPrompt.toLowerCase();
+          let autoStyle = '';
+          if (/luxury|premium|gold|elegant/i.test(promptLower)) autoStyle = 'Luxury style — gold accents, premium feel, elegant, sophisticated.';
+          else if (/minimalist|simple|clean/i.test(promptLower)) autoStyle = 'Minimalist style — simple, modern, clean lines, elegant.';
+          else if (/retro|vintage|classic/i.test(promptLower)) autoStyle = 'Vintage style — warm muted tones, nostalgic, classic.';
+          else if (/neon|cyber|futuristic/i.test(promptLower)) autoStyle = 'Neon/cyberpunk style — vibrant glowing colors, futuristic.';
+          else if (/fun|playful|bright|colorful/i.test(promptLower)) autoStyle = 'Playful style — bright vibrant colors, fun, energetic.';
+          else autoStyle = 'Professional style — clean, polished, high-end commercial quality.';
+          finalPrompt = currentPrompt + '\n\nStyle: ' + autoStyle;
+        }
       }
       const res = await generateContent(finalPrompt, activeContentType, activeModel, systemPrefix || undefined, fileAttachments);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
@@ -3115,86 +3116,29 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             )}
 
-            {!isPersonalMode && agentMode !== 'logo-maker' && (<div className="industry-selector">
-              <label className="selector-label">Industry</label>
-              <div className="industry-chips">
-                {INDUSTRIES.map(ind => (
-                  <button key={ind.id} className={`industry-chip ${industry === ind.id ? 'active' : ''}`} onClick={() => setIndustry(ind.id)}>
-                    <span>{ind.icon}</span> {ind.name}
+            {/* Quick Action Chips — clean, one-tap access */}
+            {agentMode === 'general' && chatMessages.length === 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                {[
+                  { icon: '📧', label: 'Email', agent: 'email-assistant' as AgentMode },
+                  { icon: '📱', label: 'Social Post', agent: 'ad-maker' as AgentMode },
+                  { icon: '🎨', label: 'Logo', agent: 'logo-maker' as AgentMode },
+                  { icon: '📄', label: 'Flyer', agent: 'flyer-maker' as AgentMode },
+                  { icon: '📝', label: 'Form', agent: 'form-builder' as AgentMode },
+                  { icon: '🔍', label: 'Competitor Analysis', agent: 'competitor-analysis' as AgentMode },
+                  { icon: '💡', label: 'Ideas', agent: 'idea-spark' as AgentMode },
+                  { icon: '📊', label: 'Business Plan', agent: 'business-plan' as AgentMode },
+                ].map(chip => (
+                  <button key={chip.label} onClick={() => { setAgentMode(chip.agent); setPrompt(''); setResult(null); if (chip.agent === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } }}
+                    style={{
+                      padding: '8px 16px', fontSize: '13px', fontWeight: 600, borderRadius: '20px', cursor: 'pointer',
+                      background: 'rgba(108,99,255,0.1)', color: 'var(--primary, #6c63ff)',
+                      border: '1px solid rgba(108,99,255,0.25)', transition: 'all 0.2s ease',
+                      display: 'flex', alignItems: 'center', gap: '6px'
+                    }}>
+                    {chip.icon} {chip.label}
                   </button>
                 ))}
-              </div>
-            </div>)}
-            <div className="model-selector" style={{ display: agentMode === 'logo-maker' ? 'none' : 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary, #888)', fontWeight: 500 }}>🤖 AI Model (auto-selected):</span>
-              {[{ id: 'deepseek', l: '⚡ DeepSeek' }, { id: 'gpt-image-1', l: '🎨 GPT Image' }, { id: 'gpt-4o', l: '✨ GPT-4o' }].map(m => (
-                <button key={m.id} className={`model-chip ${model === m.id ? 'active' : ''}`} onClick={() => { setModel(m.id); setContentType(m.id === 'gpt-image-1' ? 'image' : 'text'); }}>{m.l}</button>
-              ))}
-            </div>
-
-            {/* 🎨 Image Studio — Style & Size Presets */}
-            {(model === 'gpt-image-1' || contentType === 'image') && (
-              <div style={{ background: 'linear-gradient(135deg, rgba(108,99,255,0.08), rgba(168,85,247,0.08))', border: '1px solid rgba(168,85,247,0.2)', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '18px' }}>🎨</span>
-                  <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary, #fff)' }}>Image Studio</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary, #999)', marginLeft: 'auto' }}>Optional — enhance your prompt automatically</span>
-                </div>
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #aaa)', marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Style</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {[
-                      { id: '', label: '🔘 Auto', desc: '' },
-                      { id: 'professional', label: '💼 Professional', desc: 'Clean, corporate, polished' },
-                      { id: 'minimalist', label: '⬜ Minimalist', desc: 'Simple, modern, clean lines' },
-                      { id: 'luxury', label: '👑 Luxury', desc: 'Gold accents, premium, elegant' },
-                      { id: 'playful', label: '🎉 Playful', desc: 'Bright colors, fun, energetic' },
-                      { id: 'vintage', label: '📷 Vintage', desc: 'Retro, warm tones, nostalgic' },
-                      { id: 'neon', label: '💜 Neon', desc: 'Vibrant, glowing, futuristic' },
-                      { id: 'watercolor', label: '🎨 Watercolor', desc: 'Soft, artistic, painterly' },
-                      { id: 'flat', label: '📐 Flat Design', desc: 'Bold shapes, solid colors' },
-                      { id: '3d', label: '🧊 3D Render', desc: 'Realistic 3D, depth, shadows' },
-                    ].map(s => (
-                      <button key={s.id} onClick={() => setImageStyle(s.id)}
-                        title={s.desc}
-                        style={{
-                          padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '20px', cursor: 'pointer',
-                          background: imageStyle === s.id ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
-                          color: imageStyle === s.id ? '#fff' : 'var(--text-primary, #ccc)',
-                          border: imageStyle === s.id ? '1px solid var(--primary, #6c63ff)' : '1px solid rgba(255,255,255,0.1)',
-                          transition: 'all 0.2s ease'
-                        }}>
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #aaa)', marginBottom: '6px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Size / Format</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {[
-                      { id: '', label: '🔘 Auto', dim: '' },
-                      { id: '1024x1024', label: '📱 Instagram Post', dim: '1:1 Square' },
-                      { id: '1792x1024', label: '🖥️ Website Banner', dim: '16:9 Landscape' },
-                      { id: '1024x1792', label: '📲 Story / Reel', dim: '9:16 Portrait' },
-                      { id: '1792x1024', label: '📘 Facebook Cover', dim: 'Landscape' },
-                      { id: '1024x1024', label: '🎴 Logo / Icon', dim: '1:1 Square' },
-                      { id: '1792x1024', label: '📊 Presentation', dim: '16:9 Landscape' },
-                      { id: '1024x1792', label: '📄 Flyer / Poster', dim: 'Portrait' },
-                    ].map((s, i) => (
-                      <button key={`${s.id}-${i}`} onClick={() => setImageSize(s.id)}
-                        style={{
-                          padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '20px', cursor: 'pointer',
-                          background: imageSize === s.id ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
-                          color: imageSize === s.id ? '#fff' : 'var(--text-primary, #ccc)',
-                          border: imageSize === s.id ? '1px solid var(--primary, #6c63ff)' : '1px solid rgba(255,255,255,0.1)',
-                          transition: 'all 0.2s ease'
-                        }}>
-                        {s.label} {s.dim && <span style={{ fontSize: '10px', opacity: 0.6, marginLeft: '4px' }}>({s.dim})</span>}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             )}
 
@@ -3329,21 +3273,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </>
             )}
 
-            {/* Mood Writer Chips */}
-            <div style={{ display: agentMode === 'logo-maker' ? 'none' : 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px', alignItems: 'center' }}>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>{'✍️'} Mood:</span>
-              {['', 'Professional', 'Casual', 'Witty', 'Empathetic', 'Bold', 'Minimalist'].map(tone => (
-                <button key={tone} className="mood-chip" onClick={() => setMoodTone(tone)}
-                  style={{
-                    padding: '4px 12px', fontSize: '12px', fontWeight: 600, borderRadius: '16px', cursor: 'pointer',
-                    background: moodTone === tone ? 'var(--primary, #6c63ff)' : 'rgba(255,255,255,0.06)',
-                    color: moodTone === tone ? '#fff' : 'var(--text-secondary, #aaa)',
-                    border: moodTone === tone ? '1px solid var(--primary, #6c63ff)' : '1px solid rgba(255,255,255,0.1)',
-                  }}>
-                  {tone || 'Default'}
-                </button>
-              ))}
-            </div>
+            {/* Mood auto-detected from prompt — no manual selector needed */}
             <div style={{ position: 'relative' }}
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
               onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
