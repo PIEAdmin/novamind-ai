@@ -1170,6 +1170,23 @@ const App: React.FC = () => {
     }
   };
 
+  const [passwordResetMsg, setPasswordResetMsg] = useState('');
+  const handleChangePassword = async () => {
+    if (!user?.email) { alert('No email associated with this account.'); return; }
+    if (user.providerData?.[0]?.providerId === 'google.com') {
+      alert('Your account uses Google sign-in. Please change your password through your Google account settings.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      setPasswordResetMsg(`Password reset email sent to ${user.email}! Check your inbox (and spam folder).`);
+      setTimeout(() => setPasswordResetMsg(''), 8000);
+    } catch (err: any) {
+      alert('Failed to send reset email. Please try again.');
+      console.error('Password reset error:', err);
+    }
+  };
+
   const handleSignOut = async () => {
     try {
       await signOut(auth);
@@ -2318,12 +2335,18 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           </div>
           <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#212529' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
           <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680' }}>⌨️</button>
+          <button className="nav-btn btn-outline" onClick={handleChangePassword} title="Change your password" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680' }}>🔑</button>
           <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(108,99,255,0.15)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: theme === 'dark' ? '#fff' : '#1a1a2e' }}>🚪 {t.signOut}</button>
         </div>
       </nav>
       {isOffline && (
         <div className="offline-banner" style={{ background: '#ef4444', color: '#fff', padding: '8px 16px', textAlign: 'center', fontSize: '13px', fontWeight: 600 }}>
           ⚠️ {t.offline}
+        </div>
+      )}
+      {passwordResetMsg && (
+        <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', padding: '12px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 600, borderRadius: '0 0 12px 12px', margin: '0 20px', boxShadow: '0 4px 12px rgba(16,185,129,0.3)', animation: 'fadeIn 0.3s ease' }}>
+          ✅ {passwordResetMsg}
         </div>
       )}
       <div className="app-layout">
