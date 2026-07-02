@@ -1219,7 +1219,13 @@ const App: React.FC = () => {
   const [editingProfile, setEditingProfile] = useState<BusinessProfile>(DEFAULT_PROFILE);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
-  const [profileTab, setProfileTab] = useState<'profile' | 'team'>('profile');
+  const [profileTab, setProfileTab] = useState<'profile' | 'team' | 'knowledge'>('profile');
+  const [knowledgeDocs, setKnowledgeDocs] = useState<{ id: string; name: string; content: string; type: string; addedAt: string }[]>([]);
+  const [addingKnowledge, setAddingKnowledge] = useState(false);
+  const [knowledgeText, setKnowledgeText] = useState('');
+  const [knowledgeName, setKnowledgeName] = useState('');
+  const [agencyEmail, setAgencyEmail] = useState('');
+  const [agencySubmitted, setAgencySubmitted] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -1474,6 +1480,9 @@ const App: React.FC = () => {
             setBusinessProfile(pd);
             setEditingProfile(pd);
           }
+          if (userProfileDoc.exists() && userProfileDoc.data().knowledgeDocs) {
+            setKnowledgeDocs(userProfileDoc.data().knowledgeDocs);
+          }
         } catch {}
         try {
           const teamSnap = await getDocs(collection(db, 'users', u.uid, 'team'));
@@ -1650,6 +1659,43 @@ Make this specific to MY business — not generic advice anyone could get.`;
       setPrompt(planPrompt);
       setTimeout(() => handleGenerate(), 300);
     }, 400);
+  };
+
+  // 📚 KNOWLEDGE HUB — Save/delete knowledge documents
+  const saveKnowledgeDoc = async () => {
+    if (!user || !knowledgeName.trim() || !knowledgeText.trim()) return;
+    const newDoc = { id: Date.now().toString(), name: knowledgeName.trim(), content: knowledgeText.trim().slice(0, 8000), type: 'text', addedAt: new Date().toISOString() };
+    const updated = [...knowledgeDocs, newDoc];
+    setKnowledgeDocs(updated);
+    setKnowledgeName(''); setKnowledgeText(''); setAddingKnowledge(false);
+    try { await setDoc(doc(db, 'users', user.uid), { knowledgeDocs: updated }, { merge: true }); } catch {}
+  };
+  const deleteKnowledgeDoc = async (docId: string) => {
+    if (!user) return;
+    const updated = knowledgeDocs.filter(d => d.id !== docId);
+    setKnowledgeDocs(updated);
+    try { await setDoc(doc(db, 'users', user.uid), { knowledgeDocs: updated }, { merge: true }); } catch {}
+  };
+  const handleKnowledgeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) { alert('File too large — max 500KB. Try pasting the text instead.'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setKnowledgeText(text.slice(0, 8000));
+      if (!knowledgeName.trim()) setKnowledgeName(file.name.replace(/\.[^/.]+$/, ''));
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+  // 🏢 AGENCY WAITLIST — Save interest
+  const submitAgencyWaitlist = async () => {
+    if (!agencyEmail.trim() || !agencyEmail.includes('@')) return;
+    try { 
+      await addDoc(collection(db, 'agency_waitlist'), { email: agencyEmail.trim(), submittedAt: new Date().toISOString() }); 
+    } catch {}
+    setAgencySubmitted(true); setAgencyEmail('');
   };
 
   // Logo upload handler — converts to base64 data URL
@@ -2177,6 +2223,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         }
       }
 
+      // 📚 KNOWLEDGE HUB CONTEXT — inject uploaded documents for richer AI responses
+      if (knowledgeDocs.length > 0) {
+        const kbContext = knowledgeDocs.map(d => `[${d.name}]:\n${d.content}`).join('\n\n');
+        systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
+          `KNOWLEDGE HUB — The user has uploaded the following reference documents. Use this information to give more accurate, ` +
+          `on-brand, contextually rich responses. Reference specific details from these docs when relevant:\n\n${kbContext}`;
+      }
+
       // 🧠 SMART AI ONBOARDING — detect first interaction and guide the user
       const isFirstChat = updatedMessages.length <= 1;
       if (isFirstChat && (usage.used <= 2 || chatMessages.length === 0)) {
@@ -2568,6 +2622,27 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 </button>
               )}
             </div>
+            {/* 🏢 Agency Waitlist */}
+            <div style={{ marginTop: '28px', padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(99,102,241,0.08) 50%, rgba(168,85,247,0.08) 100%)', border: '1px solid rgba(99,102,241,0.15)' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#6366f1', letterSpacing: '1px', marginBottom: '6px' }}>COMING SOON</div>
+                <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>🏢 NovaMind for Agencies</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: '0 0 14px', lineHeight: '1.5' }}>
+                  White-label NovaMind under your brand. Your logo, your domain, your clients — powered by our AI.
+                </p>
+                {agencySubmitted ? (
+                  <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: '13px', color: '#22c55e', fontWeight: 600 }}>
+                    ✅ You're on the list! We'll reach out soon.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input className="auth-input" type="email" placeholder="agency@email.com" value={agencyEmail} onChange={e => setAgencyEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitAgencyWaitlist()} style={{ margin: 0, flex: 1, fontSize: '13px' }} />
+                    <button onClick={submitAgencyWaitlist} style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>Join Waitlist</button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="powered-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
               <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">admin@allexapiegroup.com</a>
             </div>
@@ -3921,6 +3996,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {/* Tab header */}
             <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(108,99,255,0.04)', borderRadius: '12px', padding: '4px' }}>
               <button onClick={() => setProfileTab('profile')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'profile' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'profile' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>🏢 Business Profile</button>
+              <button onClick={() => setProfileTab('knowledge')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'knowledge' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'knowledge' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>
+                📚 Knowledge {knowledgeDocs.length > 0 && <span style={{ background: '#0ea5e9', color: '#fff', fontSize: '10px', borderRadius: '10px', padding: '1px 6px', marginLeft: '4px' }}>{knowledgeDocs.length}</span>}
+              </button>
               <button onClick={() => setProfileTab('team')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'team' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'team' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s', position: 'relative' as const }}>
                 👥 Team {teamMembers.length > 0 && <span style={{ background: '#22c55e', color: '#fff', fontSize: '10px', borderRadius: '10px', padding: '1px 6px', marginLeft: '4px' }}>{teamMembers.length}</span>}
               </button>
@@ -4099,6 +4177,78 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <p style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center', margin: '6px 0 0', opacity: 0.7 }}>
                     AI analyzes your business and tells you exactly what to automate first
                   </p>
+                </>
+              )}
+
+              {profileTab === 'knowledge' && (
+                <>
+                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '40px', marginBottom: '8px' }}>📚</div>
+                    <h2 style={{ margin: '0 0 4px', fontSize: '1.3rem' }}>Knowledge Hub</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>Upload brand guidelines, FAQs, product specs — AI uses these to give you smarter, on-brand responses.</p>
+                  </div>
+
+                  {/* Existing docs */}
+                  {knowledgeDocs.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                      {knowledgeDocs.map(kd => (
+                        <div key={kd.id} style={{ padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(108,99,255,0.04)', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.1)'}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ fontSize: '24px' }}>📄</div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 600, fontSize: '14px' }}>{kd.name}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{kd.content.slice(0, 80)}...</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', opacity: 0.6, marginTop: '2px' }}>Added {new Date(kd.addedAt).toLocaleDateString()}</div>
+                          </div>
+                          <button onClick={() => deleteKnowledgeDoc(kd.id)} style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '6px 10px', fontSize: '12px', color: '#ef4444', cursor: 'pointer', fontWeight: 600, whiteSpace: 'nowrap' as const }}>🗑️ Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-secondary)', marginBottom: '16px', borderRadius: '12px', border: `2px dashed ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.15)'}` }}>
+                      <div style={{ fontSize: '40px', marginBottom: '8px', opacity: 0.5 }}>🧠</div>
+                      <p style={{ fontWeight: 600, marginBottom: '4px', fontSize: '14px' }}>Your AI's brain is empty</p>
+                      <p style={{ fontSize: '12px', margin: 0 }}>Add documents to make every AI response smarter and more personalized</p>
+                    </div>
+                  )}
+
+                  {/* Add new doc form */}
+                  {addingKnowledge ? (
+                    <div style={{ padding: '16px', borderRadius: '14px', background: theme === 'dark' ? 'rgba(14,165,233,0.08)' : 'rgba(14,165,233,0.04)', border: '1px solid rgba(14,165,233,0.2)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                        <input className="auth-input" placeholder="Document name (e.g., Brand Guidelines)" value={knowledgeName} onChange={e => setKnowledgeName(e.target.value)} style={{ margin: 0, flex: 1 }} />
+                      </div>
+                      <textarea className="auth-input" placeholder="Paste your content here — brand guidelines, FAQs, product descriptions, pricing info, company policies, talking points..." value={knowledgeText} onChange={e => setKnowledgeText(e.target.value.slice(0, 8000))} rows={6} style={{ margin: '0 0 8px', resize: 'vertical' as const, fontFamily: 'inherit', fontSize: '13px' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{knowledgeText.length.toLocaleString()}/8,000 characters</span>
+                        <label style={{ fontSize: '12px', color: 'var(--primary, #6c63ff)', cursor: 'pointer', fontWeight: 600 }}>
+                          📎 Upload .txt/.md file
+                          <input type="file" accept=".txt,.md,.csv,.text" onChange={handleKnowledgeFileUpload} style={{ display: 'none' }} />
+                        </label>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => { setAddingKnowledge(false); setKnowledgeName(''); setKnowledgeText(''); }} style={{ flex: 'none', padding: '10px 16px', borderRadius: '10px', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(108,99,255,0.2)'}`, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Cancel</button>
+                        <button className="generate-btn" onClick={saveKnowledgeDoc} disabled={!knowledgeName.trim() || !knowledgeText.trim()} style={{ flex: 1, margin: 0, opacity: (!knowledgeName.trim() || !knowledgeText.trim()) ? 0.5 : 1 }}>💾 Save to Knowledge Hub</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button onClick={() => setAddingKnowledge(true)} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: `2px dashed ${theme === 'dark' ? 'rgba(14,165,233,0.3)' : 'rgba(14,165,233,0.25)'}`, background: theme === 'dark' ? 'rgba(14,165,233,0.06)' : 'rgba(14,165,233,0.03)', color: 'var(--primary, #6c63ff)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      ➕ Add Knowledge Document
+                    </button>
+                  )}
+
+                  <div style={{ marginTop: '20px', padding: '14px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(108,99,255,0.08)' : 'rgba(108,99,255,0.04)', border: '1px solid rgba(108,99,255,0.15)' }}>
+                    <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '8px' }}>💡 What to add:</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      <div>📋 Brand Guidelines</div>
+                      <div>❓ FAQs & Answers</div>
+                      <div>🛍️ Product/Service Specs</div>
+                      <div>💬 Talking Points</div>
+                      <div>📊 Pricing Information</div>
+                      <div>🏆 Client Testimonials</div>
+                      <div>📜 Company Policies</div>
+                      <div>🎯 Sales Scripts</div>
+                    </div>
+                  </div>
                 </>
               )}
 
