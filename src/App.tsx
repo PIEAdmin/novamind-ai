@@ -1475,15 +1475,21 @@ const App: React.FC = () => {
         // Load business profile & team
         try {
           const userProfileDoc = await getDoc(doc(db, 'users', u.uid));
-          if (userProfileDoc.exists() && userProfileDoc.data().businessProfile) {
-            const pd = userProfileDoc.data().businessProfile as BusinessProfile;
-            setBusinessProfile(pd);
-            setEditingProfile(pd);
+          if (userProfileDoc.exists()) {
+            const docData = userProfileDoc.data();
+            if (docData.businessProfile) {
+              const pd = docData.businessProfile as BusinessProfile;
+              setBusinessProfile(pd);
+              setEditingProfile(pd);
+              console.log('✅ Profile loaded:', pd.businessName);
+            }
+            if (docData.knowledgeDocs) {
+              setKnowledgeDocs(docData.knowledgeDocs);
+            }
           }
-          if (userProfileDoc.exists() && userProfileDoc.data().knowledgeDocs) {
-            setKnowledgeDocs(userProfileDoc.data().knowledgeDocs);
-          }
-        } catch {}
+        } catch (loadErr) {
+          console.error('❌ Failed to load profile from Firestore:', loadErr);
+        }
         try {
           const teamSnap = await getDocs(collection(db, 'users', u.uid, 'team'));
           setTeamMembers(teamSnap.docs.map(d => ({ id: d.id, ...d.data() } as TeamMember)));
@@ -1621,15 +1627,26 @@ const App: React.FC = () => {
     if (!user) return;
     setProfileSaving(true);
     try {
+      const profileData = { ...editingProfile, updatedAt: Timestamp.now() };
       await setDoc(doc(db, 'users', user.uid), {
-        businessProfile: { ...editingProfile, updatedAt: Timestamp.now() }
+        businessProfile: profileData
       }, { merge: true });
-      setBusinessProfile(editingProfile);
-      showToast('✅ Business profile saved!', 'success');
-      setShowProfileModal(false);
+      // Verify write succeeded by reading back
+      const verify = await getDoc(doc(db, 'users', user.uid));
+      if (verify.exists() && verify.data().businessProfile?.businessName) {
+        const saved = verify.data().businessProfile as BusinessProfile;
+        setBusinessProfile(saved);
+        setEditingProfile(saved);
+        console.log('✅ Profile saved & verified:', saved.businessName);
+        showToast('✅ Business profile saved!', 'success');
+        setShowProfileModal(false);
+      } else {
+        console.error('⚠️ Profile save verification failed — data not found after write');
+        showToast('⚠️ Save may not have persisted — please try again', 'error');
+      }
     } catch (e) {
-      console.error('Failed to save profile:', e);
-      showToast('❌ Failed to save profile', 'error');
+      console.error('❌ Failed to save profile:', e);
+      showToast('❌ Failed to save profile — ' + (e instanceof Error ? e.message : 'unknown error'), 'error');
     }
     setProfileSaving(false);
   };
