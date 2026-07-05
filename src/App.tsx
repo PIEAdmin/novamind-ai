@@ -1134,6 +1134,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('home');
   const [showAuth, setShowAuth] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -2065,6 +2066,11 @@ Rules:
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
     if (!user) { setShowAuth(true); return; }
+    // 🚫 Usage limit gate — block free users who hit their limit
+    if (usage.plan === 'free' && usage.used >= usage.limit) {
+      setShowUpgradeModal(true);
+      return;
+    }
     const currentPrompt = prompt;
     const currentContentType = contentType;
     const currentModel = model;
@@ -2194,7 +2200,7 @@ Warm, knowledgeable, and genuinely helpful — like a trusted expert friend who 
           systemPrefix += `\n\nThe sender's name is ${user?.displayName || 'not provided'} and their email is ${user?.email || 'not provided'}. Use this information to fill in the email signature instead of placeholders like [Your Name]. If information is missing, use a placeholder.`;
         }
       } else if (activeAgentMode !== 'general') {
-        systemPrefix = AGENT_SYSTEM_PROMPTS[activeAgentMode];
+        systemPrefix = AGENT_SYSTEM_PROMPTS[activeAgentMode] + `\n\nIMPORTANT: Today's date is ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}. Always use current dates and the current year in your outputs.`;
         if (currentIndustry !== 'general') {
           systemPrefix += `\n\nThe user is in the ${industryObj?.name} industry. Tailor your analysis specifically for this industry.`;
         }
@@ -3084,6 +3090,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <div className="usage-label"><span>Monthly Usage</span><span>{usage.used}/{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</span></div>
             <div className="usage-bar"><div className={`usage-fill ${pct > 80 ? 'warning' : ''}`} style={{ width: `${pct}%` }} /></div>
           </div>
+          {/* 🔔 Soft upgrade nudge — shows when free user is at 80%+ usage */}
+          {usage.plan === 'free' && pct >= 80 && pct < 100 && (
+            <div style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08))', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px', padding: '12px 16px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
+              <span style={{ fontSize: '20px' }}>⚡</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Only <strong>{usage.limit - usage.used}</strong> generations left this month! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Upgrade for unlimited →</span></span>
+            </div>
+          )}
+          {usage.plan === 'free' && pct >= 100 && (
+            <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.08))', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
+              <span style={{ fontSize: '20px' }}>🚀</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>You&apos;ve used all free generations! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Unlock unlimited access →</span></span>
+            </div>
+          )}
           
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }}>
             <div className="stat-card" style={{ textAlign: 'center' }}>
@@ -3497,6 +3516,13 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     {endsWithQuestion && isLastAssistant && (
                       <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--primary, #6c63ff)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>💬</span> Type your reply below...
+                      </div>
+                    )}
+                    {/* ⚡ Subtle upgrade hint — shows after every 3rd generation for free users */}
+                    {isLastAssistant && !msg.isError && usage.plan === 'free' && usage.used > 0 && usage.used % 3 === 0 && (
+                      <div onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '10px', padding: '10px 16px', background: 'linear-gradient(135deg, rgba(108,99,255,0.08), rgba(168,85,247,0.06))', border: '1px solid rgba(108,99,255,0.15)', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                        <span style={{ fontSize: '16px' }}>⚡</span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Enjoying NovaMind? <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700 }}>Unlock unlimited access →</span></span>
                       </div>
                     )}
                   </div>
@@ -4360,6 +4386,33 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           </div>
         </div>
       )}
+      {/* 🚀 Upgrade Modal — shown when free users hit their limit */}
+      {showUpgradeModal && (
+        <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowUpgradeModal(false)}>
+          <div className="auth-modal" style={{ textAlign: 'center', maxWidth: '440px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '12px' }}>🚀</div>
+            <h2 style={{ marginBottom: '8px' }}>You&apos;ve Used All {usage.limit} Free Generations!</h2>
+            <p style={{ color: 'var(--text-secondary)', margin: '0 0 20px', fontSize: '15px', lineHeight: 1.6 }}>
+              You&apos;ve already created amazing content. Imagine what you could do with <strong>unlimited</strong> access — plus AI logos, flyers, business plans, and more.
+            </p>
+            <div style={{ background: 'rgba(108,99,255,0.08)', borderRadius: '12px', padding: '16px', margin: '0 0 20px', border: '1px solid rgba(108,99,255,0.15)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontWeight: 700, fontSize: '16px' }}>Solopreneur Hub</span>
+                <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary, #6c63ff)' }}>$49/mo</span>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'left' }}>✅ Unlimited AI generations &nbsp;·&nbsp; ✅ All business tools &nbsp;·&nbsp; ✅ Logo & Flyer Maker &nbsp;·&nbsp; ✅ Priority support</div>
+            </div>
+            <button className="generate-btn" onClick={() => { window.open('https://app.novamindai.studio/#pricing', '_blank'); setShowUpgradeModal(false); }} style={{ width: '100%', fontSize: '16px', fontWeight: 700, padding: '14px 24px' }}>
+              🔓 Unlock Unlimited — View Plans
+            </button>
+            <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>14-day free trial on all paid plans · No credit card required</p>
+            <p style={{ margin: '8px 0 0', fontSize: '13px' }}>
+              <span onClick={() => setShowUpgradeModal(false)} style={{ cursor: 'pointer', color: 'var(--text-secondary)', textDecoration: 'underline' }}>Maybe later</span>
+            </p>
+          </div>
+        </div>
+      )}
+
       {showAuth && (
         <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowAuth(false)}>
           <div className="auth-modal">
