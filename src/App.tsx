@@ -162,6 +162,18 @@ const COMING_SOON_FEATURES: { icon: string; name: string; desc: string }[] = [
   { icon: '🎯', name: 'Marketing Autopilot', desc: 'Automated campaigns, sequences & analytics' },
 ];
 
+// 🎯 MISSION MODE — Step-by-step guided journey
+const MISSIONS: { id: string; step: number; title: string; subtitle: string; icon: string; action: string; agentMode?: string; checkField?: string }[] = [
+  { id: 'profile', step: 1, title: 'Set Up Your Business Profile', subtitle: 'Tell us about your business so every AI output is personalized', icon: '🏢', action: 'profile', checkField: 'businessProfile' },
+  { id: 'first-email', step: 2, title: 'Write Your First Email', subtitle: 'See how AI crafts professional emails in your brand voice', icon: '📧', action: 'create', agentMode: 'email-assistant' },
+  { id: 'first-flyer', step: 3, title: 'Create a Marketing Flyer', subtitle: 'Generate a print-ready flyer with your branding — in seconds', icon: '🎨', action: 'create', agentMode: 'flyer-maker' },
+  { id: 'action-plan', step: 4, title: 'Get Your 90-Day Action Plan', subtitle: 'AI builds a custom growth roadmap based on your business', icon: '📋', action: 'action-plan' },
+  { id: 'first-ad', step: 5, title: 'Launch an Ad Campaign', subtitle: 'Create scroll-stopping ads for any platform', icon: '📢', action: 'create', agentMode: 'ad-maker' },
+  { id: 'competitor', step: 6, title: 'Analyze Your Competition', subtitle: 'Get a full SWOT analysis and market positioning strategy', icon: '🔍', action: 'create', agentMode: 'competitor-analysis' },
+  { id: 'business-plan', step: 7, title: 'Generate a Business Plan', subtitle: 'Investor-ready plans with financials, strategy & market analysis', icon: '📊', action: 'create', agentMode: 'business-plan' },
+  { id: 'proposal', step: 8, title: 'Write a Sales Proposal', subtitle: 'Win clients with polished, professional proposals', icon: '📝', action: 'create', agentMode: 'sales-proposal' },
+];
+
 // Workflow Chains — smart "Continue with..." suggestions after each AI response
 const WORKFLOW_CHAINS: Record<string, Array<{icon: string; label: string; agent: string; promptPrefix: string}>> = {
   'email-assistant': [
@@ -1257,6 +1269,22 @@ const App: React.FC = () => {
 
   const [savingTemplate, setSavingTemplate] = useState(false);
 
+  // 🎯 Mission Mode state
+  const [completedMissions, setCompletedMissions] = useState<string[]>([]);
+  const [showMissionCelebration, setShowMissionCelebration] = useState<string | null>(null);
+  const growthScore = Math.round((completedMissions.length / MISSIONS.length) * 100);
+
+  const completeMission = async (missionId: string) => {
+    if (completedMissions.includes(missionId) || !user) return;
+    const updated = [...completedMissions, missionId];
+    setCompletedMissions(updated);
+    setShowMissionCelebration(missionId);
+    setTimeout(() => setShowMissionCelebration(null), 3000);
+    try {
+      await setDoc(doc(db, 'users', user.uid), { completedMissions: updated, growthScore: Math.round((updated.length / MISSIONS.length) * 100) }, { merge: true });
+    } catch (e) { console.error('Failed to save mission progress:', e); }
+  };
+
   // === NEW FEATURE STATE ===
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const THEME_VERSION = 'v2-light';
@@ -1553,6 +1581,16 @@ const App: React.FC = () => {
             if (docData.knowledgeDocs) {
               setKnowledgeDocs(docData.knowledgeDocs);
             }
+            // 🎯 Load mission progress
+            if (docData.completedMissions) {
+              setCompletedMissions(docData.completedMissions);
+            }
+            // Auto-complete profile mission if profile exists
+            if (docData.businessProfile && docData.businessProfile.businessName && !docData.completedMissions?.includes('profile')) {
+              const ms = [...(docData.completedMissions || []), 'profile'];
+              setCompletedMissions(ms);
+              setDoc(doc(db, 'users', u.uid), { completedMissions: ms, growthScore: Math.round((ms.length / MISSIONS.length) * 100) }, { merge: true }).catch(() => {});
+            }
           }
         } catch (loadErr) {
           console.error('❌ Failed to load profile from Firestore:', loadErr);
@@ -1720,6 +1758,7 @@ const App: React.FC = () => {
         setEditingProfile(saved);
         console.log('✅ Profile saved & verified:', saved.businessName);
         showToast('✅ Business profile saved!', 'success');
+        completeMission('profile');
         setShowProfileModal(false);
       } else {
         console.error('⚠️ Profile save verification failed — data not found after write');
@@ -2460,6 +2499,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
 
       // Save to history after successful generation
       await saveHistoryItem(currentPrompt, activeContentType, activeModel, activeAgentMode, currentIndustry, res);
+      // 🎯 Auto-complete missions based on tool used
+      const missionMap: Record<string, string> = { 'email-assistant': 'first-email', 'flyer-maker': 'first-flyer', 'ad-maker': 'first-ad', 'competitor-analysis': 'competitor', 'business-plan': 'business-plan', 'sales-proposal': 'proposal' };
+      if (missionMap[activeAgentMode]) completeMission(missionMap[activeAgentMode]);
+      if (currentPrompt.includes('90-Day Action Plan') || currentPrompt.includes('action plan')) completeMission('action-plan');
     } catch (e: unknown) { 
       const err = e as { message?: string }; 
       const errorMsg: ChatMessage = { role: 'assistant', content: `⚠️ **Something went wrong:** ${err.message || 'Unknown error'}`, isError: true, timestamp: Date.now() };
@@ -3183,6 +3226,112 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <p className="hero-subtitle">{user?.displayName ? `What can I help you with today?` : 'Content, emails, images and more — powered by premium AI at a fraction of the cost.'}</p>
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
+
+          {/* 🎯 MISSION MODE — AI Growth Command Center */}
+          <div style={{
+            marginBottom: '24px', borderRadius: '20px', overflow: 'hidden',
+            background: 'linear-gradient(135deg, rgba(108,99,255,0.06) 0%, rgba(6,182,212,0.04) 50%, rgba(168,85,247,0.06) 100%)',
+            border: '1px solid rgba(108,99,255,0.15)',
+          }}>
+            {/* Growth Score Header */}
+            <div style={{
+              padding: '20px 20px 16px', textAlign: 'center',
+              background: 'linear-gradient(135deg, rgba(108,99,255,0.12), rgba(168,85,247,0.08))',
+              borderBottom: '1px solid rgba(108,99,255,0.1)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '28px' }}>🎯</span>
+                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: 'linear-gradient(135deg, #6c63ff, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                  Your Growth Journey
+                </h3>
+              </div>
+              <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                Complete each mission to unlock your AI superpowers
+              </p>
+              {/* Score Ring */}
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '16px', padding: '12px 24px', borderRadius: '16px', background: 'rgba(108,99,255,0.08)', border: '1px solid rgba(108,99,255,0.15)' }}>
+                <div style={{ position: 'relative', width: '56px', height: '56px' }}>
+                  <svg viewBox="0 0 36 36" style={{ width: '56px', height: '56px', transform: 'rotate(-90deg)' }}>
+                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(108,99,255,0.15)" strokeWidth="3" />
+                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#scoreGrad)" strokeWidth="3" strokeDasharray={`${growthScore * 0.975} 100`} strokeLinecap="round" />
+                    <defs><linearGradient id="scoreGrad"><stop offset="0%" stopColor="#6c63ff"/><stop offset="100%" stopColor="#a855f7"/></linearGradient></defs>
+                  </svg>
+                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: 800, color: 'var(--primary, #6c63ff)' }}>{growthScore}</div>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>AI Growth Score</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{completedMissions.length} of {MISSIONS.length} missions complete</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mission Steps */}
+            <div style={{ padding: '16px 16px 8px' }}>
+              {MISSIONS.map((mission, idx) => {
+                const isComplete = completedMissions.includes(mission.id);
+                const isPrevComplete = idx === 0 || completedMissions.includes(MISSIONS[idx - 1].id);
+                const isActive = !isComplete && isPrevComplete;
+                const isLocked = !isComplete && !isPrevComplete;
+                const isCelebrating = showMissionCelebration === mission.id;
+                return (
+                  <div key={mission.id} style={{
+                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', marginBottom: '8px',
+                    borderRadius: '14px', cursor: isActive ? 'pointer' : isComplete ? 'default' : 'not-allowed',
+                    background: isCelebrating ? 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))' : isActive ? 'rgba(108,99,255,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
+                    border: isCelebrating ? '2px solid rgba(34,197,94,0.4)' : isActive ? '2px solid rgba(108,99,255,0.3)' : '1px solid rgba(128,128,128,0.1)',
+                    opacity: isLocked ? 0.45 : 1,
+                    transition: 'all 0.3s ease',
+                    transform: isCelebrating ? 'scale(1.02)' : 'scale(1)',
+                  }} onClick={() => {
+                    if (!isActive) return;
+                    if (mission.action === 'profile') { setShowProfileModal(true); }
+                    else if (mission.action === 'action-plan') {
+                      setAgentMode('general');
+                      setPrompt(`Create my personalized 90-Day Action Plan based on my business profile. Include specific weekly milestones, revenue targets, and marketing tactics.`);
+                      switchTab('create');
+                    }
+                    else if (mission.agentMode) { setAgentMode(mission.agentMode as AgentMode); setPrompt(''); switchTab('create'); }
+                  }}>
+                    {/* Step indicator */}
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      fontSize: isComplete ? '18px' : '14px', fontWeight: 800,
+                      background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : isActive ? 'linear-gradient(135deg, #6c63ff, #a855f7)' : 'rgba(128,128,128,0.15)',
+                      color: isComplete || isActive ? '#fff' : 'var(--text-secondary)',
+                      boxShadow: isActive ? '0 0 12px rgba(108,99,255,0.3)' : 'none',
+                    }}>
+                      {isComplete ? '✓' : isLocked ? '🔒' : mission.step}
+                    </div>
+                    {/* Content */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '14px', fontWeight: isActive ? 700 : 600, color: isComplete ? '#22c55e' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{mission.icon}</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mission.title}</span>
+                        {isCelebrating && <span style={{ fontSize: '16px', animation: 'pulse 0.5s ease-in-out' }}>🎉</span>}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {isComplete ? 'Completed!' : mission.subtitle}
+                      </div>
+                    </div>
+                    {/* Arrow or check */}
+                    <div style={{ flexShrink: 0, fontSize: '16px', color: isActive ? 'var(--primary, #6c63ff)' : 'var(--text-secondary)' }}>
+                      {isComplete ? '' : isActive ? '→' : ''}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* All Complete Celebration */}
+            {completedMissions.length === MISSIONS.length && (
+              <div style={{ padding: '16px 20px 20px', textAlign: 'center' }}>
+                <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏆</div>
+                <div style={{ fontSize: '16px', fontWeight: 800, color: '#22c55e' }}>All Missions Complete!</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>You've mastered NovaMind. Keep creating amazing things!</div>
+              </div>
+            )}
+          </div>
+
           <div className="stats-row">
             <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
             <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
