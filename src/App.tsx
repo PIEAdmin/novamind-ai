@@ -1236,7 +1236,17 @@ const App: React.FC = () => {
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   // === NEW FEATURE STATE ===
-  const [theme, setTheme] = useState<ThemeMode>(() => (localStorage.getItem('novamind-theme') as ThemeMode) || 'light');
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    const THEME_VERSION = 'v2-light';
+    const stored = localStorage.getItem('novamind-theme') as ThemeMode;
+    const ver = localStorage.getItem('novamind-theme-ver');
+    if (ver !== THEME_VERSION) {
+      localStorage.setItem('novamind-theme', 'light');
+      localStorage.setItem('novamind-theme-ver', THEME_VERSION);
+      return 'light';
+    }
+    return stored || 'light';
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
@@ -1662,7 +1672,21 @@ const App: React.FC = () => {
     if (!user) return;
     setProfileSaving(true);
     try {
-      const profileData = { ...editingProfile, updatedAt: Timestamp.now() };
+      // Sanitize profile data — remove undefined/null/base64 blobs that break Firestore
+      const sanitize = (obj: any): any => {
+        if (obj === null || obj === undefined) return '';
+        if (typeof obj === 'string') return obj.length > 10000 ? obj.slice(0, 10000) : obj;
+        if (typeof obj !== 'object') return obj;
+        if (Array.isArray(obj)) return obj.map(sanitize);
+        const clean: any = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (v === undefined || v === null) continue;
+          if (typeof v === 'string' && (v.startsWith('data:image') || v.length > 50000)) continue; // Skip base64 blobs
+          clean[k] = sanitize(v);
+        }
+        return clean;
+      };
+      const profileData = sanitize({ ...editingProfile, updatedAt: Timestamp.now() });
       await setDoc(doc(db, 'users', user.uid), {
         businessProfile: profileData
       }, { merge: true });
@@ -1696,17 +1720,17 @@ const App: React.FC = () => {
     setChatTitle('');
     setResult(null);
     const profile = editingProfile || businessProfile;
-    const planPrompt = `🧠 Analyze my business "${profile?.businessName || 'my business'}" and create my personalized AI Action Plan.
+    const planPrompt = `🧠 Analyze my business "${profile?.businessName || 'my business'}" (Industry: ${profile?.industry || 'not specified'}, Website: ${profile?.website || 'none'}) and create my personalized AI Action Plan.
 
 As my AI Business Consultant, recommend the TOP 5 things I should automate or create RIGHT NOW using NovaMind. For each recommendation:
-1. **What to create** — be specific (not generic)
-2. **Why it matters** — tie it to my industry, audience, and goals
-3. **Which NovaMind tool** — Email Writer ✉️, Social Media 📱, Logo Maker 🎨, Flyer Maker 📄, Ad Creator 🎯, Blog Writer 📝, etc.
-4. **Quick win example** — give me a sample prompt I can use right now
+1. **What to create** — be hyper-specific to MY business (not generic)
+2. **Business impact** — quantify the ROI or time saved
+3. **Which NovaMind tool** — Email Writer ✉️, Social Media 📱, Logo Maker 🎨, Flyer Maker 📄, Ad Creator 🎯, Blog Writer 📝, Business Plan 📊, Form Builder 📋, etc.
+4. **Ready-to-use prompt** — give me the EXACT prompt I can paste into that tool right now
 
-End with a 🗓️ "Your 30-Day Quick Win Plan" — a week-by-week timeline for getting maximum ROI from NovaMind.
+End with a 🗓️ "Your 30-Day Quick Win Plan" — a week-by-week timeline with specific deliverables.
 
-Make this specific to MY business — not generic advice anyone could get.`;
+QUALITY STANDARD: This must read like a $5,000 consulting deliverable. Use clean markdown formatting, professional language, and actionable specifics. No filler, no generic advice.`;
     setTimeout(() => {
       setPrompt(planPrompt);
       setTimeout(() => handleGenerate(), 300);
@@ -2176,7 +2200,14 @@ Rules:
     // 🛡️ AGENT OVERRIDE: These agents MUST stay on text — never image generation
     // flyer-maker and form-builder need GPT-4o (DeepSeek ignores HTML output instructions)
     // doc-summarizer is text-only, DeepSeek is fine
-    if (['flyer-maker', 'form-builder'].includes(activeAgentMode)) {
+    // 🚀 PREMIUM ROUTING: Route all client-facing tools to GPT-4o for Fortune 500 quality
+    const GPT4O_AGENTS = ['flyer-maker', 'form-builder', 'business-plan', 'ad-maker', 'competitor-analysis', 'proposal-writer', 'contract-generator', 'seo-optimizer', 'idea-spark'];
+    // Also route Action Plan requests (general agent but premium prompt) to GPT-4o
+    if (activeAgentMode === 'general' && pLower.includes('action plan')) {
+      activeModel = 'gpt-4o';
+      setModel('gpt-4o');
+    }
+    if (GPT4O_AGENTS.includes(activeAgentMode)) {
       activeModel = 'gpt-4o';
       activeContentType = 'text';
       setModel('gpt-4o');
@@ -3413,7 +3444,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   ➕ New Chat
                 </button>
               </div>
-              <div style={{ maxHeight: '55vh', overflowY: 'auto', padding: '16px', background: 'rgba(0,0,0,0.15)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: '12px', scrollBehavior: 'smooth' as const }}>
+              <div style={{ maxHeight: '55vh', overflowY: 'auto', padding: '16px', background: 'var(--card-bg, rgba(255,255,255,0.7))', borderRadius: '16px', border: '1px solid var(--border-color, rgba(0,0,0,0.08))', marginBottom: '12px', scrollBehavior: 'smooth' as const }}>
                 {chatMessages.map((msg, idx) => {
                   const isLastAssistant = msg.role === 'assistant' && idx === chatMessages.length - 1;
                   const endsWithQuestion = msg.role === 'assistant' && /\?\s*$/.test(msg.content.trim());
@@ -3475,7 +3506,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                     <button onClick={() => {
                                       const w = window.open('', '_blank');
                                       if (w) {
-                                        const fullDoc = htmlContent.includes('<html') ? htmlContent : '<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>' + htmlContent + '</body></html>';
+                                        const backBtn = `<div style="position:fixed;top:12px;right:12px;z-index:99999;display:flex;gap:8px">
+                                          <button onclick="window.print()" style="padding:10px 20px;font-size:14px;font-weight:700;background:#6c63ff;color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 12px rgba(108,99,255,0.4)">🖨️ Print</button>
+                                          <button onclick="window.close()" style="padding:10px 20px;font-size:14px;font-weight:700;background:#ff4757;color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 12px rgba(255,71,87,0.4)">✕ Close</button>
+                                        </div>`;
+                                        const fullDoc = htmlContent.includes('<html') ? htmlContent.replace('<body', '<body>' + backBtn + '<') : '<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>' + backBtn + htmlContent + '</body></html>';
                                         w.document.write(fullDoc);
                                         w.document.close();
                                       }
@@ -3498,7 +3533,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           <button onClick={() => { setChatMessages(prev => prev.filter((_, i) => i !== idx)); setPrompt(chatMessages.filter(m => m.role === 'user').pop()?.content || ''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>🔄 Try Again</button>
                           <button onClick={() => { setResult(null); setPrompt(''); setChatMessages([]); setCurrentChatId(null); setChatTitle(''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '2px solid var(--border-color, #333)', borderRadius: '10px', cursor: 'pointer' }}>← Start Over</button>
                         </>) : (<>
-                        <button className="chat-action-btn" onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
+                        <button className="chat-action-btn" onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'var(--card-bg, rgba(108,99,255,0.08))', color: 'var(--text-secondary, #666)', border: '1px solid var(--border-color, rgba(0,0,0,0.1))', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
                         <button className="chat-share-btn" onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
                         {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} className="chat-action-btn" style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
                         {msg.imageUrl && (
