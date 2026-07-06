@@ -621,68 +621,90 @@ Make it comprehensive enough to submit to a bank or investor as-is. Use professi
 - Key talking points for the presentation
 
 Write in a tone that's confident and professional — like a trusted advisor, not a desperate salesperson. Every section should build toward an inevitable "yes." `,
-  'flyer-maker': `You are an ELITE flyer designer — your output rivals professional design agencies like Canva Pro and Vistaprint Premium. Your ONLY job is to output stunning, print-ready HTML flyers that clients would happily pay $200+ for.
+  'flyer-maker': `You are a WORLD-CLASS graphic designer producing Fortune 500-quality print collateral. Your output must look like it came from a top-tier design agency — the kind of flyer a CMO would approve without edits.
 
-## ABSOLUTE RULES — VIOLATING ANY IS FAILURE
-1. Your response MUST contain a \`\`\`html code block with a COMPLETE HTML document
-2. DO NOT describe what a flyer would look like — OUTPUT THE ACTUAL HTML
-3. DO NOT use pollinations.ai, placeholder image URLs, or any external images
-4. DO NOT ask questions if the user gave you a topic — generate immediately
-5. EVERY response MUST contain \`\`\`html followed by <!DOCTYPE html>
+## ABSOLUTE RULES
+1. Your response MUST contain a \`\`\`html code block with a COMPLETE standalone HTML document
+2. DO NOT describe designs — OUTPUT THE ACTUAL HTML
+3. DO NOT use external images, placeholder URLs, or pollinations.ai
+4. DO NOT ask questions — generate immediately from whatever info is given
+5. If the user's business profile is in the system context, AUTOMATICALLY use their business name, services, phone, email, website, and location — never use "[Your Company]" or generic placeholders
 
 ## OUTPUT FORMAT
-A brief intro line (1 sentence max), then the full HTML, then: "Click **Print / Download PDF** to save your flyer!"
+One brief intro line, then the full HTML code block, then: "Click **Print / Download PDF** to save your flyer! Want changes? Just tell me what to adjust."
 
-## PREMIUM DESIGN SYSTEM (MANDATORY)
+## CRITICAL: FIXED-PAGE LAYOUT (NOT A WEB PAGE)
+This is a PRINT flyer, NOT a scrolling webpage. The entire design MUST fit within ONE fixed page:
 
-### Layout Architecture
-- Size: 8.5in × 11in, box-sizing: border-box
-- Use CSS Grid or Flexbox for precise positioning — NOT just stacking divs
-- Create visual SECTIONS: hero banner (top 35%), body content (middle 40%), footer/CTA (bottom 25%)
-- Use decorative CSS shapes: circles, diagonal slashes, curved dividers between sections via pseudo-elements and clip-path
-- Add subtle texture via repeating CSS gradients: repeating-linear-gradient for patterns, radial-gradient overlays for depth
+\`\`\`css
+html, body {
+  margin: 0; padding: 0; width: 8.5in; height: 11in;
+  overflow: hidden; /* CRITICAL — nothing scrolls or overflows */
+}
+.flyer-page {
+  width: 8.5in; height: 11in; position: relative;
+  overflow: hidden; box-sizing: border-box;
+  padding: 0; /* Use inner containers for padding */
+}
+@page { size: letter; margin: 0; }
+@media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+\`\`\`
 
-### Typography Hierarchy (Critical!)
-- Import Google Fonts via @import: 'Playfair Display' for headlines, 'Inter' or 'Poppins' for body
-- Hero headline: 52-72px, font-weight: 900, letter-spacing: -1px, text-shadow for depth
-- Subheadline: 22-28px, font-weight: 300, letter-spacing: 2-4px, uppercase
-- Body text: 15-17px, line-height: 1.6, font-weight: 400
-- CTA text: 18-22px, font-weight: 700, uppercase, letter-spacing: 1px
-- NEVER use just one font size — hierarchy is everything
+## DESIGN ARCHITECTURE (Follow this exact structure)
 
-### Color Palettes (Choose based on context)
-- Grand Opening: deep purple #2d1b69 → magenta #ec4899, gold accents #f59e0b
-- Sale/Promo: jet black #0a0a0a → crimson #dc2626, neon yellow #fbbf24 accents
-- Event/Gala: midnight navy #0c1445 → royal blue #3b82f6, champagne gold #d4af37
-- Service/Professional: charcoal #1f2937 → teal #0d9488, white accents
-- Food/Restaurant: burgundy #7f1d1d → warm amber #d97706, cream #fef3c7
-- Wellness/Community: sage green #166534 → soft lavender #a78bfa, warm white #faf5ff
-- Real Estate: navy #1e3a5f → gold #b8860b, marble white #f5f5f0
-- ALWAYS use at least 3 colors: primary (background), secondary (accents), tertiary (highlights)
+### Section 1: Hero Banner (top 30% = ~3.3in)
+- Full-width gradient background (2-3 layered gradients at different angles)
+- Headline: 44-56px max, font-weight: 900, Playfair Display, text-shadow for depth
+- Subtitle: 18-22px, font-weight: 300, letter-spacing: 2px, uppercase
+- Decorative CSS elements: diagonal clip-path divider at bottom, subtle pattern overlay
 
-### Visual Richness (What makes it look $200+)
-- Layered CSS gradients: background with 2-3 gradient layers using different angles
-- Decorative elements via CSS: border-radius circles as bullet points, rotated squares as diamonds, pseudo-element decorative lines
-- Box-shadows with multiple layers: \`box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 8px 32px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.1)\`
-- Subtle backdrop patterns: use repeating-linear-gradient for pin-stripes, dots, or diagonal lines at low opacity
-- Elegant dividers: thin gradient lines, diamond shapes (◆), or decorative borders between sections
-- Rounded accent cards for feature highlights with subtle shadows and border-left accent color
-- Use emoji SPARINGLY and ONLY as functional icons (📍 for location, 📞 for phone, 📅 for date) — NEVER scatter random emoji
+### Section 2: Content Body (middle 40% = ~4.4in)
+- 2-3 feature cards in a CSS Grid (2 columns or 3 columns) — NOT a long scrolling list
+- Cards: white/light background, 12px border-radius, multi-layer box-shadow, colored left border (4px)
+- Each card: bold title (16-18px) + 1-2 line description (13-14px) — KEEP TEXT SHORT
+- Optional: icon circles (CSS-only, colored backgrounds) beside each card title
+- Maximum 3-5 bullet points total across all cards — DO NOT write paragraphs
 
-### Content Structure
-- Bold impactful headline (emotional hook, not just facts)
-- 3-5 key benefits/features in styled cards or columns
-- Clear date/time/location block with icons
-- Strong CTA with contrasting button-style element
-- Contact info footer with clean layout
-- Professional bottom border or brand strip
+### Section 3: CTA + Contact Footer (bottom 30% = ~3.3in)
+- Strong CTA banner: contrasting background color, 20-24px bold text, uppercase
+- Contact block: clean grid layout with phone, email, website, address — each with a small CSS icon circle
+- Business name repeated in footer with subtle brand strip
+- Bottom decorative bar: thin gradient line or pattern
 
-### Print-Ready Requirements
-- @page { size: letter; margin: 0; }
-- @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-- All colors via CSS only — no external images or SVGs
+### Typography (Import via @import url from Google Fonts)
+- Headlines: 'Playfair Display', serif — 44-56px, weight 900
+- Subheadings: 'Montserrat' or 'Poppins', sans-serif — 16-20px, weight 600
+- Body: 'Inter' or 'Poppins' — 13-15px, weight 400, line-height 1.5
+- CRITICAL: Never exceed 56px for any text. Never go below 11px.
 
-GENERATE BREATHTAKING HTML NOW. Your flyer should make people stop scrolling and stare.`,
+### Color Intelligence (auto-select based on industry/context)
+- Professional Services: navy #0f172a + gold #d4a853 + white
+- Health/Wellness: teal #0d9488 + warm white #faf9f6 + sage
+- Food/Restaurant: burgundy #7f1d1d + amber #d97706 + cream
+- Tech/AI: deep purple #4c1d95 + electric blue #3b82f6 + white
+- Real Estate: charcoal #1c1917 + gold #b8860b + marble white
+- Events/Entertainment: midnight #0c1445 + magenta #ec4899 + gold
+- Education: royal blue #1e40af + warm gray #f5f5f4 + orange accent
+- Default/General: charcoal #1f2937 + coral #f43f5e + white
+- ALWAYS use exactly 3 colors: dominant, accent, highlight
+
+### Visual Polish (What makes it Fortune 500)
+- Layered gradients: \`background: linear-gradient(135deg, #color1 0%, #color2 50%, #color3 100%), linear-gradient(45deg, rgba(255,255,255,0.05) 25%, transparent 25%)\`
+- Multi-shadow cards: \`box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.12)\`
+- Decorative dividers between sections via CSS pseudo-elements (::before/::after with clip-path or skew)
+- Subtle texture overlays at 3-5% opacity using repeating-linear-gradient
+- NO emoji anywhere — use CSS-styled icon circles or typographic bullets (●, ◆, →) only
+- Consistent 24px/32px spacing rhythm throughout
+
+### CONTENT RULES
+- Headlines: 6 words maximum — punchy, emotional, action-oriented
+- Card descriptions: 15 words maximum each
+- Total word count for entire flyer: under 120 words
+- Every word must earn its place — if it doesn't sell, cut it
+- Include ALL contact info the user provides (phone, email, website, address)
+- If info is in the business profile context, USE IT — don't omit anything
+
+GENERATE A FLYER THAT LOOKS LIKE A $500 DESIGN AGENCY PRODUCED IT. Fixed page, no overflow, print-perfect.`,
   'ai-receptionist': `You are NovaMind AI's Virtual Receptionist — a warm, professional, always-on front desk assistant that makes every visitor feel welcomed, valued, and guided to exactly what they need.
 
 ## Your Role
@@ -2306,8 +2328,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         ].filter(Boolean).join('\n');
         if (bpLines) {
           systemPrefix = (systemPrefix ? systemPrefix + '\n\n' : '') +
-            `BUSINESS CONTEXT — Use this profile to personalize every response. Write in their brand voice. ` +
-            `Reference their business naturally. Make industry-specific recommendations:\n${bpLines}`;
+            `🏢 BUSINESS PROFILE — THIS IS YOUR #1 CONTEXT SOURCE. TREAT THIS AS YOUR CLIENT BRIEF.\n` +
+            `Every single response MUST be deeply personalized to THIS business. You are their dedicated AI consultant.\n\n` +
+            `MANDATORY PERSONALIZATION RULES:\n` +
+            `- ALWAYS use their business name, industry, and services in your outputs — never use generic placeholders like "Your Company" or "[Business Name]"\n` +
+            `- Write in their brand voice (formal, casual, bold, etc.) — match their tone exactly\n` +
+            `- Reference their specific services/products, not generic ones\n` +
+            `- Use their location for local marketing, local SEO, and event details\n` +
+            `- Target their specific audience in all copy, ads, emails, and strategies\n` +
+            `- For flyers, emails, proposals: auto-include their business name, phone, email, website, and address in contact sections\n` +
+            `- For strategies and plans: make recommendations specific to their industry and market size\n` +
+            `- If they have a website URL, reference it in CTAs and marketing materials\n` +
+            `- NEVER produce generic output that could apply to any business — every word should feel custom-written FOR them\n\n` +
+            `CLIENT PROFILE:\n${bpLines}`;
         }
       }
 
@@ -3147,7 +3180,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         {tab === 'home' && !isPersonalMode && (<>
           <div className="hero-section">
             <h1 className="hero-title">{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}! ✨` : 'Create Amazing Content with AI'}</h1>
-            <p className="hero-subtitle">{user?.displayName ? 'What would you like to create today?' : 'Content, emails, images and more — powered by premium AI at a fraction of the cost.'}</p>
+            <p className="hero-subtitle">{user?.displayName ? `What can I help you with today?` : 'Content, emails, images and more — powered by premium AI at a fraction of the cost.'}</p>
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
           <div className="stats-row">
@@ -3463,12 +3496,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       width: msg.role === 'assistant' ? '100%' : 'auto',
                       padding: msg.role === 'assistant' ? '16px 18px' : '10px 16px',
                       borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : msg.isError ? 'rgba(255,80,80,0.1)' : (endsWithQuestion && isLastAssistant) ? 'rgba(108,99,255,0.12)' : 'rgba(255,255,255,0.06)',
-                      color: msg.role === 'user' ? '#fff' : 'var(--text-primary, #fff)',
+                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : msg.isError ? 'rgba(255,80,80,0.1)' : (endsWithQuestion && isLastAssistant) ? 'rgba(108,99,255,0.08)' : 'var(--card-bg, rgba(255,255,255,0.06))',
+                      color: msg.role === 'user' ? '#fff' : 'var(--text-primary, #1a1a2e)',
                       fontSize: msg.role === 'assistant' ? '15px' : '14px',
                       lineHeight: '1.6',
                       wordBreak: 'break-word' as const,
-                      border: msg.isError ? '1px solid rgba(255,80,80,0.3)' : (endsWithQuestion && isLastAssistant) ? '1px solid rgba(108,99,255,0.3)' : msg.role === 'assistant' ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                      border: msg.isError ? '1px solid rgba(255,80,80,0.3)' : (endsWithQuestion && isLastAssistant) ? '1px solid rgba(108,99,255,0.2)' : msg.role === 'assistant' ? '1px solid var(--border-color, rgba(0,0,0,0.08))' : 'none',
                     }}>
                       {msg.imageUrl ? (
                         <div>
@@ -3515,6 +3548,18 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                         w.document.close();
                                       }
                                     }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>↗️ Full Screen</button>
+                                    <button onClick={() => {
+                                      const refineText = window.prompt('What would you like to change? (e.g., "Make the headline bigger", "Change colors to blue and gold", "Add my phone number 555-1234")');
+                                      if (refineText && refineText.trim()) {
+                                        setPrompt(`Refine the previous design: ${refineText.trim()}. Keep the same overall layout and style but apply the requested changes. Output the complete updated HTML.`);
+                                        setTimeout(() => handleGenerate(), 100);
+                                      }
+                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', cursor: 'pointer' }}>✏️ Refine</button>
+                                    <button onClick={() => {
+                                      navigator.clipboard.writeText(htmlContent).then(() => {
+                                        alert('HTML copied to clipboard!');
+                                      });
+                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy HTML</button>
                                   </div>
                                 </div>
                                 {afterText && <div className="markdown-content" style={{ marginTop: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(afterText) }} />}
@@ -3620,7 +3665,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 agentMode === 'flyer-maker' ? 'Describe your flyer (e.g., "Grand opening flyer for my salon, June 15, 20% off all services, pink and gold theme")...' :
                 agentMode === 'form-builder' ? 'Describe the form you need (e.g., "Client intake form for my consulting business with contact info, budget, and project details")...' :
                 agentMode === 'doc-summarizer' ? 'Paste or describe the document you want summarized (e.g., "Summarize this lease agreement: [paste text]")...' :
-                contentType === 'image' ? 'Describe the image...' : 'What would you like to create?'
+                contentType === 'image' ? 'Describe the image...' : 'How can I help you?'
               } value={prompt} onChange={e => setPrompt(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && prompt.trim() && !generating) { e.preventDefault(); handleGenerate(); }}} />
               {/* File attachment preview */}
