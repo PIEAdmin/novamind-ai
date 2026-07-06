@@ -1298,6 +1298,7 @@ const App: React.FC = () => {
     return stored || 'light';
   });
   const [searchQuery, setSearchQuery] = useState('');
+  const [galleryAgentFilter, setGalleryAgentFilter] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [toastType, setToastType] = useState<ToastType>('info');
@@ -2818,7 +2819,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
 
   const pct = Math.min((usage.used / usage.limit) * 100, 100);
   const currentAgent = AGENTS.find(a => a.id === agentMode);
-  const filteredHistory = historyFilter === 'favorites' ? history.filter(h => h.isFavorite) : history;
+  const filteredHistory = history.filter(h => {
+    if (historyFilter === 'favorites' && !h.isFavorite) return false;
+    if (galleryAgentFilter && h.agentMode !== galleryAgentFilter) return false;
+    return true;
+  });
   const t = TRANSLATIONS[language];
 
   const getEmailPlaceholder = (): string => {
@@ -3283,7 +3288,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     transition: 'all 0.3s ease',
                     transform: isCelebrating ? 'scale(1.02)' : 'scale(1)',
                   }} onClick={() => {
-                    if (!isActive) return;
+                    if (isLocked) return;
+                    if (isComplete) {
+                      // Completed missions → view past work
+                      if (mission.action === 'profile') { setShowProfileModal(true); }
+                      else {
+                        setGalleryAgentFilter(mission.agentMode || (mission.action === 'action-plan' ? 'general' : null));
+                        switchTab('gallery');
+                      }
+                      return;
+                    }
+                    // Active missions → start the tool
                     if (mission.action === 'profile') { setShowProfileModal(true); }
                     else if (mission.action === 'action-plan') {
                       setAgentMode('general');
@@ -3310,12 +3325,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         {isCelebrating && <span style={{ fontSize: '16px', animation: 'pulse 0.5s ease-in-out' }}>🎉</span>}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {isComplete ? 'Completed!' : mission.subtitle}
+                        {isComplete ? 'Completed! Tap to view →' : mission.subtitle}
                       </div>
                     </div>
                     {/* Arrow or check */}
-                    <div style={{ flexShrink: 0, fontSize: '16px', color: isActive ? 'var(--primary, #6c63ff)' : 'var(--text-secondary)' }}>
-                      {isComplete ? '' : isActive ? '→' : ''}
+                    <div style={{ flexShrink: 0, fontSize: '16px', color: isComplete ? '#22c55e' : isActive ? 'var(--primary, #6c63ff)' : 'var(--text-secondary)' }}>
+                      {isComplete ? '👁️' : isActive ? '→' : ''}
                     </div>
                   </div>
                 );
@@ -3980,6 +3995,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         )}
         {tab === 'gallery' && (<>
           <h3 className="section-title">{t.myCreations}</h3>
+          {galleryAgentFilter && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', padding: '8px 14px', borderRadius: '10px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)' }}>
+              <span style={{ fontSize: '13px', color: '#22c55e', fontWeight: 600 }}>🎯 Showing: {AGENTS.find(a => a.id === galleryAgentFilter)?.name || 'Mission'} outputs</span>
+              <button onClick={() => setGalleryAgentFilter(null)} style={{ marginLeft: 'auto', padding: '4px 10px', fontSize: '11px', background: 'rgba(255,255,255,0.1)', color: 'var(--text-secondary)', border: '1px solid rgba(128,128,128,0.2)', borderRadius: '6px', cursor: 'pointer' }}>✕ Show All</button>
+            </div>
+          )}
           <input type="text" placeholder={t.searchHistory} value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
             style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: 'var(--text-primary, #fff)', fontSize: '14px', marginBottom: '12px', boxSizing: 'border-box' as const }} />
           {history.length > 0 && (
