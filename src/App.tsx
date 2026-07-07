@@ -1733,21 +1733,50 @@ const App: React.FC = () => {
     if (!user) return;
     setProfileSaving(true);
     try {
-      // Sanitize profile data — remove undefined/null/base64 blobs that break Firestore
-      const sanitize = (obj: any): any => {
+      // Sanitize profile data — remove undefined/null but KEEP logoUrl (compressed)
+      const sanitize = (obj: any, parentKey?: string): any => {
         if (obj === null || obj === undefined) return '';
-        if (typeof obj === 'string') return obj.length > 10000 ? obj.slice(0, 10000) : obj;
+        if (typeof obj === 'string') {
+          // Keep logoUrl base64 if under 500KB (reasonable logo size)
+          if (parentKey === 'logoUrl' && obj.startsWith('data:image') && obj.length <= 500000) return obj;
+          // Strip other large base64 blobs
+          if (obj.startsWith('data:image') || obj.length > 50000) return '';
+          return obj.length > 10000 ? obj.slice(0, 10000) : obj;
+        }
         if (typeof obj !== 'object') return obj;
-        if (Array.isArray(obj)) return obj.map(sanitize);
+        if (Array.isArray(obj)) return obj.map(v => sanitize(v));
         const clean: any = {};
         for (const [k, v] of Object.entries(obj)) {
           if (v === undefined || v === null) continue;
-          if (typeof v === 'string' && (v.startsWith('data:image') || v.length > 50000)) continue; // Skip base64 blobs
-          clean[k] = sanitize(v);
+          const sanitized = sanitize(v, k);
+          if (sanitized !== '') clean[k] = sanitized;
         }
         return clean;
       };
-      const profileData = sanitize({ ...editingProfile, updatedAt: Timestamp.now() });
+      // Compress logo if over 500KB — resize via canvas
+      let profileToSave = { ...editingProfile, updatedAt: Timestamp.now() };
+      if (editingProfile.logoUrl && editingProfile.logoUrl.startsWith('data:image') && editingProfile.logoUrl.length > 500000) {
+        try {
+          const img = new Image();
+          const compressed = await new Promise<string>((resolve) => {
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const maxSize = 256;
+              let w = img.width, h = img.height;
+              if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+              else { w = Math.round(w * maxSize / h); h = maxSize; }
+              canvas.width = w; canvas.height = h;
+              canvas.getContext('2d')!.drawImage(img, 0, 0, w, h);
+              resolve(canvas.toDataURL('image/webp', 0.8));
+            };
+            img.onerror = () => resolve('');
+            img.src = editingProfile.logoUrl;
+          });
+          profileToSave = { ...profileToSave, logoUrl: compressed };
+          showToast('📐 Logo compressed for storage', 'info');
+        } catch { /* keep original, sanitizer will handle */ }
+      }
+      const profileData = sanitize(profileToSave);
       await setDoc(doc(db, 'users', user.uid), {
         businessProfile: profileData
       }, { merge: true });
