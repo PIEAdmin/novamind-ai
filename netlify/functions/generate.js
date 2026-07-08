@@ -1,12 +1,12 @@
 // Netlify Serverless Function: generate
-// Handles AI content generation via DeepSeek and OpenAI APIs
+// Handles AI content generation via DeepSeek, OpenAI, Kimi (Moonshot), and Qwen APIs
 // This runs server-side on Netlify — API keys are NOT exposed to the client
 
 const https = require('https');
 let pdfParse;
 try { pdfParse = require('pdf-parse'); } catch { pdfParse = null; }
 
-function callAPI(hostname, path, apiKey, body) {
+function callAPI(hostname, path, apiKey, body, extraHeaders) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
     const options = {
@@ -17,6 +17,7 @@ function callAPI(hostname, path, apiKey, body) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'Content-Length': Buffer.byteLength(data),
+        ...(extraHeaders || {}),
       },
     };
     const req = https.request(options, (res) => {
@@ -54,6 +55,86 @@ function isTextQualityOK(text) {
 
 const DEEPSEEK_KEY = process.env.DEEPSEEK_API_KEY || '';
 const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY || '';
+
+// 🧠 Multi-model routing — picks the right API for each model
+function getModelConfig(model) {
+  const m = (model || '').toLowerCase();
+
+  // Kimi K2.6 — Deep research & analysis (via OpenRouter)
+  if (m === 'kimi' || m === 'kimi-k2') {
+    return {
+      host: 'openrouter.ai', path: '/api/v1/chat/completions',
+      key: OPENROUTER_KEY, modelId: 'moonshotai/kimi-k2',
+      extraHeaders: { 'HTTP-Referer': 'https://novamindai.studio', 'X-Title': 'NovaMind AI Hub' },
+    };
+  }
+
+  // Qwen 3.7-Plus — Upgraded fallback (via OpenRouter)
+  if (m === 'qwen' || m.includes('qwen')) {
+    return {
+      host: 'openrouter.ai', path: '/api/v1/chat/completions',
+      key: OPENROUTER_KEY, modelId: 'qwen/qwen3-235b-a22b',
+      extraHeaders: { 'HTTP-Referer': 'https://novamindai.studio', 'X-Title': 'NovaMind AI Hub' },
+    };
+  }
+
+  // GPT-4o — Premium client-facing outputs
+  if (m.includes('gpt-4o') || m === 'openai') {
+    return {
+      host: 'api.openai.com', path: '/v1/chat/completions',
+      key: OPENAI_KEY, modelId: 'gpt-4o',
+    };
+  }
+
+  // DeepSeek — Quick chat, simple Q&A (cheapest)
+  return {
+    host: 'api.deepseek.com', path: '/v1/chat/completions',
+    key: DEEPSEEK_KEY, modelId: 'deepseek-chat',
+  };
+}
+
+// 🛡️ Fallback chain: Primary → Qwen → GPT-4o-mini (last resort)
+async function callWithFallback(model, messages, maxTokens, temperature) {
+  const primary = getModelConfig(model);
+  let usedModel = primary.modelId;
+
+  // Try primary model
+  try {
+    const result = await callAPI(primary.host, primary.path, primary.key, {
+      model: primary.modelId, messages, max_tokens: maxTokens, temperature,
+    }, primary.extraHeaders);
+    if (result.status === 200 && result.body.choices) {
+      return { result, model: usedModel };
+    }
+    console.log(`Primary model ${primary.modelId} failed (${result.status}), trying fallback...`);
+  } catch (err) {
+    console.log(`Primary model ${primary.modelId} error: ${err.message}, trying fallback...`);
+  }
+
+  // Fallback 1: Qwen 3.7-Plus (via OpenRouter) — if OpenRouter key available and not already Qwen
+  if (OPENROUTER_KEY && !primary.modelId.includes('qwen')) {
+    try {
+      usedModel = 'qwen/qwen3-235b-a22b';
+      const qwenResult = await callAPI('openrouter.ai', '/api/v1/chat/completions', OPENROUTER_KEY, {
+        model: 'qwen/qwen3-235b-a22b', messages, max_tokens: maxTokens, temperature,
+      }, { 'HTTP-Referer': 'https://novamindai.studio', 'X-Title': 'NovaMind AI Hub' });
+      if (qwenResult.status === 200 && qwenResult.body.choices) {
+        return { result: qwenResult, model: usedModel };
+      }
+      console.log(`Qwen fallback failed (${qwenResult.status}), trying GPT-4o-mini...`);
+    } catch (err) {
+      console.log(`Qwen fallback error: ${err.message}, trying GPT-4o-mini...`);
+    }
+  }
+
+  // Fallback 2: GPT-4o-mini (last resort — always available)
+  usedModel = 'gpt-4o-mini';
+  const lastResort = await callAPI('api.openai.com', '/v1/chat/completions', OPENAI_KEY, {
+    model: 'gpt-4o-mini', messages, max_tokens: maxTokens, temperature,
+  });
+  return { result: lastResort, model: usedModel };
+}
 
 const SYSTEM_PROMPTS = {
   text: `You are NovaMind AI — a world-class business assistant trusted by professionals, entrepreneurs, and agencies. You deliver expert-level content that rivals top consultants.
@@ -294,10 +375,8 @@ exports.handler = async (event) => {
             }
 
             if (isTextQualityOK(pdfText)) {
-              // pdf-parse worked great — use extracted text
               text = pdfText;
             } else {
-              // pdf-parse failed — flag for Vision fallback
               anyPdfGarbled = true;
               garbledPdfFile = f;
               text = '';
@@ -318,7 +397,6 @@ exports.handler = async (event) => {
         }
       }
 
-      // If we have clean extracted text, add to prompt for DeepSeek
       if (docTexts.length > 0) {
         fullPrompt += '\n\nAttached documents:' + docTexts.join('');
       }
@@ -326,7 +404,6 @@ exports.handler = async (event) => {
       // If a PDF was garbled, use GPT-4o Vision as single-call fallback
       if (anyPdfGarbled && garbledPdfFile) {
         const systemPrompt = customSystemPrompt || SYSTEM_PROMPTS[type] || SYSTEM_PROMPTS.text;
-        // Try file-based approach first (GPT-4o supports PDF files directly)
         try {
           const visionResult = await callAPI('api.openai.com', '/v1/chat/completions', OPENAI_KEY, {
             model: 'gpt-4o',
@@ -355,7 +432,6 @@ exports.handler = async (event) => {
           // file approach failed, try image_url approach
         }
 
-        // Fallback: send PDF as image_url
         try {
           const visionResult2 = await callAPI('api.openai.com', '/v1/chat/completions', OPENAI_KEY, {
             model: 'gpt-4o',
@@ -384,18 +460,16 @@ exports.handler = async (event) => {
           // both Vision approaches failed
         }
 
-        // Last resort: tell DeepSeek the text may be garbled
         if (!docTexts.length) {
           fullPrompt += '\n\n[NOTE: A PDF document was uploaded but could not be read properly. Please let the user know and ask them to paste the text directly or upload a screenshot instead.]';
         }
       }
     }
 
-    // TEXT GENERATION — DeepSeek Chat (or OpenAI if model specified)
-    const useOpenAI = model && (model.includes('gpt') || model.includes('openai'));
-    const apiKey = useOpenAI ? OPENAI_KEY : DEEPSEEK_KEY;
-    const apiHost = useOpenAI ? 'api.openai.com' : 'api.deepseek.com';
-    const apiModel = useOpenAI ? 'gpt-4o-mini' : 'deepseek-chat';
+    // ========================================================
+    // TEXT GENERATION — Multi-model routing with smart fallback
+    // DeepSeek (quick) → GPT-4o (premium) → Kimi (research) → Qwen (fallback)
+    // ========================================================
     const systemPrompt = customSystemPrompt || SYSTEM_PROMPTS[type] || SYSTEM_PROMPTS.text;
 
     const messages = [
@@ -403,12 +477,7 @@ exports.handler = async (event) => {
       { role: 'user', content: fullPrompt },
     ];
 
-    const result = await callAPI(apiHost, '/v1/chat/completions', apiKey, {
-      model: apiModel,
-      messages,
-      max_tokens: 4096,
-      temperature: 0.7,
-    });
+    const { result, model: usedModel } = await callWithFallback(model, messages, 4096, 0.7);
 
     if (result.status !== 200 || !result.body.choices) {
       return {
@@ -427,7 +496,7 @@ exports.handler = async (event) => {
         result: generatedContent,
         text: generatedContent,
         type: 'text',
-        model: apiModel,
+        model: usedModel,
         usage: result.body.usage,
       }),
     };

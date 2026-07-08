@@ -153,6 +153,7 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
 ];
 
 const COMING_SOON_FEATURES: { icon: string; name: string; desc: string }[] = [
+  { icon: '🎬', name: 'AI Video Creator', desc: 'Generate professional videos from text — ads, promos & social clips' },
   { icon: '📧', name: 'Smart Inbox', desc: 'Connect your email — AI reads, drafts & auto-replies' },
   { icon: '📞', name: 'AI Call Handler', desc: 'AI answers calls when you\'re busy — takes messages & info' },
   { icon: '🎙️', name: 'Meeting Notes AI', desc: 'Record meetings & get instant summaries & action items' },
@@ -2276,6 +2277,11 @@ Rules:
     else if (hasImageAttachments) {
       activeModel = 'gpt-4o';
       setModel('gpt-4o');
+    }
+    // Deep research, market analysis, comprehensive reports → Kimi K2.6 (256K context, agent swarm)
+    else if (/\b(deep\s*research|market\s*research|industry\s*analysis|competitor\s*report|comprehensive\s*analysis|detailed\s*report|research\s*report|thorough\s*analysis|full\s*analysis|in.?depth\s*research|market\s*study|trend\s*analysis|benchmark|due\s*diligence)\b/.test(pLower)) {
+      activeModel = 'kimi';
+      setModel('kimi');
     }
     // Complex reasoning, analysis, code review, detailed comparisons → GPT-4o
     else if (/\b(analyze.*in.?depth|complex.*analysis|detailed.*comparison|advanced.*code|debug.*code|refactor|architecture|strategic.*plan|financial.*model|legal.*review|technical.*spec)\b/.test(pLower)) {
