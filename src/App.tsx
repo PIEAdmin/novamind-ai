@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { auth, db } from './firebase-config';
 import { onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from 'firebase/auth';
-import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, orderBy, getDocs, addDoc, deleteDoc, updateDoc, limit as firestoreLimit, Timestamp, serverTimestamp, increment } from 'firebase/firestore';
 import { generateContent, fileToAttachment, FileAttachment } from './api-service';
 import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
@@ -1219,7 +1219,7 @@ const App: React.FC = () => {
   const [result, setResult] = useState<{ content?: string; text?: string; imageUrl?: string; error?: string } | null>(null);
   const [model, setModel] = useState('deepseek');
   const [contentType, setContentType] = useState('text');
-  const [usage, setUsage] = useState({ used: 0, limit: 15, plan: 'free' });
+  const [usage, setUsage] = useState({ used: 0, limit: 5, plan: 'free' });
   const [creations, setCreations] = useState<Array<{ id: string; prompt?: string; imageUrl?: string; model?: string; [key: string]: unknown }>>([]);
   const [copied, setCopied] = useState(false);
   const [lastPrompt, setLastPrompt] = useState('');
@@ -1556,8 +1556,8 @@ const App: React.FC = () => {
         if (usageDoc.exists()) {
           const data = usageDoc.data();
           const plan = data.plan || 'free';
-          const limits: Record<string, number> = { free: 15, pro: 100, business: 999999, solopreneur: 999999, team: 999999, business_pro: 999999 };
-          setUsage({ used: data.monthlyUsage || 0, limit: limits[plan] || 15, plan });
+          const limits: Record<string, number> = { free: 5, pro: 100, business: 999999, solopreneur: 999999, team: 999999, business_pro: 999999 };
+          setUsage({ used: data.monthlyUsage || 0, limit: limits[plan] || 5, plan });
         }
         try {
           const q = query(collection(db, 'creations'), where('userId', '==', u.uid), orderBy('createdAt', 'desc'));
@@ -2505,6 +2505,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       }
       const res = await generateContent(finalPrompt, activeContentType, activeModel, systemPrefix || undefined, fileAttachments);
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
+      // Persist usage to Firestore
+      if (user) { updateDoc(doc(db, 'users', user.uid), { monthlyUsage: increment(1), lastUsageAt: serverTimestamp() }).catch(() => {}); }
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
 
       // Add assistant message to chat — handle images vs text
@@ -3830,7 +3832,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       </div>
                     )}
                     {/* ⚡ Subtle upgrade hint — shows after every 3rd generation for free users */}
-                    {isLastAssistant && !msg.isError && usage.plan === 'free' && usage.used > 0 && usage.used % 3 === 0 && (
+                    {isLastAssistant && !msg.isError && usage.plan === 'free' && usage.used > 0 && usage.used % 2 === 0 && (
                       <div onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '10px', padding: '10px 16px', background: 'linear-gradient(135deg, rgba(108,99,255,0.08), rgba(168,85,247,0.06))', border: '1px solid rgba(108,99,255,0.15)', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
                         <span style={{ fontSize: '16px' }}>⚡</span>
                         <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Enjoying NovaMind? <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700 }}>Unlock unlimited access →</span></span>
