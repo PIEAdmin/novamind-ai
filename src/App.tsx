@@ -3668,14 +3668,6 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {/* Chat Messages Thread */}
             {chatMessages.length > 0 && (
               <>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary, #999)', fontWeight: 600 }}>
-                  💬 {chatTitle || 'Conversation'} · {chatMessages.filter(m => m.role === 'user').length} messages
-                </div>
-                <button onClick={() => { startNewChat(); }} style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: 'var(--primary, #6c63ff)', padding: '6px 14px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
-                  ➕ New Chat
-                </button>
-              </div>
               <div style={{ maxHeight: '55vh', overflowY: 'auto', padding: '16px', background: 'var(--card-bg, rgba(255,255,255,0.7))', borderRadius: '16px', border: '1px solid var(--border-color, rgba(0,0,0,0.08))', marginBottom: '12px', scrollBehavior: 'smooth' as const }}>
                 {chatMessages.map((msg, idx) => {
                   const isLastAssistant = msg.role === 'assistant' && idx === chatMessages.length - 1;
