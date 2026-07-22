@@ -8,7 +8,7 @@ import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
 type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
-type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'ai-receptionist' | 'doc-summarizer' | 'form-builder';
+type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'certificate-maker' | 'ai-receptionist' | 'doc-summarizer' | 'form-builder';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
 type ToastType = 'success' | 'info' | 'warning' | 'error';
@@ -147,6 +147,7 @@ const AGENTS: { id: AgentMode; name: string; icon: string; desc: string; badge?:
   { id: 'business-plan', name: 'Business Plan Generator', icon: '📋', desc: 'Complete business plans with executive summary, market analysis, revenue model & growth strategy', badge: 'NEW' },
   { id: 'sales-proposal', name: 'Sales Proposal Writer', icon: '📝', desc: 'Professional proposals, quotes, pitch decks & client presentations tailored by industry', badge: 'NEW' },
   { id: 'flyer-maker', name: 'Flyer Maker', icon: '🎨', desc: 'Print-ready flyers & posters — generates real designs you can download as PDF', badge: 'NEW' },
+  { id: 'certificate-maker', name: 'Certificate Maker', icon: '🎓', desc: 'Professional certificates, awards & diplomas — print-ready with unique credential IDs', badge: 'NEW' },
   { id: 'ai-receptionist', name: 'AI Receptionist', icon: '🤖', desc: 'Virtual front desk — greet visitors, answer FAQs, qualify leads & book appointments 24/7', badge: 'NEW' },
   { id: 'doc-summarizer', name: 'Doc Summarizer', icon: '📑', desc: 'Upload contracts, docs or PDFs — get plain-English breakdowns, key terms & action items', badge: 'NEW' },
   { id: 'form-builder', name: 'Form Builder', icon: '📝', desc: 'Describe what you need — get professional forms, intake sheets & questionnaires instantly', badge: 'NEW' },
@@ -172,6 +173,7 @@ const MISSIONS: { id: string; step: number; title: string; subtitle: string; ico
   { id: 'first-ad', step: 5, title: 'Launch an Ad Campaign', subtitle: 'Create scroll-stopping ads for any platform', icon: '📢', action: 'create', agentMode: 'ad-maker' },
   { id: 'competitor', step: 6, title: 'Analyze Your Competition', subtitle: 'Get a full SWOT analysis and market positioning strategy', icon: '🔍', action: 'create', agentMode: 'competitor-analysis' },
   { id: 'business-plan', step: 7, title: 'Generate a Business Plan', subtitle: 'Investor-ready plans with financials, strategy & market analysis', icon: '📊', action: 'create', agentMode: 'business-plan' },
+  { id: 'first-cert', step: 9, title: 'Create a Certificate', subtitle: 'Design professional certificates your clients and team will treasure', icon: '🎓', action: 'create', agentMode: 'certificate-maker' },
   { id: 'proposal', step: 8, title: 'Write a Sales Proposal', subtitle: 'Win clients with polished, professional proposals', icon: '📝', action: 'create', agentMode: 'sales-proposal' },
 ];
 
@@ -201,6 +203,11 @@ const WORKFLOW_CHAINS: Record<string, Array<{icon: string; label: string; agent:
     { icon: '📱', label: 'Promote on Social', agent: 'social-media', promptPrefix: 'Create a social media post promoting this event/offer:\n\n' },
     { icon: '📧', label: 'Email Blast', agent: 'email-assistant', promptPrefix: 'Write a promotional email about this event/offer:\n\n' },
     { icon: '📝', label: 'Ad Copy', agent: 'ad-maker', promptPrefix: 'Create compelling ad copy for this promotion:\n\n' },
+  ],
+  'certificate-maker': [
+    { icon: '📧', label: 'Email Certificate', agent: 'email-assistant', promptPrefix: 'Write a professional email to send this certificate to the recipient:\n\n' },
+    { icon: '📱', label: 'Announce on Social', agent: 'social-media', promptPrefix: 'Create a social media post announcing this certification/award:\n\n' },
+    { icon: '📄', label: 'Event Flyer', agent: 'flyer-maker', promptPrefix: 'Create a flyer promoting this certification program:\n\n' },
   ],
   'ad-maker': [
     { icon: '📧', label: 'Email Version', agent: 'email-assistant', promptPrefix: 'Convert this ad into an email marketing campaign:\n\n' },
@@ -718,6 +725,107 @@ html, body {
 - If info is in the business profile context, USE IT — don't omit anything
 
 GENERATE A FLYER THAT LOOKS LIKE A $500 DESIGN AGENCY PRODUCED IT. Fixed page, no overflow, print-perfect.`,
+  'certificate-maker': `You are a WORLD-CLASS certificate designer producing stunning, professional certificates that rival university diplomas and Fortune 500 corporate awards. Every certificate must look like it was designed by a premium print house.
+
+## ABSOLUTE RULES
+1. Your response MUST contain a \`\`\`html code block with a COMPLETE standalone HTML document
+2. DO NOT describe designs — OUTPUT THE ACTUAL HTML
+3. DO NOT use external images, placeholder URLs, or pollinations.ai
+4. DO NOT ask questions — generate immediately from whatever info is given
+5. If the user's business profile is in the system context, AUTOMATICALLY use their business name and logo URL — never use "[Your Company]" or generic placeholders
+6. ALWAYS generate a unique credential ID in format: NM-XXXX-XXXX-XXXX (random alphanumeric)
+
+## OUTPUT FORMAT
+One brief intro line, then the full HTML code block, then: "Click **Print / Download PDF** to save your certificate! Want changes? Just tell me what to adjust."
+
+## CRITICAL: FIXED-PAGE LAYOUT (PRINT-READY)
+This is a PRINT certificate, NOT a scrolling webpage. The entire design MUST fit within ONE fixed page:
+
+\`\`\`css
+html, body {
+  margin: 0; padding: 0; width: 11in; height: 8.5in;
+  overflow: hidden; /* CRITICAL — nothing scrolls or overflows */
+}
+.certificate-page {
+  width: 11in; height: 8.5in; position: relative;
+  overflow: hidden; box-sizing: border-box;
+}
+@page { size: landscape; margin: 0; }
+@media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+\`\`\`
+
+## DESIGN ARCHITECTURE (Follow this structure)
+
+### Overall Layout — Landscape 11×8.5in
+- Elegant multi-layered border system (3 borders: outer decorative, middle gold line, inner content frame)
+- Subtle background pattern: circuit-board traces, geometric patterns, or watermark texture at 3-5% opacity
+- All content centered both horizontally and vertically
+
+### Section 1: Header (~20% of height)
+- Organization/company name: 16-20px, uppercase, letter-spacing: 4px, font-weight: 300, Montserrat
+- Optional company logo placeholder (if logoUrl provided, use an img tag)
+- Decorative divider line below: thin gold gradient line with small ornamental center element
+
+### Section 2: Main Body (~50% of height)
+- "CERTIFICATE OF" text: 14-16px, uppercase, letter-spacing: 6px, font-weight: 400
+- Certificate type (Completion, Achievement, Excellence, etc.): 20-24px, uppercase, letter-spacing: 3px
+- Recipient name: 42-52px, italic, script/serif font (Playfair Display italic or Great Vibes), color: contrasting accent
+- Description line: 14-16px, max 2 lines, what was accomplished, Poppins light
+- Course/program/event name (if provided): 18-22px, font-weight: 600
+
+### Section 3: Details (~15% of height)
+- Date: formatted elegantly (e.g., "July 21, 2026")
+- Location (if provided)
+- Signature line(s): thin line with name and title below in small text
+- Up to 2 signature lines side by side
+
+### Section 4: Footer (~15% of height)
+- Credential ID: NM-XXXX-XXXX-XXXX format, 10-11px, monospace, subtle color
+- "Verify at novamindai.studio" text (subtle)
+- Small organizational seal/badge (CSS-only: circular element with border and text)
+
+### Typography
+- @import Google Fonts: 'Playfair Display' for recipient name, 'Montserrat' for headers, 'Poppins' for body
+- Recipient name MUST be in italic Playfair Display or 'Great Vibes' cursive — this is the visual anchor
+- All other text: clean, modern sans-serif
+
+### Color Palettes (auto-select based on context)
+- **Classic/Corporate**: Dark navy #0a1628 + gold #c9a84c + white + subtle cream
+- **Modern/Tech**: Deep charcoal #1a1a2e + electric blue #4fc3f7 + silver #c0c0c0
+- **Academic/Education**: Royal blue #1a237e + gold #ffd700 + ivory #fffff0
+- **Wellness/Health**: Deep teal #004d40 + warm gold #d4a853 + soft white
+- **Creative/Arts**: Deep purple #311b92 + rose gold #e8b4b8 + cream
+- **Default**: Dark navy #0f172a + warm gold #d4a853 + white (the proven NovaMind V4 style)
+- ALWAYS use the navy+gold default unless the context clearly suggests another palette
+
+### Visual Polish (What makes it premium)
+- Multi-layer border: outer 3px solid with 8px padding, then 1px gold line, then inner content area
+- Corner ornaments: CSS-only decorative elements in all 4 corners (L-shaped lines, dots, or small geometric shapes)
+- Subtle radial gradient overlay for depth: radial-gradient(ellipse at center, rgba(255,255,255,0.05) 0%, transparent 70%)
+- Gold elements should use gradient: linear-gradient(135deg, #c9a84c, #f0d78c, #c9a84c)
+- Circuit-pattern or geometric background at very low opacity (use repeating-linear-gradient or CSS patterns)
+- Elegant horizontal rules: gradient lines that fade from transparent → gold → transparent
+- NO emoji anywhere — use CSS-styled elements, typographic ornaments (✦, ◆, ●), or Unicode decorative characters (❖, ※)
+
+### CONTENT RULES
+- Recipient name is the HERO — largest, most beautiful element on the page
+- Keep all text minimal and elegant — certificates are about prestige, not paragraphs
+- Always include a unique credential ID (generate random: NM + 3 groups of 4 alphanumeric chars)
+- Always include the date
+- If user mentions a course, program, workshop, or event name — feature it prominently
+- If user mentions signatories — include signature lines with their names and titles
+- If business profile has a company name — use it as the issuing organization
+
+### CERTIFICATE TYPES (adapt based on user request)
+- **Completion** — "has successfully completed" + course/program name
+- **Achievement** — "in recognition of outstanding achievement in" + field
+- **Excellence** — "for demonstrating excellence in" + area
+- **Participation** — "for participation in" + event/workshop
+- **Appreciation** — "in appreciation of dedicated service" + context
+- **Training** — "has completed training in" + program name + hours if mentioned
+- **Award** — "is hereby awarded" + award name + reason
+
+GENERATE A CERTIFICATE THAT LOOKS LIKE A $500 PREMIUM PRINT DESIGN. Landscape, fixed page, no overflow, print-perfect. The kind of certificate people frame on their wall.`,
   'ai-receptionist': `You are NovaMind AI's Virtual Receptionist — a warm, professional, always-on front desk assistant that makes every visitor feel welcomed, valued, and guided to exactly what they need.
 
 ## Your Role
@@ -914,6 +1022,11 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '💡', text: 'Find market gaps in the fitness app industry that I can exploit' },
     { icon: '🎯', text: 'How should I position my cleaning service against Stanley Steemer?' }
   ],
+  'certificate-maker': [
+    { icon: '📧', label: 'Email Certificate', agent: 'email-assistant', promptPrefix: 'Write a professional email to send this certificate to the recipient:\n\n' },
+    { icon: '📱', label: 'Announce on Social', agent: 'social-media', promptPrefix: 'Create a social media post announcing this certification/award:\n\n' },
+    { icon: '📄', label: 'Event Flyer', agent: 'flyer-maker', promptPrefix: 'Create a flyer promoting this certification program:\n\n' },
+  ],
   'ad-maker': [
     { icon: '📱', text: 'Create a Facebook ad for my new fitness coaching program at $99/month' },
     { icon: '🎯', text: 'Write Google Search ad copy for a personal injury law firm' },
@@ -979,6 +1092,12 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '📋', text: 'Summarize this vendor contract and highlight any red flags or hidden fees' },
     { icon: '⚖️', text: 'Explain this non-compete clause — what does it actually prevent me from doing?' },
     { icon: '📑', text: 'Analyze this partnership agreement — is this a fair deal for both sides?' }
+  ],
+  'certificate-maker': [
+    { icon: '🎓', text: 'Create a certificate of completion for an AI Training Workshop — June 2026' },
+    { icon: '🏆', text: 'Design an Employee of the Month award certificate for my company' },
+    { icon: '📜', text: 'Make a professional training completion certificate for a 10-hour online course' },
+    { icon: '🎖️', text: 'Certificate of appreciation for a volunteer who served 100+ hours' }
   ],
   'form-builder': [
     { icon: '📋', text: 'Create a client intake form for my consulting business — first meeting info gathering' },
@@ -1194,6 +1313,7 @@ const detectChatTag = (agentMode: string, contentType: string): ChatTagLabel => 
   if (agentMode === 'financial-advisor') return 'Finance';
   if (agentMode === 'business-plan' || agentMode === 'sales-proposal') return 'Sales';
   if (agentMode === 'flyer-maker') return 'Design';
+  if (agentMode === 'certificate-maker') return 'Design';
   if (agentMode === 'ai-receptionist') return 'Sales';
   return 'Content';
 };
@@ -2142,6 +2262,11 @@ Rules:
       return { agent: 'sales-proposal', notification: '📝 Switching to Sales Proposal Writer...' };
     }
 
+    // Certificate maker detection
+    if (/\b(certificate|diploma|cert of completion|award certificate|training cert|certification|make.*cert|create.*cert|design.*cert|completion.*cert|achievement.*award|employee.*award|volunteer.*cert|course.*cert|workshop.*cert|credentialing|accreditation)\b/.test(p)) {
+      return { agent: 'certificate-maker', notification: '🎓 Switching to Certificate Maker...' };
+    }
+
     // Flyer maker detection
     if (/\b(flyer|flier|poster|promotional.*print|event.*flyer|grand.*opening.*flyer|print.*flyer|make.*a.*flyer|create.*a.*flyer|design.*a.*flyer|promo.*flyer|hiring.*flyer)/.test(p)) {
       return { agent: 'flyer-maker', notification: '📄 Switching to Flyer Maker...' };
@@ -2298,7 +2423,7 @@ Rules:
     // flyer-maker and form-builder need GPT-4o (DeepSeek ignores HTML output instructions)
     // doc-summarizer is text-only, DeepSeek is fine
     // 🚀 PREMIUM ROUTING: Route all client-facing tools to GPT-4o for Fortune 500 quality
-    const GPT4O_AGENTS = ['flyer-maker', 'form-builder', 'business-plan', 'ad-maker', 'competitor-analysis', 'proposal-writer', 'contract-generator', 'seo-optimizer', 'idea-spark'];
+    const GPT4O_AGENTS = ['flyer-maker', 'certificate-maker', 'form-builder', 'business-plan', 'ad-maker', 'competitor-analysis', 'proposal-writer', 'contract-generator', 'seo-optimizer', 'idea-spark'];
     // Also route Action Plan requests (general agent but premium prompt) to GPT-4o
     if (activeAgentMode === 'general' && pLower.includes('action plan')) {
       activeModel = 'gpt-4o';
@@ -2538,7 +2663,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       // Save to history after successful generation
       await saveHistoryItem(currentPrompt, activeContentType, activeModel, activeAgentMode, currentIndustry, res);
       // 🎯 Auto-complete missions based on tool used
-      const missionMap: Record<string, string> = { 'email-assistant': 'first-email', 'flyer-maker': 'first-flyer', 'ad-maker': 'first-ad', 'competitor-analysis': 'competitor', 'business-plan': 'business-plan', 'sales-proposal': 'proposal' };
+      const missionMap: Record<string, string> = { 'email-assistant': 'first-email', 'flyer-maker': 'first-flyer', 'certificate-maker': 'first-cert', 'ad-maker': 'first-ad', 'competitor-analysis': 'competitor', 'business-plan': 'business-plan', 'sales-proposal': 'proposal' };
       if (missionMap[activeAgentMode]) completeMission(missionMap[activeAgentMode]);
       if (currentPrompt.includes('90-Day Action Plan') || currentPrompt.includes('action plan')) completeMission('action-plan');
     } catch (e: unknown) { 
