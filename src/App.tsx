@@ -1698,7 +1698,6 @@ const App: React.FC = () => {
               const pd = docData.businessProfile as BusinessProfile;
               setBusinessProfile(pd);
               setEditingProfile(pd);
-              console.log('✅ Profile loaded:', pd.businessName);
             }
             if (docData.knowledgeDocs) {
               setKnowledgeDocs(docData.knowledgeDocs);
@@ -1907,7 +1906,6 @@ const App: React.FC = () => {
         const saved = verify.data().businessProfile as BusinessProfile;
         setBusinessProfile(saved);
         setEditingProfile(saved);
-        console.log('✅ Profile saved & verified:', saved.businessName);
         showToast('✅ Business profile saved!', 'success');
         completeMission('profile');
         setShowProfileModal(false);
@@ -2971,7 +2969,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
 
             <div className="powered-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-              <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">admin@allexapiegroup.com</a>
+              <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
             </div>
           </div>
         </div>
@@ -3383,7 +3381,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             </div>
             <div className="powered-footer">
-              <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">admin@allexapiegroup.com</a>
+              <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
             </div>
           </>
         )}
@@ -3648,7 +3646,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             ))}
           </div>
           <div className="powered-footer">
-            <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@allexapiegroup.com">admin@allexapiegroup.com</a>
+            <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
           </div>
         </>)}
         {tab === 'create' && (
@@ -4345,8 +4343,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           )}
         </>)}
-        {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
-        {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
+        {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state" style={{ position: 'relative' }}><span style={{ display: 'inline-block', fontSize: '9px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#fff', letterSpacing: '0.5px', marginBottom: '10px' }}>COMING SOON</span><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
+        {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state" style={{ position: 'relative' }}><span style={{ display: 'inline-block', fontSize: '9px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#fff', letterSpacing: '0.5px', marginBottom: '10px' }}>COMING SOON</span><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
       </div>
       </div>{/* main-content-area */}
       </div>{/* app-layout */}
