@@ -4345,8 +4345,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           )}
         </>)}
-        {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
-        {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://novamindai.studio/#pricing','_blank')}>Upgrade Now</button></div>)}
+        {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
+        {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state"><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
       </div>
       </div>{/* main-content-area */}
       </div>{/* app-layout */}
@@ -4849,8 +4849,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'left' }}>✅ Unlimited AI generations &nbsp;·&nbsp; ✅ All business tools &nbsp;·&nbsp; ✅ Logo & Flyer Maker &nbsp;·&nbsp; ✅ Priority support</div>
             </div>
-            <button className="generate-btn" onClick={() => { window.open('https://app.novamindai.studio/#pricing', '_blank'); setShowUpgradeModal(false); }} style={{ width: '100%', fontSize: '16px', fontWeight: 700, padding: '14px 24px' }}>
-              🔓 Unlock Unlimited — View Plans
+            <button className="generate-btn" onClick={() => { window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b', '_blank'); setShowUpgradeModal(false); }} style={{ width: '100%', fontSize: '16px', fontWeight: 700, padding: '14px 24px' }}>
+              🔓 Start 14-Day Free Trial — No Card Required
             </button>
             <p style={{ margin: '12px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>14-day free trial on all paid plans · No credit card required</p>
             <p style={{ margin: '8px 0 0', fontSize: '13px' }}>
