@@ -3,6 +3,26 @@
 // This runs server-side on Netlify — API keys are NOT exposed to the client
 
 const https = require('https');
+const admin = require('firebase-admin');
+
+// Initialize Firebase Admin (uses FIREBASE_SERVICE_ACCOUNT env var or default credentials)
+if (!admin.apps.length) {
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    : null;
+
+  if (serviceAccount) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      projectId: 'novamind-ai-5417c',
+    });
+  } else {
+    admin.initializeApp({
+      projectId: 'novamind-ai-5417c',
+    });
+  }
+}
+
 let pdfParse;
 try { pdfParse = require('pdf-parse'); } catch { pdfParse = null; }
 
@@ -233,8 +253,18 @@ exports.handler = async (event) => {
   }
 
   const authHeader = event.headers.authorization || event.headers.Authorization || '';
-  if (!authHeader.startsWith('Bearer ') || authHeader.length < 20) {
+  if (!authHeader.startsWith('Bearer ')) {
     return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+  }
+
+  // 🛡️ Real Firebase token verification
+  const idToken = authHeader.split('Bearer ')[1];
+  let decodedToken;
+  try {
+    decodedToken = await admin.auth().verifyIdToken(idToken);
+  } catch (authError) {
+    console.error('Token verification failed:', authError.message);
+    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Invalid or expired token. Please sign in again.' }) };
   }
 
   try {
