@@ -1393,7 +1393,15 @@ const App: React.FC = () => {
   // 🎯 Mission Mode state
   const [completedMissions, setCompletedMissions] = useState<string[]>([]);
   const [showMissionCelebration, setShowMissionCelebration] = useState<string | null>(null);
+  const [showMilestones, setShowMilestones] = useState(true);
   const growthScore = Math.round((completedMissions.length / MISSIONS.length) * 100);
+
+  // 📊 ROI Cockpit computed values
+  const hoursEstSaved = Math.round(usage.used * 0.25 * 10) / 10;
+  const dollarValueCreated = usage.used * 47;
+  const uniqueToolsUsed = new Set(history.map((h: any) => h.agentMode).filter(Boolean)).size;
+  const toolsReplacedCount = Math.max(uniqueToolsUsed, completedMissions.length);
+  const monthlySavingsVsTools = 345 - (usage.plan === 'free' ? 0 : usage.plan === 'solopreneur' ? 49 : usage.plan === 'team' ? 149 : 0);
 
   const completeMission = async (missionId: string) => {
     if (completedMissions.includes(missionId) || !user) return;
@@ -3392,197 +3400,288 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
 
-          {/* 🎯 MISSION MODE — AI Growth Command Center */}
+          {/* 📊 AI ROI COCKPIT */}
           <div style={{
-            marginBottom: '24px', borderRadius: '20px', overflow: 'hidden',
+            borderRadius: '20px', overflow: 'hidden', marginBottom: '28px',
             background: 'linear-gradient(135deg, rgba(108,99,255,0.06) 0%, rgba(6,182,212,0.04) 50%, rgba(168,85,247,0.06) 100%)',
             border: '1px solid rgba(108,99,255,0.15)',
           }}>
-            {/* Growth Score Header */}
+            {/* Cockpit Header */}
             <div style={{
-              padding: '20px 20px 16px', textAlign: 'center',
-              background: 'linear-gradient(135deg, rgba(108,99,255,0.12), rgba(168,85,247,0.08))',
+              padding: '20px 20px 16px',
+              background: 'linear-gradient(135deg, rgba(108,99,255,0.12), rgba(6,182,212,0.08))',
               borderBottom: '1px solid rgba(108,99,255,0.1)',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '8px' }}>
-                <span style={{ fontSize: '28px' }}>🎯</span>
-                <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: 'linear-gradient(135deg, #6c63ff, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  Your Growth Journey
-                </h3>
-              </div>
-              <p style={{ margin: '0 0 12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                Complete each mission to unlock your AI superpowers
-              </p>
-              {/* Score Ring */}
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '16px', padding: '12px 24px', borderRadius: '16px', background: 'rgba(108,99,255,0.08)', border: '1px solid rgba(108,99,255,0.15)' }}>
-                <div style={{ position: 'relative', width: '56px', height: '56px' }}>
-                  <svg viewBox="0 0 36 36" style={{ width: '56px', height: '56px', transform: 'rotate(-90deg)' }}>
-                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(108,99,255,0.15)" strokeWidth="3" />
-                    <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#scoreGrad)" strokeWidth="3" strokeDasharray={`${growthScore * 0.975} 100`} strokeLinecap="round" />
-                    <defs><linearGradient id="scoreGrad"><stop offset="0%" stopColor="#6c63ff"/><stop offset="100%" stopColor="#a855f7"/></linearGradient></defs>
-                  </svg>
-                  <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: 800, color: 'var(--primary, #6c63ff)' }}>{growthScore}</div>
-                </div>
-                <div style={{ textAlign: 'left' }}>
-                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>AI Growth Score</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{completedMissions.length} of {MISSIONS.length} missions complete</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Mission Steps */}
-            <div style={{ padding: '16px 16px 8px' }}>
-              {MISSIONS.map((mission, idx) => {
-                const isComplete = completedMissions.includes(mission.id);
-                const isPrevComplete = idx === 0 || completedMissions.includes(MISSIONS[idx - 1].id);
-                const isActive = !isComplete && isPrevComplete;
-                const isLocked = !isComplete && !isPrevComplete;
-                const isCelebrating = showMissionCelebration === mission.id;
-                return (
-                  <div key={mission.id} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', marginBottom: '8px',
-                    borderRadius: '14px', cursor: isActive ? 'pointer' : isComplete ? 'default' : 'not-allowed',
-                    background: isCelebrating ? 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))' : isActive ? 'rgba(108,99,255,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
-                    border: isCelebrating ? '2px solid rgba(34,197,94,0.4)' : isActive ? '2px solid rgba(108,99,255,0.3)' : '1px solid rgba(128,128,128,0.1)',
-                    opacity: isLocked ? 0.45 : 1,
-                    transition: 'all 0.3s ease',
-                    transform: isCelebrating ? 'scale(1.02)' : 'scale(1)',
-                  }} onClick={() => {
-                    if (isLocked) return;
-                    if (isComplete) {
-                      // Completed missions → view past work
-                      if (mission.action === 'profile') { setShowProfileModal(true); }
-                      else {
-                        setGalleryAgentFilter(mission.agentMode || (mission.action === 'action-plan' ? 'general' : null));
-                        switchTab('gallery');
-                      }
-                      return;
-                    }
-                    // Active missions → start the tool
-                    if (mission.action === 'profile') { setShowProfileModal(true); }
-                    else if (mission.action === 'action-plan') {
-                      setAgentMode('general');
-                      setPrompt(`Create my personalized 90-Day Action Plan based on my business profile. Include specific weekly milestones, revenue targets, and marketing tactics.`);
-                      switchTab('create');
-                    }
-                    else if (mission.agentMode) { setAgentMode(mission.agentMode as AgentMode); setPrompt(''); switchTab('create'); }
-                  }}>
-                    {/* Step indicator */}
-                    <div style={{
-                      width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                      fontSize: isComplete ? '18px' : '14px', fontWeight: 800,
-                      background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : isActive ? 'linear-gradient(135deg, #6c63ff, #a855f7)' : 'rgba(128,128,128,0.15)',
-                      color: isComplete || isActive ? '#fff' : 'var(--text-secondary)',
-                      boxShadow: isActive ? '0 0 12px rgba(108,99,255,0.3)' : 'none',
-                    }}>
-                      {isComplete ? '✓' : isLocked ? '🔒' : mission.step}
-                    </div>
-                    {/* Content */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '14px', fontWeight: isActive ? 700 : 600, color: isComplete ? '#22c55e' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>{mission.icon}</span>
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mission.title}</span>
-                        {isCelebrating && <span style={{ fontSize: '16px', animation: 'pulse 0.5s ease-in-out' }}>🎉</span>}
-                      </div>
-                      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {isComplete ? 'Completed! Tap to view →' : mission.subtitle}
-                      </div>
-                    </div>
-                    {/* Arrow or check */}
-                    <div style={{ flexShrink: 0, fontSize: '16px', color: isComplete ? '#22c55e' : isActive ? 'var(--primary, #6c63ff)' : 'var(--text-secondary)' }}>
-                      {isComplete ? '👁️' : isActive ? '→' : ''}
-                    </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{
+                    width: '44px', height: '44px', borderRadius: '14px',
+                    background: 'linear-gradient(135deg, #6c63ff, #06b6d4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '22px', flexShrink: 0,
+                    boxShadow: '0 4px 16px rgba(108,99,255,0.35)',
+                  }}>📊</div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: 'linear-gradient(135deg, #6c63ff, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                      AI ROI Cockpit
+                    </h3>
+                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      Your business intelligence dashboard — powered by AI
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* All Complete Celebration */}
-            {completedMissions.length === MISSIONS.length && (
-              <div style={{ padding: '16px 20px 20px', textAlign: 'center' }}>
-                <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏆</div>
-                <div style={{ fontSize: '16px', fontWeight: 800, color: '#22c55e' }}>All Missions Complete!</div>
-                <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>You've mastered NovaMind. Keep creating amazing things!</div>
-              </div>
-            )}
-          </div>
-
-          <div className="stats-row">
-            <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
-            <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
-            <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
-          </div>
-          <div className="usage-bar-container">
-            <div className="usage-label"><span>Monthly Usage</span><span>{usage.used}/{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</span></div>
-            <div className="usage-bar"><div className={`usage-fill ${pct > 80 ? 'warning' : ''}`} style={{ width: `${pct}%` }} /></div>
-          </div>
-          {/* 🔔 Soft upgrade nudge — shows when free user is at 80%+ usage */}
-          {usage.plan === 'free' && pct >= 80 && pct < 100 && (
-            <div style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08))', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px', padding: '12px 16px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
-              <span style={{ fontSize: '20px' }}>⚡</span>
-              <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Only <strong>{usage.limit - usage.used}</strong> generations left this month! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Upgrade for unlimited →</span></span>
-            </div>
-          )}
-          {usage.plan === 'free' && pct >= 100 && (
-            <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.08))', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
-              <span style={{ fontSize: '20px' }}>🚀</span>
-              <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>You&apos;ve used all free generations! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Unlock unlimited access →</span></span>
-            </div>
-          )}
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '20px' }}>
-            <div className="stat-card" style={{ textAlign: 'center' }}>
-              <div className="stat-value" style={{ fontSize: '1.2rem' }}>{t.thisMonth}</div>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--primary, #6c63ff)', margin: '4px 0' }}>{usage.used}</div>
-              <div className="stat-label">{t.totalGenerations}</div>
-            </div>
-            <div className="stat-card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#22c55e', margin: '4px 0' }}>{history.filter(h => h.contentType === 'text').length}</div>
-              <div className="stat-label">{t.textGens}</div>
-            </div>
-            <div className="stat-card" style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#a855f7', margin: '4px 0' }}>{history.filter(h => h.contentType === 'image' || h.model === 'gpt-image-1').length}</div>
-              <div className="stat-label">{t.imageGens}</div>
-            </div>
-          </div>
-
-          {/* 💰 Value Calculator — Replace $345/mo */}
-          <div style={{
-            marginBottom: '24px', padding: '20px', borderRadius: '16px',
-            background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(99,102,241,0.08) 50%, rgba(168,85,247,0.08) 100%)',
-            border: '1px solid rgba(99,102,241,0.2)',
-            position: 'relative' as const, overflow: 'hidden'
-          }}>
-            <div style={{ position: 'absolute' as const, top: '-20px', right: '-20px', fontSize: '80px', opacity: 0.06 }}>💰</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-              <span style={{ fontSize: '20px' }}>💡</span>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700 }}>You're Replacing $345+/month of Tools</h3>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', marginBottom: '14px' }}>
-              {[
-                { tool: 'ChatGPT Pro', cost: '$20/mo', icon: '🤖' },
-                { tool: 'Canva Pro', cost: '$13/mo' , icon: '🎨' },
-                { tool: 'Mailchimp', cost: '$20/mo', icon: '📧' },
-                { tool: 'Hootsuite', cost: '$99/mo', icon: '📱' },
-                { tool: 'Grammarly Biz', cost: '$25/mo', icon: '✍️' },
-                { tool: 'Logo Maker', cost: '$10/mo', icon: '💎' },
-                { tool: 'Ad Tools', cost: '$50/mo', icon: '🎯' },
-                { tool: 'Freelancer', cost: '$100+/mo', icon: '👤' },
-              ].map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', fontSize: '12px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>{item.icon} {item.tool}</span>
-                  <span style={{ color: '#ef4444', fontWeight: 600, textDecoration: 'line-through', opacity: 0.7 }}>{item.cost}</span>
                 </div>
-              ))}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.06))', border: '1px solid rgba(34,197,94,0.25)' }}>
-              <div>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>NovaMind — All of this for</div>
-                <div style={{ fontSize: '28px', fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>$49<span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>/mo</span></div>
+                {/* AI Impact Score Ring */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    position: 'relative' as const, width: '56px', height: '56px',
+                  }}>
+                    <svg viewBox="0 0 36 36" style={{ width: '56px', height: '56px', transform: 'rotate(-90deg)' }}>
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(108,99,255,0.15)" strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#scoreGrad)" strokeWidth="3" strokeDasharray={`${growthScore * 0.975} 100`} strokeLinecap="round" />
+                      <defs><linearGradient id="scoreGrad"><stop offset="0%" stopColor="#6c63ff"/><stop offset="100%" stopColor="#06b6d4"/></linearGradient></defs>
+                    </svg>
+                    <div style={{ position: 'absolute' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: 800, color: 'var(--primary, #6c63ff)' }}>{growthScore}</div>
+                  </div>
+                  <div style={{ textAlign: 'left' as const }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>AI Impact Score</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{completedMissions.length} of {MISSIONS.length} milestones</div>
+                  </div>
+                </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: 700 }}>SAVE $296+/mo</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>That's $3,500+/year</div>
+            </div>
+
+            {/* KPI Cards — 2x2 Grid */}
+            <div style={{ padding: '16px 16px 0', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+              {/* Hours Saved */}
+              <div style={{
+                borderRadius: '14px', padding: '16px',
+                background: 'linear-gradient(135deg, rgba(108,99,255,0.10), rgba(108,99,255,0.02))',
+                border: '1px solid rgba(108,99,255,0.18)',
+                transition: 'all 0.3s ease', cursor: 'default',
+              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
+                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
+                <div style={{ fontSize: '20px', marginBottom: '4px' }}>⏱️</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#6c63ff', lineHeight: 1.1 }}>{hoursEstSaved} hrs</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Time back in your day</div>
+              </div>
+              {/* Value Created */}
+              <div style={{
+                borderRadius: '14px', padding: '16px',
+                background: 'linear-gradient(135deg, rgba(34,197,94,0.10), rgba(34,197,94,0.02))',
+                border: '1px solid rgba(34,197,94,0.18)',
+                transition: 'all 0.3s ease', cursor: 'default',
+              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
+                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
+                <div style={{ fontSize: '20px', marginBottom: '4px' }}>💰</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#22c55e', lineHeight: 1.1 }}>${dollarValueCreated.toLocaleString()}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Equivalent freelancer cost</div>
+              </div>
+              {/* Tools Replaced */}
+              <div style={{
+                borderRadius: '14px', padding: '16px',
+                background: 'linear-gradient(135deg, rgba(6,182,212,0.10), rgba(6,182,212,0.02))',
+                border: '1px solid rgba(6,182,212,0.18)',
+                transition: 'all 0.3s ease', cursor: 'default',
+              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
+                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
+                <div style={{ fontSize: '20px', marginBottom: '4px' }}>🔧</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#06b6d4', lineHeight: 1.1 }}>{toolsReplacedCount} <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>of 11</span></div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>vs. paying for each separately</div>
+              </div>
+              {/* ROI Score */}
+              <div style={{
+                borderRadius: '14px', padding: '16px',
+                background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.02))',
+                border: '1px solid rgba(245,158,11,0.18)',
+                transition: 'all 0.3s ease', cursor: 'default',
+              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
+                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
+                <div style={{ fontSize: '20px', marginBottom: '4px' }}>📈</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b', lineHeight: 1.1 }}>{usage.plan !== 'free' ? `${Math.round((dollarValueCreated / (usage.plan === 'solopreneur' ? 49 : 149)) * 100) / 100}x` : '∞'}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Return on your investment</div>
+              </div>
+            </div>
+
+            {/* Usage Bar + Stats */}
+            <div style={{ padding: '16px' }}>
+              {/* Usage Bar */}
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Monthly Usage</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{usage.used}/{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</span>
+                </div>
+                <div style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'rgba(108,99,255,0.10)', overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${pct}%`, height: '100%', borderRadius: '999px',
+                    background: pct >= 100 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : pct > 80 ? 'linear-gradient(90deg, #f59e0b, #fb923c)' : 'linear-gradient(90deg, #6c63ff, #06b6d4)',
+                    transition: 'width 0.5s ease',
+                  }} />
+                </div>
+              </div>
+              {/* Upgrade nudges for free users */}
+              {usage.plan === 'free' && pct >= 80 && pct < 100 && (
+                <div style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08))', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
+                  <span style={{ fontSize: '20px' }}>⚡</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Only <strong>{usage.limit - usage.used}</strong> generations left this month! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Upgrade for unlimited →</span></span>
+                </div>
+              )}
+              {usage.plan === 'free' && pct >= 100 && (
+                <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.08))', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
+                  <span style={{ fontSize: '20px' }}>🚀</span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>You&apos;ve used all free generations! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Unlock unlimited access →</span></span>
+                </div>
+              )}
+              {/* Stats Breakdown */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
+                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(108,99,255,0.06)', border: '1px solid rgba(108,99,255,0.12)' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary, #6c63ff)' }}>{usage.used}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.totalGenerations}</div>
+                </div>
+                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.12)' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#22c55e' }}>{history.filter(h => h.contentType === 'text').length}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.textGens}</div>
+                </div>
+                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.12)' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#a855f7' }}>{history.filter(h => h.contentType === 'image' || h.model === 'gpt-image-1').length}</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.imageGens}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* ROI Milestones — collapsible */}
+            <div style={{ padding: '0 16px 16px' }}>
+              <div style={{
+                borderRadius: '14px', overflow: 'hidden',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(108,99,255,0.12)',
+              }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 16px', cursor: 'pointer',
+                  background: 'rgba(108,99,255,0.04)',
+                }} onClick={() => setShowMilestones(!showMilestones)}>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    🏁 ROI Milestones
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>({completedMissions.length}/{MISSIONS.length})</span>
+                  </h4>
+                  <span style={{
+                    fontSize: '12px', color: 'var(--primary, #6c63ff)', fontWeight: 700,
+                    transition: 'transform 0.3s ease',
+                    display: 'inline-block',
+                    transform: showMilestones ? 'rotate(180deg)' : 'rotate(0deg)',
+                  }}>▼</span>
+                </div>
+                {showMilestones && (
+                  <div style={{ padding: '8px 12px 12px' }}>
+                    {MISSIONS.map((mission, idx) => {
+                      const isComplete = completedMissions.includes(mission.id);
+                      const isPrevComplete = idx === 0 || completedMissions.includes(MISSIONS[idx - 1].id);
+                      const isActive = !isComplete && isPrevComplete;
+                      const isLocked = !isComplete && !isPrevComplete;
+                      const isCelebrating = showMissionCelebration === mission.id;
+                      return (
+                        <div key={mission.id} style={{
+                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', marginBottom: '8px',
+                          borderRadius: '14px', cursor: isActive ? 'pointer' : isComplete ? 'default' : 'not-allowed',
+                          background: isCelebrating ? 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))' : isActive ? 'rgba(108,99,255,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
+                          border: isCelebrating ? '2px solid rgba(34,197,94,0.4)' : isActive ? '2px solid rgba(108,99,255,0.3)' : '1px solid rgba(128,128,128,0.1)',
+                          opacity: isLocked ? 0.45 : 1,
+                          transition: 'all 0.3s ease',
+                          transform: isCelebrating ? 'scale(1.02)' : 'scale(1)',
+                        }} onClick={() => {
+                          if (isLocked) return;
+                          if (isComplete) {
+                            if (mission.action === 'profile') { setShowProfileModal(true); }
+                            else {
+                              setGalleryAgentFilter(mission.agentMode || (mission.action === 'action-plan' ? 'general' : null));
+                              switchTab('gallery');
+                            }
+                            return;
+                          }
+                          if (mission.action === 'profile') { setShowProfileModal(true); }
+                          else if (mission.action === 'action-plan') {
+                            setAgentMode('general');
+                            setPrompt(`Create my personalized 90-Day Action Plan based on my business profile. Include specific weekly milestones, revenue targets, and marketing tactics.`);
+                            switchTab('create');
+                          }
+                          else if (mission.agentMode) { setAgentMode(mission.agentMode as AgentMode); setPrompt(''); switchTab('create'); }
+                        }}>
+                          <div style={{
+                            width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                            fontSize: isComplete ? '18px' : '14px', fontWeight: 800,
+                            background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : isActive ? 'linear-gradient(135deg, #6c63ff, #a855f7)' : 'rgba(128,128,128,0.15)',
+                            color: isComplete || isActive ? '#fff' : 'var(--text-secondary)',
+                            boxShadow: isActive ? '0 0 12px rgba(108,99,255,0.3)' : 'none',
+                          }}>
+                            {isComplete ? '✓' : isLocked ? '🔒' : mission.step}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '14px', fontWeight: isActive ? 700 : 600, color: isComplete ? '#22c55e' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span>{mission.icon}</span>
+                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mission.title}</span>
+                              {isCelebrating && <span style={{ fontSize: '16px', animation: 'pulse 0.5s ease-in-out' }}>🎉</span>}
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {isComplete ? 'Completed! Tap to view →' : mission.subtitle}
+                            </div>
+                          </div>
+                          <div style={{ flexShrink: 0, fontSize: '16px', color: isComplete ? '#22c55e' : isActive ? 'var(--primary, #6c63ff)' : 'var(--text-secondary)' }}>
+                            {isComplete ? '👁️' : isActive ? '→' : ''}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {completedMissions.length === MISSIONS.length && (
+                      <div style={{ padding: '16px 20px', textAlign: 'center' as const }}>
+                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏆</div>
+                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#22c55e' }}>All Milestones Complete!</div>
+                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>You've mastered NovaMind. Keep creating amazing things!</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Tools Replaced Comparison */}
+            <div style={{ padding: '0 16px 20px' }}>
+              <div style={{
+                borderRadius: '14px', padding: '16px',
+                background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(99,102,241,0.08) 50%, rgba(168,85,247,0.08) 100%)',
+                border: '1px solid rgba(99,102,241,0.15)',
+                position: 'relative' as const, overflow: 'hidden',
+              }}>
+                <div style={{ position: 'absolute' as const, top: '-20px', right: '-20px', fontSize: '80px', opacity: 0.06 }}>💰</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <span style={{ fontSize: '18px' }}>🧩</span>
+                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Tools You're Replacing</h4>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', marginBottom: '14px' }}>
+                  {[
+                    { tool: 'ChatGPT Pro', cost: '$20/mo', icon: '🤖' },
+                    { tool: 'Canva Pro', cost: '$13/mo', icon: '🎨' },
+                    { tool: 'Mailchimp', cost: '$20/mo', icon: '📧' },
+                    { tool: 'Hootsuite', cost: '$99/mo', icon: '📱' },
+                    { tool: 'Grammarly Biz', cost: '$25/mo', icon: '✍️' },
+                    { tool: 'Logo Maker', cost: '$10/mo', icon: '💎' },
+                    { tool: 'Ad Tools', cost: '$50/mo', icon: '🎯' },
+                    { tool: 'Freelancer', cost: '$100+/mo', icon: '👤' },
+                  ].map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', fontSize: '12px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }}>
+                      <span style={{ color: 'var(--text-secondary)' }}>{item.icon} {item.tool}</span>
+                      <span style={{ color: '#ef4444', fontWeight: 600, textDecoration: 'line-through', opacity: 0.7 }}>{item.cost}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.06))', border: '1px solid rgba(34,197,94,0.25)' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>NovaMind — All of this for</div>
+                    <div style={{ fontSize: '28px', fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>$49<span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>/mo</span></div>
+                  </div>
+                  <div style={{ textAlign: 'right' as const }}>
+                    <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: 700 }}>SAVE $296+/mo</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>That's $3,500+/year</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
