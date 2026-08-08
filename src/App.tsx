@@ -91,6 +91,29 @@ interface TeamMember {
   joinedAt?: Timestamp;
 }
 
+interface PinnedOutput {
+  id: string;
+  title: string;
+  content: string;
+  type: 'text' | 'image' | 'document';
+  pinnedAt: number;
+  agentMode: string;
+}
+
+interface ProjectBrief {
+  id: string;
+  name: string;
+  objective: string;
+  targetAudience: string;
+  constraints: string;
+  brandVoice: string;
+  status: 'active' | 'completed' | 'archived';
+  createdAt: number;
+  updatedAt: number;
+  createdBy: string;
+  pinnedOutputs: PinnedOutput[];
+}
+
 const DEFAULT_PROFILE: BusinessProfile = {
   businessName: '', industry: 'general', location: '', website: '', phone: '',
   description: '', targetAudience: '', brandVoice: 'professional', brandColors: '',
@@ -1543,6 +1566,19 @@ const App: React.FC = () => {
   const [polishingProfile, setPolishingProfile] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // ====== PROJECTS (Workspace/Project system) ======
+  const [projects, setProjects] = useState<ProjectBrief[]>([]);
+  const [activeProject, setActiveProject] = useState<ProjectBrief | null>(null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [editingProject, setEditingProject] = useState<ProjectBrief | null>(null);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [projectFormData, setProjectFormData] = useState({
+    name: '', objective: '', targetAudience: '', constraints: '', brandVoice: ''
+  });
+  const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
+  const [projectMenuOpenId, setProjectMenuOpenId] = useState<string | null>(null);
+  const [pinMenuOpenFor, setPinMenuOpenFor] = useState<string | null>(null);
+
 
   // Scroll to bottom of chat when messages change
   useEffect(() => {
@@ -1570,6 +1606,166 @@ const App: React.FC = () => {
       const snap = await getDocs(query(collection(db, 'users', uid, 'chats'), orderBy('updatedAt', 'desc'), firestoreLimit(50)));
       setChats(snap.docs.map(d => ({ id: d.id, ...d.data() } as ChatDoc)));
     } catch (e) { console.error('Load chats err:', e); }
+  };
+
+  // ====== PROJECT CRUD (Firestore) ======
+  const loadProjects = async (uidOverride?: string) => {
+    const uid = uidOverride || user?.uid;
+    if (!uid) return;
+    setProjectsLoading(true);
+    try {
+      const q = query(
+        collection(db, 'projects'),
+        where('workspaceId', '==', uid),
+        orderBy('updatedAt', 'desc')
+      );
+      const snap = await getDocs(q);
+      setProjects(snap.docs.map(d => ({ id: d.id, ...d.data() } as ProjectBrief)));
+    } catch (e) {
+      console.error('Load projects err:', e);
+    }
+    setProjectsLoading(false);
+  };
+
+  const createProject = async () => {
+    if (!user || !projectFormData.name.trim()) return;
+    try {
+      const now = Date.now();
+      const newProjectData = {
+        workspaceId: user.uid,
+        name: projectFormData.name.trim(),
+        objective: projectFormData.objective.trim(),
+        targetAudience: projectFormData.targetAudience.trim(),
+        constraints: projectFormData.constraints.trim(),
+        brandVoice: projectFormData.brandVoice || 'Professional',
+        status: 'active' as const,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: user.uid,
+        pinnedOutputs: [] as PinnedOutput[],
+      };
+      const docRef = await addDoc(collection(db, 'projects'), newProjectData);
+      const created: ProjectBrief = { id: docRef.id, ...newProjectData };
+      setProjects(prev => [created, ...prev]);
+      setShowProjectForm(false);
+      setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' });
+      showToast('Project created', 'success');
+    } catch (e) {
+      console.error('Create project err:', e);
+      showToast('Failed to create project', 'error');
+    }
+  };
+
+  const updateProject = async (id: string, updates: Partial<ProjectBrief>) => {
+    try {
+      const payload = { ...updates, updatedAt: Date.now() };
+      await updateDoc(doc(db, 'projects', id), payload as any);
+      setProjects(prev => prev.map(p => (p.id === id ? { ...p, ...payload } : p)));
+      setActiveProject(prev => (prev && prev.id === id ? { ...prev, ...payload } : prev));
+      showToast('Project updated', 'success');
+    } catch (e) {
+      console.error('Update project err:', e);
+      showToast('Failed to update project', 'error');
+    }
+  };
+
+  const deleteProject = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'projects', id));
+      setProjects(prev => prev.filter(p => p.id !== id));
+      setActiveProject(prev => (prev && prev.id === id ? null : prev));
+      showToast('Project deleted', 'success');
+    } catch (e) {
+      console.error('Delete project err:', e);
+      showToast('Failed to delete project', 'error');
+    }
+  };
+
+  const pinOutput = async (projectId: string, output: Omit<PinnedOutput, 'id' | 'pinnedAt'>) => {
+    try {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const newOutput: PinnedOutput = {
+        ...output,
+        id: `po_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        pinnedAt: Date.now(),
+      };
+      const updatedOutputs = [...(project.pinnedOutputs || []), newOutput];
+      await updateDoc(doc(db, 'projects', projectId), { pinnedOutputs: updatedOutputs, updatedAt: Date.now() });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : prev));
+      showToast('Pinned to project', 'success');
+    } catch (e) {
+      console.error('Pin output err:', e);
+      showToast('Failed to pin output', 'error');
+    }
+  };
+
+  const unpinOutput = async (projectId: string, outputId: string) => {
+    try {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const updatedOutputs = (project.pinnedOutputs || []).filter(o => o.id !== outputId);
+      await updateDoc(doc(db, 'projects', projectId), { pinnedOutputs: updatedOutputs, updatedAt: Date.now() });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : prev));
+      showToast('Removed from project', 'info');
+    } catch (e) {
+      console.error('Unpin output err:', e);
+      showToast('Failed to unpin output', 'error');
+    }
+  };
+
+  const exportProjectBrief = (project: ProjectBrief) => {
+    const pw = window.open('', '_blank');
+    if (!pw) return;
+    const statusLabel = project.status.charAt(0).toUpperCase() + project.status.slice(1);
+    const deliverablesHtml = (project.pinnedOutputs || []).length === 0
+      ? '<p style="color:#667085;font-size:14px;">No deliverables pinned yet.</p>'
+      : (project.pinnedOutputs || []).map(o => `
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <strong style="font-size:14px;color:#101828;">${o.title}</strong>
+              <span style="font-size:11px;color:#008080;background:rgba(0,128,128,0.08);padding:2px 10px;border-radius:999px;">${o.type}</span>
+            </div>
+            <div style="font-size:13px;color:#344054;line-height:1.6;white-space:pre-wrap;">${renderMarkdown(o.content)}</div>
+            <div style="font-size:11px;color:#98a2b3;margin-top:8px;">Pinned ${new Date(o.pinnedAt).toLocaleDateString()}</div>
+          </div>
+        `).join('');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${project.name} — Project Brief</title>
+      <style>
+        body{font-family:system-ui,-apple-system,sans-serif;color:#101828;padding:48px;max-width:800px;margin:0 auto;line-height:1.6;background:#ffffff;}
+        h1{font-size:24px;margin-bottom:4px;color:#101828;}
+        .header{border-bottom:1px solid #e5e7eb;padding-bottom:16px;margin-bottom:24px;}
+        .brand{font-size:12px;letter-spacing:0.06em;text-transform:uppercase;color:#008080;font-weight:600;margin-bottom:8px;}
+        .meta{font-size:13px;color:#667085;margin-top:8px;}
+        .badge{display:inline-block;font-size:12px;font-weight:600;padding:2px 12px;border-radius:999px;background:rgba(0,128,128,0.08);color:#008080;}
+        .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0;}
+        .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:16px;}
+        .card h3{font-size:12px;text-transform:uppercase;letter-spacing:0.04em;color:#667085;margin:0 0 8px;}
+        .card p{font-size:14px;margin:0;white-space:pre-wrap;}
+        h2{font-size:16px;margin-top:32px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;}
+        footer{margin-top:48px;padding-top:16px;border-top:1px solid #e5e7eb;font-size:12px;color:#98a2b3;text-align:center;}
+      </style></head><body>
+      <div class="header">
+        <div class="brand">NovaMind AI</div>
+        <h1>${project.name}</h1>
+        <span class="badge">${statusLabel}</span>
+        <div class="meta">Created ${new Date(project.createdAt).toLocaleDateString()} &middot; Updated ${new Date(project.updatedAt).toLocaleDateString()}</div>
+      </div>
+      <div class="grid">
+        <div class="card"><h3>Objective</h3><p>${project.objective || '—'}</p></div>
+        <div class="card"><h3>Target Audience</h3><p>${project.targetAudience || '—'}</p></div>
+        <div class="card"><h3>Constraints</h3><p>${project.constraints || '—'}</p></div>
+        <div class="card"><h3>Brand Voice</h3><p>${project.brandVoice || '—'}</p></div>
+      </div>
+      <h2>Deliverables (${(project.pinnedOutputs || []).length})</h2>
+      ${deliverablesHtml}
+      <footer>Exported from NovaMind AI &bull; A Product of The PIE Group</footer>
+      </body></html>`;
+    pw.document.write(html);
+    pw.document.close();
+    setTimeout(() => pw.print(), 400);
   };
 
   const saveTemplate = async () => {
@@ -1781,6 +1977,7 @@ const App: React.FC = () => {
         loadTemplates(u.uid);
         loadHistory(u.uid);
         loadChats(u.uid);
+        loadProjects(u.uid);
         setDashboardLoading(false);
 
         // Load business profile & team
@@ -3235,7 +3432,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             { id: 'home' as Tab, icon: '▦', name: 'Dashboard', roi: null },
             { id: 'create' as Tab, icon: '◎', name: 'AI Studio', roi: `${usage.used} outputs` },
             { id: 'crm' as Tab, icon: '📇', name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
-            { id: 'projects' as Tab, icon: '📋', name: 'Projects', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
+            { id: 'projects' as Tab, icon: '📋', name: 'Projects', roi: projects.length > 0 ? `${projects.length} project${projects.length === 1 ? '' : 's'}` : null },
             { id: 'inbox' as Tab, icon: '✉', name: 'Inbox', comingSoon: true, roi: null },
           ] as const).map(item => (
             <button key={item.id} className={`sidebar-item ${tab === item.id ? 'active' : ''} ${'comingSoon' in item && item.comingSoon ? 'coming-soon' : ''}`}
@@ -4254,6 +4451,25 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         {!msg.imageUrl && <button className="chat-action-btn" onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>NovaMind Export</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}h1,h2,h3{color:#333}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto}</style></head><body>' + renderMarkdown(msg.content) + '<hr><p style="color:#999;font-size:12px">Exported from NovaMind AI</p></body></html>'); pw.document.close(); pw.print(); } }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', cursor: 'pointer' }}>📄 PDF</button>}
                         {!msg.imageUrl && <button className="chat-action-btn" onClick={() => { const html = '<html><head><meta charset="utf-8"><title>NovaMind Export</title></head><body>' + renderMarkdown(msg.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'novamind-export.doc'; a.click(); URL.revokeObjectURL(url); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px', cursor: 'pointer' }}>📝 Word</button>}
                         <button className="chat-share-btn" onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
+                        {projects.length > 0 && (
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <button className="chat-action-btn" onClick={() => setPinMenuOpenFor(pinMenuOpenFor === `chat-${idx}` ? null : `chat-${idx}`)}
+                              style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 17v5M9 3h6l1 6-3 2v0l-3-2 1-6z" /><path d="M6 10h12" /></svg>
+                              Pin to Project
+                            </button>
+                            {pinMenuOpenFor === `chat-${idx}` && (
+                              <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '6px', background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', minWidth: '200px', zIndex: 30, overflow: 'hidden' }}>
+                                {projects.filter(p => p.status === 'active').map(p => (
+                                  <button key={p.id} onClick={() => {
+                                    pinOutput(p.id, { title: (chatMessages.find(m => m.role === 'user')?.content || 'Output').slice(0, 60), content: msg.imageUrl || msg.content, type: msg.imageUrl ? 'image' : 'text', agentMode });
+                                    setPinMenuOpenFor(null);
+                                  }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{p.name}</button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} className="chat-action-btn" style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
                         {msg.imageUrl && (
                           <>
@@ -4423,6 +4639,25 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   )}
                   <button className="action-btn" onClick={() => setShowShareMenu(showShareMenu === 'result' ? null : 'result')} style={{ background: 'rgba(0,128,128,0.2)', color: 'var(--primary, #008080)' }}>🔗 Share</button>
                   <button className="action-btn" onClick={() => publishToCommunity(lastPrompt, result.content || result.text || '', result.imageUrl)} style={{ background: 'rgba(255,165,0,0.15)', color: '#ffa500' }}>🌟 Publish to Community</button>
+                  {projects.length > 0 && (
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <button className="action-btn" onClick={() => setPinMenuOpenFor(pinMenuOpenFor === 'result' ? null : 'result')}
+                        style={{ background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 17v5M9 3h6l1 6-3 2v0l-3-2 1-6z" /><path d="M6 10h12" /></svg>
+                        Pin to Project
+                      </button>
+                      {pinMenuOpenFor === 'result' && (
+                        <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '6px', background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', minWidth: '200px', zIndex: 30, overflow: 'hidden' }}>
+                          {projects.filter(p => p.status === 'active').map(p => (
+                            <button key={p.id} onClick={() => {
+                              pinOutput(p.id, { title: (lastPrompt || 'Output').slice(0, 60), content: result.imageUrl || result.content || result.text || '', type: result.imageUrl ? 'image' : 'text', agentMode });
+                              setPinMenuOpenFor(null);
+                            }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{p.name}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {showShareMenu === 'result' && (
                     <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'var(--surface, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '10px', display: 'flex', gap: '8px', zIndex: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
                       <button onClick={() => shareToSocial('twitter', result.content || result.text || '', result.imageUrl)} style={{ padding: '10px 14px', fontSize: '14px', background: 'rgba(29,161,242,0.15)', color: '#1da1f2', border: 'none', borderRadius: '10px', cursor: 'pointer', fontWeight: 600 }}>𝕏 Tweet</button>
@@ -4777,22 +5012,258 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           </div>
         )}
-        {tab === 'projects' && (
-          <div className="ent-coming-soon-view">
-            <div className="ent-icon">📋</div>
-            <h2>Projects</h2>
-            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
-            <p className="ent-desc" style={{ marginTop: '16px' }}>Track projects & tasks with AI. Kanban boards, Gantt charts, and smart task management — built for teams that move fast.</p>
-            {!['solopreneur','team','business','business_pro'].includes(usage.plan) && (
-              <button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')} style={{ marginTop: '8px' }}>Upgrade to Unlock</button>
-            )}
-            <div className="ent-features-preview">
-              <div className="ent-feature-card"><div className="feat-icon">📌</div><h4>Kanban Board</h4><p>Drag-and-drop task management with custom columns</p></div>
-              <div className="ent-feature-card"><div className="feat-icon">📅</div><h4>Gantt Timeline</h4><p>Visualize project phases, dependencies & deadlines</p></div>
-              <div className="ent-feature-card"><div className="feat-icon">🤖</div><h4>AI Task Breakdown</h4><p>Describe a project — AI creates the full task list</p></div>
+        {tab === 'projects' && (() => {
+          const ICONS = {
+            folder: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>,
+            plus: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>,
+            back: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>,
+            dots: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1.2" /><circle cx="12" cy="12" r="1.2" /><circle cx="12" cy="19" r="1.2" /></svg>,
+            pin: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 17v5M9 3h6l1 6-3 2v0l-3-2 1-6z" /><path d="M6 10h12" /></svg>,
+            unpin: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>,
+            edit: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>,
+            archive: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 13h4" /></svg>,
+            trash: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>,
+            download: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 19h16" /></svg>,
+            spark: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M17.5 17.5 15 15M6 18l2.5-2.5M17.5 6.5 15 9" /></svg>,
+            empty: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>,
+          };
+          const statusColors: Record<string, { bg: string; fg: string }> = {
+            active: { bg: 'rgba(0,128,128,0.08)', fg: '#008080' },
+            completed: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' },
+            archived: { bg: 'rgba(102,112,133,0.1)', fg: '#667085' },
+          };
+          const filteredProjects = projects.filter(p => projectFilter === 'all' || p.status === projectFilter);
+          const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--card-bg, #f9fafb)', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' };
+          const labelStyle: React.CSSProperties = { display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' };
+
+          // ===== View B: New / Edit Project Form =====
+          if (showProjectForm) {
+            return (
+              <div style={{ maxWidth: '640px', margin: '0 auto', padding: '8px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                  <button onClick={() => { setShowProjectForm(false); setEditingProject(null); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', padding: '4px' }}>{ICONS.back}</button>
+                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{editingProject ? 'Edit Project' : 'New Project'}</h2>
+                </div>
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <div>
+                    <label style={labelStyle}>Project Name</label>
+                    <input style={inputStyle} value={projectFormData.name} onChange={e => setProjectFormData(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Q3 Website Relaunch" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Objective</label>
+                    <textarea style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} value={projectFormData.objective} onChange={e => setProjectFormData(f => ({ ...f, objective: e.target.value }))} placeholder="What is the goal of this project? What outcome are you trying to achieve?" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Target Audience</label>
+                    <textarea style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} value={projectFormData.targetAudience} onChange={e => setProjectFormData(f => ({ ...f, targetAudience: e.target.value }))} placeholder="Who is this project for? Describe your ideal customer, reader, or end user." />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Constraints</label>
+                    <textarea style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} value={projectFormData.constraints} onChange={e => setProjectFormData(f => ({ ...f, constraints: e.target.value }))} placeholder="Budget limits, deadlines, brand guidelines, technical requirements, things to avoid..." />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Brand Voice</label>
+                    <select style={inputStyle} value={projectFormData.brandVoice} onChange={e => setProjectFormData(f => ({ ...f, brandVoice: e.target.value }))}>
+                      <option value="">Select a brand voice…</option>
+                      {['Professional', 'Friendly', 'Bold', 'Minimal', 'Luxury', 'Technical', 'Conversational'].map(v => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                    <button
+                      onClick={() => {
+                        if (!projectFormData.name.trim()) return;
+                        if (editingProject) {
+                          updateProject(editingProject.id, { ...projectFormData });
+                          setShowProjectForm(false);
+                          setEditingProject(null);
+                          setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' });
+                        } else {
+                          createProject();
+                        }
+                      }}
+                      disabled={!projectFormData.name.trim()}
+                      style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: projectFormData.name.trim() ? 'pointer' : 'not-allowed', opacity: projectFormData.name.trim() ? 1 : 0.5, boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
+                      {editingProject ? 'Save Changes' : 'Create Project'}
+                    </button>
+                    <button
+                      onClick={() => { setShowProjectForm(false); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' }); }}
+                      style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // ===== View C: Project Detail =====
+          if (activeProject) {
+            const sc = statusColors[activeProject.status] || statusColors.active;
+            const deliverables = activeProject.pinnedOutputs || [];
+            return (
+              <div style={{ maxWidth: '860px', margin: '0 auto', padding: '8px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                  <button onClick={() => setActiveProject(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', padding: '4px' }}>{ICONS.back}</button>
+                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{activeProject.name}</h2>
+                  <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 12px', borderRadius: '999px', background: sc.bg, color: sc.fg, textTransform: 'capitalize' }}>{activeProject.status}</span>
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                    <button onClick={() => { setEditingProject(activeProject); setProjectFormData({ name: activeProject.name, objective: activeProject.objective, targetAudience: activeProject.targetAudience, constraints: activeProject.constraints, brandVoice: activeProject.brandVoice }); setShowProjectForm(true); }}
+                      style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.edit} Edit</button>
+                    <button onClick={() => exportProjectBrief(activeProject)}
+                      style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.download} Export</button>
+                  </div>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 24px' }}>Updated {new Date(activeProject.updatedAt).toLocaleDateString()}</p>
+
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '24px', marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' }}>Brief Summary</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>Objective</div>
+                      <div style={{ fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{activeProject.objective || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>Target Audience</div>
+                      <div style={{ fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{activeProject.targetAudience || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>Constraints</div>
+                      <div style={{ fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{activeProject.constraints || '—'}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.04em', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>Brand Voice</div>
+                      <div style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{activeProject.brandVoice || '—'}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '24px', marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' }}>Deliverables ({deliverables.length})</h3>
+                  {deliverables.length === 0 ? (
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>Pin outputs from your AI chats to track project deliverables here.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {deliverables.map(o => (
+                        <div key={o.id} style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '14px 16px', background: '#ffffff' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                            <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{o.title}</strong>
+                            <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', textTransform: 'capitalize' }}>{o.type}</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Pinned {new Date(o.pinnedAt).toLocaleDateString()}</span>
+                          </div>
+                          {o.type !== 'image' && (
+                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>{o.content.slice(0, 100)}{o.content.length > 100 ? '…' : ''}</p>
+                          )}
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + o.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + (o.type === 'image' ? '<img src="' + o.content + '" style="max-width:100%"/>' : renderMarkdown(o.content)) + '</body></html>'); pw.document.close(); } }}
+                              style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer' }}>View</button>
+                            <button onClick={() => unpinOutput(activeProject.id, o.id)} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.unpin} Unpin</button>
+                            {o.type !== 'image' && (<>
+                              <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + o.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + renderMarkdown(o.content) + '</body></html>'); pw.document.close(); pw.print(); } }}
+                                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export PDF</button>
+                              <button onClick={() => { const html = '<html><head><meta charset="utf-8"><title>' + o.title + '</title></head><body>' + renderMarkdown(o.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = o.title.replace(/[^a-z0-9]+/gi, '-') + '.doc'; a.click(); URL.revokeObjectURL(url); }}
+                                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export Word</button>
+                            </>)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button onClick={() => { switchTab('create'); setPrompt(`Project: ${activeProject.name}\nObjective: ${activeProject.objective}\nTarget Audience: ${activeProject.targetAudience}\nConstraints: ${activeProject.constraints}\nBrand Voice: ${activeProject.brandVoice}\n\n`); }}
+                    style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
+                    {ICONS.spark} Generate with AI
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
+          // ===== View A: Project List =====
+          return (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Projects</h2>
+                <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080' }}>{projects.length}</span>
+                <button onClick={() => { setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' }); setShowProjectForm(true); }}
+                  style={{ marginLeft: 'auto', padding: '10px 18px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
+                  {ICONS.plus} New Project
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                {(['all', 'active', 'completed', 'archived'] as const).map(f => (
+                  <button key={f} onClick={() => setProjectFilter(f)}
+                    style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, borderRadius: '999px', border: projectFilter === f ? '1px solid #008080' : '1px solid var(--border-color, #e5e7eb)', background: projectFilter === f ? 'rgba(0,128,128,0.08)' : 'transparent', color: projectFilter === f ? '#008080' : 'var(--text-secondary)', cursor: 'pointer', textTransform: 'capitalize' }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+
+              {projectsLoading ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+                  {[0, 1].map(i => (
+                    <div key={i} style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '20px' }}>
+                      <div className="skeleton-shimmer" style={{ height: '18px', width: '60%', borderRadius: '4px', marginBottom: '12px' }} />
+                      <div className="skeleton-shimmer" style={{ height: '13px', width: '100%', borderRadius: '4px', marginBottom: '8px' }} />
+                      <div className="skeleton-shimmer" style={{ height: '13px', width: '80%', borderRadius: '4px' }} />
+                    </div>
+                  ))}
+                </div>
+              ) : filteredProjects.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '64px 24px', color: 'var(--text-secondary)' }}>
+                  <div style={{ display: 'inline-flex', color: 'var(--text-secondary)', marginBottom: '16px' }}>{ICONS.empty}</div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>
+                    {projects.length === 0 ? 'Create your first project' : 'No projects match this filter'}
+                  </h3>
+                  <p style={{ fontSize: '13px', margin: '0 0 20px' }}>Organize your briefs, targets, and deliverables in one place.</p>
+                  {projects.length === 0 && (
+                    <button onClick={() => { setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' }); setShowProjectForm(true); }}
+                      style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
+                      New Project
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
+                  {filteredProjects.map(p => {
+                    const sc = statusColors[p.status] || statusColors.active;
+                    return (
+                      <div key={p.id} onClick={() => setActiveProject(p)}
+                        style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', cursor: 'pointer', position: 'relative' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, paddingRight: '8px' }}>{p.name}</h3>
+                          <button onClick={e => { e.stopPropagation(); setProjectMenuOpenId(projectMenuOpenId === p.id ? null : p.id); }}
+                            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', flexShrink: 0 }}>{ICONS.dots}</button>
+                          {projectMenuOpenId === p.id && (
+                            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '40px', right: '16px', background: '#ffffff', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', zIndex: 20, minWidth: '150px', overflow: 'hidden' }}>
+                              <button onClick={() => { setProjectMenuOpenId(null); setEditingProject(p); setProjectFormData({ name: p.name, objective: p.objective, targetAudience: p.targetAudience, constraints: p.constraints, brandVoice: p.brandVoice }); setShowProjectForm(true); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{ICONS.edit} Edit</button>
+                              <button onClick={() => { setProjectMenuOpenId(null); updateProject(p.id, { status: p.status === 'archived' ? 'active' : 'archived' }); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{ICONS.archive} {p.status === 'archived' ? 'Unarchive' : 'Archive'}</button>
+                              <button onClick={() => { setProjectMenuOpenId(null); if (window.confirm(`Delete "${p.name}"? This cannot be undone.`)) deleteProject(p.id); }}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: '#d92d20', cursor: 'pointer' }}>{ICONS.trash} Delete</button>
+                            </div>
+                          )}
+                        </div>
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 14px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '36px' }}>
+                          {p.objective || 'No objective set.'}
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: sc.bg, color: sc.fg, textTransform: 'capitalize' }}>{p.status}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Updated {new Date(p.updatedAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
         {tab === 'inbox' && (
           <div className="ent-coming-soon-view">
             <div className="ent-icon">✉️</div>
