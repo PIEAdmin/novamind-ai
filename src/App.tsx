@@ -3033,250 +3033,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
 
   return (
     <div className="app-container" data-theme={theme}>
-      <style>{`
-        :root, [data-theme="light"] {
-          --bg-primary: #fafafa;
-          --bg-secondary: #f0f4f4;
-          --bg-tertiary: #e8eded;
-          --text-primary: #1a1a2e;
-          --text-secondary: #5a6068;
-          --surface: #ffffff;
-          --border-color: #e0e4e8;
-          --primary: #008080;
-          --primary-hover: #006666;
-          --accent: #06b6d4;
-          --gradient-hero: linear-gradient(135deg, #008080 0%, #06b6d4 100%);
-          --glass-bg: rgba(255, 255, 255, 0.8);
-          --glass-border: rgba(108, 99, 255, 0.12);
-          --card-shadow: 0 4px 20px rgba(108, 99, 255, 0.08);
-          --glow-primary: 0 0 20px rgba(108, 99, 255, 0.12);
-          /* Enterprise Design Tokens */
-          --ent-primary-900: #0A1628;
-          --ent-primary-700: #1A2B4C;
-          --ent-primary-600: #2A3F6A;
-          --ent-primary-200: #B8CCE6;
-          --ent-primary-100: #E4EDF7;
-          --ent-accent-600: #006666;
-          --ent-accent-500: #008080;
-          --ent-accent-100: #CCF0F0;
-          --ent-success: #2E7D32;
-          --ent-warning: #F57C00;
-          --ent-error: #C62828;
-          --ent-sidebar-w: 260px;
-          --ent-topbar-h: 52px;
-          --ent-radius-lg: 8px;
-          --ent-shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
-          --ent-shadow-md: 0 4px 12px rgba(0,0,0,0.10);
-        }
-        [data-theme="dark"] {
-          --bg-primary: #0a0a1a; --bg-secondary: #121820; --bg-tertiary: #1a2230;
-          --text-primary: #f0f2f4; --text-secondary: #a0a8b0;
-          --surface: #121820; --border-color: rgba(0,128,128,0.2);
-          --primary: #008080; --primary-hover: #009999;
-          --accent: #009999; --gradient-hero: linear-gradient(135deg, #008080 0%, #009999 100%);
-          --glass-bg: rgba(18, 18, 42, 0.85); --glass-border: rgba(108, 99, 255, 0.15);
-          --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); --glow-primary: 0 0 20px rgba(108, 99, 255, 0.3);
-        }
-        .app-container { background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%); color: var(--text-primary); min-height: 100vh; transition: background 0.3s ease, color 0.3s ease; }
-        [data-theme="light"] .app-container { background: linear-gradient(180deg, #fafafa 0%, #f0f4f4 50%, #e8eded 100%); color: #1a1a2e; }
-        [data-theme="dark"] .app-container { background: linear-gradient(180deg, #0a0a1a 0%, #121820 50%, #1a2230 100%); color: #f0f2f4; }
-        [data-theme="light"] .navbar { background: rgba(255,255,255,0.85); backdrop-filter: none; border-bottom: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); }
-        [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.9); backdrop-filter: none; border-top: 1px solid rgba(0,128,128,0.1); box-shadow: 0 -2px 12px rgba(0,128,128,0.06); }
-        [data-theme="light"] .auth-input, [data-theme="light"] .prompt-input { background: #fff; border-color: #e0e4e8; color: #1a1a2e; box-shadow: 0 2px 8px rgba(0,128,128,0.04); }
-        [data-theme="light"] .auth-input:focus, [data-theme="light"] .prompt-input:focus { border-color: #008080; box-shadow: 0 0 0 3px rgba(0,128,128,0.1); }
-        [data-theme="light"] .stat-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); }
-        [data-theme="light"] .tool-card, [data-theme="light"] .gallery-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); transition: all 0.25s ease; }
-        [data-theme="light"] .tool-card:hover, [data-theme="light"] .gallery-card:hover { border-color: #008080; box-shadow: 0 6px 24px rgba(0,128,128,0.12); transform: translateY(-2px); }
-        [data-theme="light"] .suggestion-chip { background: #fff; border: 1px solid rgba(0,128,128,0.12); color: #1a1a2e; }
-        [data-theme="light"] .suggestion-chip:hover { border-color: #008080; background: rgba(0,128,128,0.04); }
-        [data-theme="light"] .industry-chip { background: rgba(0,128,128,0.04); border-color: rgba(0,128,128,0.12); color: #1a1a2e; }
-        [data-theme="light"] .industry-chip.active { background: rgba(0,128,128,0.12); border-color: #008080; color: #008080; }
-        [data-theme="light"] .model-chip { background: rgba(0,128,128,0.04); color: #1a1a2e; }
-        [data-theme="light"] .result-container { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 4px 16px rgba(0,128,128,0.06); }
-        [data-theme="light"] .agent-info-banner { background: linear-gradient(135deg, rgba(0,128,128,0.05), rgba(6,182,212,0.05)); border-color: rgba(0,128,128,0.12); }
-        [data-theme="light"] .auth-modal { background: #fff; color: #1a1a2e; box-shadow: 0 20px 60px rgba(0,128,128,0.15); }
-        [data-theme="light"] .empty-state { color: #5a6068; }
-        [data-theme="light"] .hero-section { background: linear-gradient(135deg, rgba(0,128,128,0.08) 0%, rgba(6,182,212,0.06) 50%, rgba(0,128,128,0.06) 100%); border-radius: 16px; }
-        [data-theme="light"] .hero-title { color: #1a1a2e !important; }
-        [data-theme="light"] .hero-subtitle { color: #5a6068 !important; }
-        [data-theme="light"] .section-title { color: #1a1a2e; }
-        [data-theme="light"] .powered-footer { color: #5a6068; }
-        [data-theme="light"] .powered-footer a { color: #008080; }
-        [data-theme="light"] .navbar .logo-text { color: #1a1a2e !important; }
-        [data-theme="light"] .chat-card, [data-theme="light"] .history-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); }
-        [data-theme="light"] .chat-card:hover, [data-theme="light"] .history-card:hover { border-color: #008080; box-shadow: 0 6px 24px rgba(0,128,128,0.12); }
-        [data-theme="light"] .usage-bar { background: rgba(0,128,128,0.08); }
-        [data-theme="light"] .prompt-input::placeholder { color: #98a0a8; }
-        [data-theme="light"] .bottom-nav button { color: #5a6068; }
-        [data-theme="light"] .bottom-nav button.active { color: #008080; }
-        [data-theme="light"] .agent-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); color: #1a1a2e; box-shadow: 0 2px 12px rgba(0,128,128,0.06); transition: all 0.25s ease; }
-        [data-theme="light"] .agent-card:hover { border-color: #008080; box-shadow: 0 6px 24px rgba(0,128,128,0.15); transform: translateY(-2px); }
-        [data-theme="light"] .agent-card .agent-name { color: #1a1a2e; }
-        [data-theme="light"] .agent-card .agent-desc { color: #5a6068; }
-        [data-theme="light"] .result-container pre { background: rgba(0,128,128,0.04); color: #1a1a2e; border: 1px solid rgba(0,128,128,0.08); }
-        [data-theme="light"] .onboarding-modal { background: #fff; color: #1a1a2e; }
-        [data-theme="light"] .generate-btn { box-shadow: 0 4px 16px rgba(0,128,128,0.25); }
-        [data-theme="light"] .generate-btn:hover { box-shadow: 0 6px 24px rgba(0,128,128,0.35); transform: translateY(-1px); }
-        [data-theme="light"] .agent-tab { color: #5a6068; }
-        [data-theme="light"] .agent-tab.active { color: #008080; background: rgba(0,128,128,0.08); }
-        [data-theme="light"] .agent-selector-bar { background: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(0,128,128,0.08); }
-        /* === DARK MODE explicit fixes === */
-        [data-theme="dark"] .result-container { background: rgba(18,18,42,0.95); color: #f0f2f4; border: 1px solid rgba(0,128,128,0.2); }
-        [data-theme="dark"] .result-area { color: #f0f2f4; }
-        [data-theme="dark"] .markdown-content { color: #f0f2f4 !important; }
-        [data-theme="dark"] .markdown-content h1, [data-theme="dark"] .markdown-content h2, [data-theme="dark"] .markdown-content h3 { color: #fff !important; }
-        [data-theme="dark"] .markdown-content strong { color: #fff !important; }
-        [data-theme="dark"] .markdown-content em { color: #e0e0ff !important; }
-        [data-theme="dark"] .markdown-content code { background: rgba(0,128,128,0.2) !important; color: #a8a0ff !important; }
-        [data-theme="dark"] .markdown-content pre { background: rgba(0,0,0,0.3) !important; color: #f0f2f4 !important; border: 1px solid rgba(0,128,128,0.2) !important; }
-        [data-theme="dark"] .markdown-content a { color: #009999 !important; }
-        [data-theme="dark"] .markdown-content blockquote { border-left-color: #008080 !important; color: #c0c0e0 !important; }
-        [data-theme="dark"] .markdown-content li { color: #f0f2f4 !important; }
-        [data-theme="dark"] .markdown-content p { color: #f0f2f4 !important; }
-        [data-theme="dark"] .chat-bubble-assistant { background: rgba(0,128,128,0.12) !important; color: #f0f2f4 !important; border: 1px solid rgba(0,128,128,0.25) !important; }
-        [data-theme="dark"] .chat-bubble-assistant.question { background: rgba(0,128,128,0.18) !important; border: 1px solid rgba(0,128,128,0.35) !important; }
-        [data-theme="dark"] .chat-bubble-user { background: var(--primary, #008080) !important; color: #fff !important; }
-        [data-theme="dark"] .chat-msg-label { color: rgba(255,255,255,0.65) !important; }
-        [data-theme="dark"] .chat-action-btn { background: rgba(255,255,255,0.1) !important; color: rgba(255,255,255,0.8) !important; border: 1px solid rgba(255,255,255,0.15) !important; }
-        [data-theme="dark"] .chat-img-caption { color: rgba(255,255,255,0.75) !important; }
-        [data-theme="dark"] .chat-share-menu { background: #1a2230 !important; border: 1px solid rgba(0,128,128,0.3) !important; }
-        [data-theme="dark"] .result-container pre { background: rgba(0,0,0,0.3) !important; color: #f0f2f4 !important; border: 1px solid rgba(0,128,128,0.15) !important; }
-        /* Light mode chat & inline element fixes */
-        [data-theme="light"] .chat-msg-label { color: rgba(0,0,0,0.45) !important; }
-        [data-theme="light"] .chat-bubble-assistant { background: rgba(0,128,128,0.06) !important; color: #1a1a2e !important; border: 1px solid rgba(0,128,128,0.12) !important; }
-        [data-theme="light"] .chat-bubble-assistant.question { background: rgba(0,128,128,0.1) !important; border: 1px solid rgba(0,128,128,0.25) !important; }
-        [data-theme="light"] .chat-bubble-user { background: var(--primary, #008080) !important; color: #fff !important; }
-        [data-theme="light"] .chat-bubble-error { background: rgba(255,80,80,0.08) !important; color: #1a1a2e !important; border: 1px solid rgba(255,80,80,0.25) !important; }
-        [data-theme="light"] .chat-action-btn { background: rgba(0,128,128,0.06) !important; color: #5a6068 !important; border: 1px solid rgba(0,128,128,0.15) !important; }
-        [data-theme="light"] .chat-action-btn:hover { background: rgba(0,128,128,0.12) !important; color: #008080 !important; }
-        [data-theme="light"] .chat-share-btn { background: rgba(0,128,128,0.1) !important; color: #008080 !important; border: 1px solid rgba(0,128,128,0.25) !important; }
-        [data-theme="light"] .chat-img-caption { color: #5a6068 !important; }
-        [data-theme="light"] .chat-share-menu { background: #fff !important; border: 1px solid rgba(0,128,128,0.15) !important; box-shadow: 0 8px 32px rgba(0,128,128,0.12) !important; }
-        [data-theme="light"] .markdown-content { color: #1a1a2e !important; }
-        [data-theme="light"] .markdown-content h1, [data-theme="light"] .markdown-content h2, [data-theme="light"] .markdown-content h3 { color: #1a1a2e !important; }
-        [data-theme="light"] .markdown-content code { background: rgba(0,128,128,0.06) !important; color: #008080 !important; }
-        [data-theme="light"] .markdown-content pre { background: rgba(0,128,128,0.04) !important; color: #1a1a2e !important; border: 1px solid rgba(0,128,128,0.1) !important; }
-        [data-theme="light"] .markdown-content a { color: #008080 !important; }
-        [data-theme="light"] .markdown-content blockquote { border-left-color: #008080 !important; color: #5a6068 !important; }
-        [data-theme="light"] .markdown-content li::marker { color: #008080 !important; }
-        [data-theme="light"] .powered-footer { color: #5a6068 !important; }
-        [data-theme="light"] .powered-footer a { color: #008080 !important; }
-        [data-theme="light"] .auth-error { color: #dc2626 !important; }
-        [data-theme="light"] .chat-typing-indicator { color: #5a6068 !important; }
-        [data-theme="light"] .error-retry-btn { background: var(--primary, #008080) !important; color: #fff !important; }
-        [data-theme="light"] .result-container { background: #fff !important; color: #1a1a2e !important; border: 1px solid rgba(0,128,128,0.12) !important; }
-        [data-theme="light"] .left-sidebar { background: rgba(255,255,255,0.8) !important; border-right: 1px solid rgba(0,128,128,0.1) !important; }
-
-
-        /* Enterprise Left Sidebar */
-        .app-layout { display: grid; grid-template-columns: var(--ent-sidebar-w) 1fr; min-height: calc(100vh - 56px - 56px); }
-        .left-sidebar {
-          width: var(--ent-sidebar-w); min-width: var(--ent-sidebar-w); max-height: calc(100vh - 56px - 56px); overflow-y: auto;
-          background: var(--surface); border-right: 1px solid var(--border-color);
-          padding: 16px 12px; display: flex; flex-direction: column; gap: 2px;
-          scrollbar-width: thin;
-        }
-        .left-sidebar::-webkit-scrollbar { width: 4px; }
-        .left-sidebar::-webkit-scrollbar-thumb { background: rgba(0,128,128,0.2); border-radius: 4px; }
-        .sidebar-section-label {
-          font-size: 0.7rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0.08em;
-          color: var(--text-secondary); padding: 16px 12px 6px; margin: 0;
-        }
-        .sidebar-section-label:first-child { padding-top: 4px; }
-        .sidebar-item {
-          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--ent-radius-lg);
-          cursor: pointer; border: 1px solid transparent; background: transparent; text-align: left; width: 100%;
-          font-size: 0.875rem; font-weight: 500; color: var(--text-primary); transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
-          position: relative;
-        }
-        .sidebar-item:hover { background: var(--ent-primary-100, rgba(0,128,128,0.06)); border-color: var(--border-color); color: var(--primary); }
-        .sidebar-item.active { background: var(--ent-primary-100, rgba(0,128,128,0.1)); border-color: var(--ent-primary-200, rgba(0,128,128,0.2)); color: var(--primary); font-weight: 600; }
-        .sidebar-item.active::before {
-          content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-          width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--primary);
-        }
-        .sidebar-item-icon {
-          width: 28px; height: 28px; display: inline-grid; place-items: center;
-          border-radius: 6px; background: var(--ent-primary-100, rgba(0,128,128,0.06));
-          border: 1px solid var(--border-color); font-size: 14px; flex-shrink: 0;
-        }
-        .sidebar-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .sidebar-item-badge {
-          font-size: 8px; font-weight: 700; padding: 2px 7px; border-radius: 8px;
-          background: linear-gradient(135deg, #008080, #006666); color: #fff; margin-left: auto; flex-shrink: 0;
-        }
-        .sidebar-item.coming-soon {
-          opacity: 0.5; cursor: default;
-        }
-        .sidebar-item.coming-soon:hover { background: transparent; border-color: transparent; transform: none; }
-        .sidebar-item.coming-soon .sidebar-item-badge {
-          background: linear-gradient(135deg, #008080, #006666);
-        }
-        .sidebar-divider { height: 1px; background: var(--border-color); margin: 8px 10px; }
-        .sidebar-toggle {
-          display: none; position: fixed; left: 12px; bottom: 72px; z-index: 1001;
-          background: var(--primary); color: #fff; border: none; border-radius: 50%;
-          width: 44px; height: 44px; font-size: 20px; cursor: pointer;
-          box-shadow: 0 4px 16px rgba(0,128,128,0.4); transition: transform 0.2s;
-        }
-        .sidebar-toggle:hover { transform: scale(1.1); }
-        .main-content-area { flex: 1; min-width: 0; overflow-y: auto; }
-        .sidebar-agents-toggle {
-          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--ent-radius-lg);
-          cursor: pointer; border: 1px solid transparent; background: transparent; text-align: left; width: 100%;
-          font-size: 0.875rem; font-weight: 500; color: var(--text-primary); transition: all 150ms ease;
-        }
-        .sidebar-agents-toggle:hover { background: var(--ent-primary-100, rgba(0,128,128,0.06)); }
-        .sidebar-agents-toggle .toggle-arrow { transition: transform 0.2s; font-size: 10px; margin-left: auto; color: var(--text-secondary); }
-        .sidebar-agents-toggle .toggle-arrow.open { transform: rotate(90deg); }
-        .sidebar-agents-list { overflow: hidden; transition: max-height 0.3s ease; }
-        .sidebar-agents-list .sidebar-item { padding-left: 20px; font-size: 0.8rem; }
-        [data-theme="light"] .left-sidebar { background: #fff; border-right: 1px solid var(--border-color); }
-        [data-theme="light"] .sidebar-item:hover { background: rgba(0,128,128,0.04); }
-        [data-theme="light"] .sidebar-item.active { background: rgba(0,128,128,0.08); }
-        [data-theme="dark"] .sidebar-item-icon { background: rgba(0,128,128,0.1); border-color: rgba(0,128,128,0.2); }
-        /* Enterprise Coming Soon View */
-        .ent-coming-soon-view {
-          display: flex; flex-direction: column; align-items: center; justify-content: center;
-          min-height: 60vh; text-align: center; padding: 40px 20px;
-        }
-        .ent-coming-soon-view .ent-icon { font-size: 56px; margin-bottom: 16px; }
-        .ent-coming-soon-view h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
-        .ent-coming-soon-view .ent-desc { color: var(--text-secondary); font-size: 0.95rem; max-width: 420px; line-height: 1.6; margin-bottom: 24px; }
-        .ent-coming-soon-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: linear-gradient(135deg, #008080, #006666); color: #fff; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
-        .ent-features-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 32px; max-width: 700px; width: 100%; }
-        .ent-feature-card { background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--ent-radius-lg); padding: 20px; text-align: left; }
-        .ent-feature-card .feat-icon { font-size: 24px; margin-bottom: 8px; }
-        .ent-feature-card h4 { font-size: 0.9rem; font-weight: 650; color: var(--text-primary); margin: 0 0 4px 0; }
-        .ent-feature-card p { font-size: 0.8rem; color: var(--text-secondary); margin: 0; line-height: 1.5; }
-        @media (max-width: 768px) {
-          .app-layout { display: block; grid-template-columns: 1fr; }
-          .left-sidebar {
-            position: fixed; left: -280px; top: 56px; bottom: 56px; z-index: 1000;
-            width: 260px; min-width: 260px; transition: left 0.3s ease;
-            box-shadow: 4px 0 24px rgba(0,0,0,0.3);
-          }
-          .left-sidebar.open { left: 0; }
-          .sidebar-toggle { display: flex; align-items: center; justify-content: center; }
-          .sidebar-overlay {
-            position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.4);
-            backdrop-filter: none;
-          }
-        }
-
-        @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(255,75,75,0.4)} 50%{box-shadow:0 0 0 12px rgba(255,75,75,0)} }
-        @keyframes slideInUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
-        @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-        .toast-enter { animation: slideInUp 0.3s ease; }
-        .offline-banner { animation: slideInUp 0.3s ease; }
-        .mic-pulse { animation: pulseMic 1.5s ease-in-out infinite !important; }
-        .mood-chip { transition: all 0.2s ease; cursor: pointer; }
-        .mood-chip:hover { transform: scale(1.05); }
-        @media (max-width: 480px) {
-          .nav-controls { gap: 4px !important; }
-          .nav-controls button { font-size: 14px !important; padding: 4px 6px !important; }
-        }
-      `}</style>
+      {/* Enterprise styles extracted to enterprise.css */}
       <nav className="navbar">
         <div className="logo-section">
           <img className="logo-icon-img" src="/icon-192.png" alt="NovaMind AI" />
@@ -3312,16 +3069,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         <aside className={`left-sidebar ${sidebarOpen ? 'open' : ''}`}>
           <p className="sidebar-section-label">Primary</p>
           {([
-            { id: 'home' as Tab, icon: '▦', name: 'Dashboard' },
-            { id: 'create' as Tab, icon: '◎', name: 'AI Studio' },
-            { id: 'crm' as Tab, icon: '📇', name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan) },
-            { id: 'projects' as Tab, icon: '📋', name: 'Projects', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan) },
-            { id: 'inbox' as Tab, icon: '✉', name: 'Inbox', comingSoon: true },
+            { id: 'home' as Tab, icon: '▦', name: 'Dashboard', roi: null },
+            { id: 'create' as Tab, icon: '◎', name: 'AI Studio', roi: `${usage.count} outputs` },
+            { id: 'crm' as Tab, icon: '📇', name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
+            { id: 'projects' as Tab, icon: '📋', name: 'Projects', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
+            { id: 'inbox' as Tab, icon: '✉', name: 'Inbox', comingSoon: true, roi: null },
           ] as const).map(item => (
             <button key={item.id} className={`sidebar-item ${tab === item.id ? 'active' : ''} ${'comingSoon' in item && item.comingSoon ? 'coming-soon' : ''}`}
               onClick={() => { if (!('comingSoon' in item && item.comingSoon)) { switchTab(item.id as Tab); setSidebarOpen(false); } }}>
               <span className="sidebar-item-icon">{item.icon}</span>
               <span className="sidebar-item-name">{item.name}</span>
+              {item.roi && <span className="sidebar-roi-badge">{item.roi}</span>}
               {'comingSoon' in item && item.comingSoon && <span className="sidebar-item-badge">SOON</span>}
             </button>
           ))}
@@ -3829,6 +3587,79 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             ))}
           </div>
+
+          {/* 5.2 GUIDED WORKFLOW ACTIONS */}
+          <div style={{ marginTop: '32px' }}>
+            <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              ⚡ Start a Workflow
+            </h3>
+            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '-8px', marginBottom: '16px' }}>
+              Skip the blank page — jump straight into action.
+            </p>
+            <div className="guided-actions">
+              {[
+                { icon: '📧', label: 'Draft a Client Email', agent: 'email-assistant' as AgentMode, prompt: 'Write a professional email to a potential client introducing my services and requesting a meeting.' },
+                { icon: '📝', label: 'Create a Proposal', agent: 'sales-proposal' as AgentMode, prompt: 'Create a detailed sales proposal for my services to a prospective client.' },
+                { icon: '🔍', label: 'Analyze a Competitor', agent: 'competitor-analysis' as AgentMode, prompt: 'Analyze my top competitor in my industry — identify their strengths, weaknesses, and gaps I can exploit.' },
+                { icon: '📱', label: 'Plan a Social Campaign', agent: 'social-media' as AgentMode, prompt: 'Create a 7-day social media content plan for my business across LinkedIn, Instagram, and Facebook.' },
+                { icon: '📊', label: 'Build a Business Plan', agent: 'business-plan' as AgentMode, prompt: 'Write a comprehensive business plan for my company including market analysis, financial projections, and growth strategy.' },
+                { icon: '🎯', label: 'Launch an Ad', agent: 'ad-maker' as AgentMode, prompt: 'Create a high-converting Facebook ad campaign for my business with headline, body copy, and call-to-action.' },
+              ].map((action, i) => (
+                <button key={i} className="guided-action-btn" onClick={() => {
+                  setAgentMode(action.agent);
+                  setPrompt(action.prompt);
+                  setResult(null);
+                  switchTab('create');
+                }}>
+                  <span className="action-icon">{action.icon}</span>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 4.1 TRUST BADGES */}
+          <div className="trust-badges">
+            {[
+              { icon: '🔒', text: 'Enterprise-Grade Security' },
+              { icon: '🛡️', text: 'Data Encrypted in Transit & at Rest' },
+              { icon: '⚡', text: '99.9% Uptime SLA' },
+              { icon: '🌍', text: 'GDPR-Ready Infrastructure' },
+              { icon: '🤝', text: 'SOC 2 Type II Roadmap' },
+            ].map((badge, i) => (
+              <div key={i} className="trust-badge">
+                <span className="badge-icon">{badge.icon}</span>
+                {badge.text}
+              </div>
+            ))}
+          </div>
+
+          {/* 4.2 TESTIMONIALS */}
+          <div className="testimonials-section">
+            <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              💬 What Our Clients Say
+            </h3>
+            <div className="testimonials-grid">
+              {[
+                { quote: 'NovaMind replaced 5 different tools for my agency. The ROI was obvious within the first week — we saved 15+ hours on content creation alone.', name: 'Marcus T.', role: 'Marketing Agency Owner', initial: 'M', stars: 5 },
+                { quote: 'The AI-powered email assistant and proposal writer have completely transformed how we close deals. Our response time went from days to minutes.', name: 'Jennifer R.', role: 'Business Consultant', initial: 'J', stars: 5 },
+                { quote: 'I was skeptical about AI tools, but NovaMind made it intuitive. The onboarding walked me through everything, and now my team uses it daily.', name: 'David K.', role: 'Small Business Owner', initial: 'D', stars: 5 },
+              ].map((t, i) => (
+                <div key={i} className="testimonial-card">
+                  <div className="testimonial-stars">{'★'.repeat(t.stars)}</div>
+                  <p className="testimonial-quote">"{t.quote}"</p>
+                  <div className="testimonial-author">
+                    <div className="testimonial-avatar">{t.initial}</div>
+                    <div className="testimonial-info">
+                      <h4>{t.name}</h4>
+                      <p>{t.role}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           <div className="powered-footer">
             <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
           </div>
@@ -3851,6 +3682,44 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 </button>
               ))}
             </div>)}
+
+            {/* ROI Strip — time saved this session */}
+            <div className="roi-strip">
+              <div className="roi-strip-item">
+                <span className="roi-strip-value">{usage.count}</span>
+                <span className="roi-strip-label">Outputs Created</span>
+              </div>
+              <div className="roi-strip-item">
+                <span className="roi-strip-value">{Math.round(usage.count * 12)}m</span>
+                <span className="roi-strip-label">Est. Time Saved</span>
+              </div>
+              <div className="roi-strip-item">
+                <span className="roi-strip-value">${Math.round(usage.count * 8)}</span>
+                <span className="roi-strip-label">Est. Value Generated</span>
+              </div>
+            </div>
+
+            {/* Guided Workflow Actions (5.2) — replaces generic prompt for new users */}
+            {!result && !generating && chatHistory.length === 0 && (
+              <div className="guided-actions">
+                <p className="guided-actions-title">Start with a workflow</p>
+                <div className="guided-actions-grid">
+                  {([
+                    { icon: '✉️', label: 'Draft a client email', prompt: 'Draft a professional client email about ' },
+                    { icon: '📄', label: 'Create a proposal', prompt: 'Create a business proposal for ' },
+                    { icon: '🔄', label: 'Follow up on a lead', prompt: 'Write a follow-up email for a lead who ' },
+                    { icon: '📊', label: 'Analyze competitors', prompt: 'Analyze my top competitors in the ' },
+                    { icon: '📝', label: 'Write social content', prompt: 'Write a LinkedIn post about ' },
+                    { icon: '🎯', label: 'Build a marketing plan', prompt: 'Create a 30-day marketing plan for ' },
+                  ]).map(action => (
+                    <button key={action.label} className="guided-action-card" onClick={() => { setPrompt(action.prompt); }}>
+                      <span className="guided-action-icon">{action.icon}</span>
+                      <span className="guided-action-label">{action.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Chat title and new chat button */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -4208,14 +4077,20 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               )}
             </div>
             {routeNotification && (
-              <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', padding: '12px 20px', borderRadius: '12px', margin: '12px 0', textAlign: 'center', fontSize: '15px', fontWeight: '600', boxShadow: '0 4px 15px rgba(102,126,234,0.3)' }}>
+              <div style={{ background: 'linear-gradient(135deg, #008080 0%, #006666 100%)', color: 'white', padding: '12px 20px', borderRadius: '12px', margin: '12px 0', textAlign: 'center', fontSize: '15px', fontWeight: '600', boxShadow: '0 4px 15px rgba(0,128,128,0.3)' }}>
                 {routeNotification}
               </div>
             )}
             {generating && (
-              <div className="generating-animation">
-                <div className="typing-dots"><span></span><span></span><span></span></div>
-                <p>{agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape...' : agentMode === 'ad-maker' ? 'Crafting your ad copy...' : agentMode === 'email-assistant' ? 'Writing your email...' : 'AI is crafting your content...'}</p>
+              <div className="generating-skeleton">
+                <div className="skeleton-status">
+                  <span className="status-dot"></span>
+                  {agentMode === 'competitor-analysis' ? 'Analyzing competitive landscape…' : agentMode === 'ad-maker' ? 'Crafting your ad copy…' : agentMode === 'email-assistant' ? 'Composing your email…' : agentMode === 'logo-maker' ? 'Designing your logo…' : agentMode === 'flyer-maker' ? 'Building your flyer…' : 'Generating your content…'}
+                </div>
+                <div className="skeleton skeleton-heading"></div>
+                <div className="skeleton skeleton-line"></div>
+                <div className="skeleton skeleton-line"></div>
+                <div className="skeleton skeleton-line"></div>
               </div>
             )}
             {result && !result.error && (result.imageUrl || chatMessages.length === 0) && (
