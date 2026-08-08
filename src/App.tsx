@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
-type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects';
+type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects' | 'inbox' | 'templates' | 'analytics' | 'integrations';
 type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'certificate-maker' | 'ai-receptionist' | 'doc-summarizer' | 'form-builder';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
@@ -3055,6 +3055,23 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           --glass-border: rgba(108, 99, 255, 0.12);
           --card-shadow: 0 4px 20px rgba(108, 99, 255, 0.08);
           --glow-primary: 0 0 20px rgba(108, 99, 255, 0.12);
+          /* Enterprise Design Tokens */
+          --ent-primary-900: #0A1628;
+          --ent-primary-700: #1A2B4C;
+          --ent-primary-600: #2A3F6A;
+          --ent-primary-200: #B8CCE6;
+          --ent-primary-100: #E4EDF7;
+          --ent-accent-600: #006666;
+          --ent-accent-500: #008080;
+          --ent-accent-100: #CCF0F0;
+          --ent-success: #2E7D32;
+          --ent-warning: #F57C00;
+          --ent-error: #C62828;
+          --ent-sidebar-w: 260px;
+          --ent-topbar-h: 52px;
+          --ent-radius-lg: 8px;
+          --ent-shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+          --ent-shadow-md: 0 4px 12px rgba(0,0,0,0.10);
         }
         [data-theme="dark"] {
           --bg-primary: #0a0a1a; --bg-secondary: #12122a; --bg-tertiary: #1a1a3e;
@@ -3156,45 +3173,51 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         [data-theme="light"] .left-sidebar { background: rgba(255,255,255,0.8) !important; border-right: 1px solid rgba(108,99,255,0.1) !important; }
 
 
-        /* Left Sidebar */
-        .app-layout { display: flex; min-height: calc(100vh - 56px - 56px); }
+        /* Enterprise Left Sidebar */
+        .app-layout { display: grid; grid-template-columns: var(--ent-sidebar-w) 1fr; min-height: calc(100vh - 56px - 56px); }
         .left-sidebar {
-          width: 220px; min-width: 220px; max-height: calc(100vh - 56px - 56px); overflow-y: auto;
-          background: var(--glass-bg); border-right: 1px solid var(--glass-border);
-          padding: 12px 8px; display: flex; flex-direction: column; gap: 4px;
-          backdrop-filter: blur(12px); scrollbar-width: thin;
+          width: var(--ent-sidebar-w); min-width: var(--ent-sidebar-w); max-height: calc(100vh - 56px - 56px); overflow-y: auto;
+          background: var(--surface); border-right: 1px solid var(--border-color);
+          padding: 16px 12px; display: flex; flex-direction: column; gap: 2px;
+          scrollbar-width: thin;
         }
         .left-sidebar::-webkit-scrollbar { width: 4px; }
         .left-sidebar::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.2); border-radius: 4px; }
         .sidebar-section-label {
-          font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px;
-          color: var(--text-secondary); padding: 12px 10px 6px; margin: 0;
+          font-size: 0.7rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0.08em;
+          color: var(--text-secondary); padding: 16px 12px 6px; margin: 0;
         }
+        .sidebar-section-label:first-child { padding-top: 4px; }
         .sidebar-item {
-          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
-          cursor: pointer; border: none; background: transparent; text-align: left; width: 100%;
-          font-size: 13px; font-weight: 500; color: var(--text-primary); transition: all 0.2s ease;
+          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--ent-radius-lg);
+          cursor: pointer; border: 1px solid transparent; background: transparent; text-align: left; width: 100%;
+          font-size: 0.875rem; font-weight: 500; color: var(--text-primary); transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
           position: relative;
         }
-        .sidebar-item:hover { background: rgba(108,99,255,0.08); transform: translateX(2px); }
-        .sidebar-item.active { background: rgba(108,99,255,0.15); color: var(--primary); font-weight: 600; }
+        .sidebar-item:hover { background: var(--ent-primary-100, rgba(108,99,255,0.06)); border-color: var(--border-color); color: var(--primary); }
+        .sidebar-item.active { background: var(--ent-primary-100, rgba(108,99,255,0.1)); border-color: var(--ent-primary-200, rgba(108,99,255,0.2)); color: var(--primary); font-weight: 600; }
         .sidebar-item.active::before {
           content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
           width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--primary);
         }
-        .sidebar-item-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+        .sidebar-item-icon {
+          width: 28px; height: 28px; display: inline-grid; place-items: center;
+          border-radius: 6px; background: var(--ent-primary-100, rgba(108,99,255,0.06));
+          border: 1px solid var(--border-color); font-size: 14px; flex-shrink: 0;
+        }
         .sidebar-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sidebar-item-badge {
-          font-size: 8px; font-weight: 700; padding: 1px 6px; border-radius: 8px;
+          font-size: 8px; font-weight: 700; padding: 2px 7px; border-radius: 8px;
           background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #fff; margin-left: auto; flex-shrink: 0;
         }
         .sidebar-item.coming-soon {
-          opacity: 0.45; cursor: default; pointer-events: none;
+          opacity: 0.5; cursor: default;
         }
+        .sidebar-item.coming-soon:hover { background: transparent; border-color: transparent; transform: none; }
         .sidebar-item.coming-soon .sidebar-item-badge {
           background: linear-gradient(135deg, #6366F1, #8B5CF6);
         }
-        .sidebar-divider { height: 1px; background: var(--glass-border); margin: 8px 10px; }
+        .sidebar-divider { height: 1px; background: var(--border-color); margin: 8px 10px; }
         .sidebar-toggle {
           display: none; position: fixed; left: 12px; bottom: 72px; z-index: 1001;
           background: var(--primary); color: #fff; border: none; border-radius: 50%;
@@ -3203,13 +3226,39 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         }
         .sidebar-toggle:hover { transform: scale(1.1); }
         .main-content-area { flex: 1; min-width: 0; overflow-y: auto; }
-        [data-theme="light"] .left-sidebar { background: rgba(255,255,255,0.85); border-right: 1px solid rgba(108,99,255,0.1); }
-        [data-theme="light"] .sidebar-item:hover { background: rgba(108,99,255,0.06); }
-        [data-theme="light"] .sidebar-item.active { background: rgba(108,99,255,0.1); }
+        .sidebar-agents-toggle {
+          display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--ent-radius-lg);
+          cursor: pointer; border: 1px solid transparent; background: transparent; text-align: left; width: 100%;
+          font-size: 0.875rem; font-weight: 500; color: var(--text-primary); transition: all 150ms ease;
+        }
+        .sidebar-agents-toggle:hover { background: var(--ent-primary-100, rgba(108,99,255,0.06)); }
+        .sidebar-agents-toggle .toggle-arrow { transition: transform 0.2s; font-size: 10px; margin-left: auto; color: var(--text-secondary); }
+        .sidebar-agents-toggle .toggle-arrow.open { transform: rotate(90deg); }
+        .sidebar-agents-list { overflow: hidden; transition: max-height 0.3s ease; }
+        .sidebar-agents-list .sidebar-item { padding-left: 20px; font-size: 0.8rem; }
+        [data-theme="light"] .left-sidebar { background: #fff; border-right: 1px solid var(--border-color); }
+        [data-theme="light"] .sidebar-item:hover { background: rgba(108,99,255,0.04); }
+        [data-theme="light"] .sidebar-item.active { background: rgba(108,99,255,0.08); }
+        [data-theme="dark"] .sidebar-item-icon { background: rgba(108,99,255,0.1); border-color: rgba(108,99,255,0.2); }
+        /* Enterprise Coming Soon View */
+        .ent-coming-soon-view {
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          min-height: 60vh; text-align: center; padding: 40px 20px;
+        }
+        .ent-coming-soon-view .ent-icon { font-size: 56px; margin-bottom: 16px; }
+        .ent-coming-soon-view h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+        .ent-coming-soon-view .ent-desc { color: var(--text-secondary); font-size: 0.95rem; max-width: 420px; line-height: 1.6; margin-bottom: 24px; }
+        .ent-coming-soon-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #fff; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+        .ent-features-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 32px; max-width: 700px; width: 100%; }
+        .ent-feature-card { background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--ent-radius-lg); padding: 20px; text-align: left; }
+        .ent-feature-card .feat-icon { font-size: 24px; margin-bottom: 8px; }
+        .ent-feature-card h4 { font-size: 0.9rem; font-weight: 650; color: var(--text-primary); margin: 0 0 4px 0; }
+        .ent-feature-card p { font-size: 0.8rem; color: var(--text-secondary); margin: 0; line-height: 1.5; }
         @media (max-width: 768px) {
+          .app-layout { display: block; grid-template-columns: 1fr; }
           .left-sidebar {
-            position: fixed; left: -260px; top: 56px; bottom: 56px; z-index: 1000;
-            width: 240px; min-width: 240px; transition: left 0.3s ease;
+            position: fixed; left: -280px; top: 56px; bottom: 56px; z-index: 1000;
+            width: 260px; min-width: 260px; transition: left 0.3s ease;
             box-shadow: 4px 0 24px rgba(0,0,0,0.3);
           }
           .left-sidebar.open { left: 0; }
@@ -3218,7 +3267,6 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.4);
             backdrop-filter: blur(2px);
           }
-          .app-layout { display: block; }
         }
 
         @keyframes pulseMic { 0%,100%{box-shadow:0 0 0 0 rgba(255,75,75,0.4)} 50%{box-shadow:0 0 0 12px rgba(255,75,75,0)} }
@@ -3265,29 +3313,73 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       <div className="app-layout">
         {/* Mobile sidebar overlay */}
         {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
-        {/* Left Sidebar */}
+        {/* Enterprise Left Sidebar */}
         <aside className={`left-sidebar ${sidebarOpen ? 'open' : ''}`}>
-          <p className="sidebar-section-label">AI Agents</p>
-          {AGENTS.map(agent => (
-            <button key={agent.id} className={`sidebar-item ${agentMode === agent.id && tab === 'create' ? 'active' : ''}`}
-              onClick={() => { selectAgent(agent.id); setSidebarOpen(false); }}>
-              <span className="sidebar-item-icon">{agent.icon}</span>
-              <span className="sidebar-item-name">{agent.name}</span>
-              {agent.badge && <span className="sidebar-item-badge">{agent.badge}</span>}
-            </button>
-          ))}
-          <div className="sidebar-divider" />
-          <p className="sidebar-section-label">Quick Tools</p>
-          {[{ icon: '✍️', name: 'Write', type: 'text' },{ icon: '🎨', name: 'Image', type: 'image' },{ icon: '📧', name: 'Email', type: 'text' },{ icon: '📋', name: 'Plans', type: 'text' },{ icon: '📄', name: 'Summary', type: 'text' },{ icon: '💡', name: 'Ideas', type: 'text' }].map((t, i) => (
-            <button key={i} className="sidebar-item"
-              onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); setAgentMode('general'); switchTab('create'); setSidebarOpen(false); }}>
-              <span className="sidebar-item-icon">{t.icon}</span>
-              <span className="sidebar-item-name">{t.name}</span>
+          <p className="sidebar-section-label">Primary</p>
+          {([
+            { id: 'home' as Tab, icon: '▦', name: 'Dashboard' },
+            { id: 'create' as Tab, icon: '◎', name: 'AI Studio' },
+            { id: 'crm' as Tab, icon: '📇', name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan) },
+            { id: 'projects' as Tab, icon: '📋', name: 'Projects', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan) },
+            { id: 'inbox' as Tab, icon: '✉', name: 'Inbox', comingSoon: true },
+          ] as const).map(item => (
+            <button key={item.id} className={`sidebar-item ${tab === item.id ? 'active' : ''} ${'comingSoon' in item && item.comingSoon ? 'coming-soon' : ''}`}
+              onClick={() => { if (!('comingSoon' in item && item.comingSoon)) { switchTab(item.id as Tab); setSidebarOpen(false); } }}>
+              <span className="sidebar-item-icon">{item.icon}</span>
+              <span className="sidebar-item-name">{item.name}</span>
+              {'comingSoon' in item && item.comingSoon && <span className="sidebar-item-badge">SOON</span>}
             </button>
           ))}
 
           <div className="sidebar-divider" />
-          <p className="sidebar-section-label">Settings</p>
+          <p className="sidebar-section-label">Tools & Content</p>
+          {/* Expandable AI Agents */}
+          <button className="sidebar-agents-toggle" onClick={() => setSidebarOpen(prev => prev)}>
+            <span className="sidebar-item-icon">🤖</span>
+            <span className="sidebar-item-name">AI Agents</span>
+            <span className="sidebar-item-badge" style={{ background: 'var(--primary)' }}>{AGENTS.length}</span>
+          </button>
+          <div className="sidebar-agents-list" style={{ maxHeight: tab === 'create' ? '500px' : '0px', paddingLeft: '8px' }}>
+            {AGENTS.map(agent => (
+              <button key={agent.id} className={`sidebar-item ${agentMode === agent.id && tab === 'create' ? 'active' : ''}`}
+                onClick={() => { selectAgent(agent.id); setSidebarOpen(false); }}>
+                <span className="sidebar-item-icon">{agent.icon}</span>
+                <span className="sidebar-item-name">{agent.name}</span>
+                {agent.badge && <span className="sidebar-item-badge">{agent.badge}</span>}
+              </button>
+            ))}
+          </div>
+          <button className={`sidebar-item ${tab === 'gallery' ? 'active' : ''}`}
+            onClick={() => { switchTab('gallery'); setSidebarOpen(false); }}>
+            <span className="sidebar-item-icon">🖼️</span>
+            <span className="sidebar-item-name">Gallery</span>
+          </button>
+          <button className={`sidebar-item ${tab === 'chats' ? 'active' : ''}`}
+            onClick={() => { switchTab('chats'); setSidebarOpen(false); }}>
+            <span className="sidebar-item-icon">💬</span>
+            <span className="sidebar-item-name">Chat History</span>
+          </button>
+          <button className={`sidebar-item ${tab === 'templates' ? 'active' : ''} coming-soon`}>
+            <span className="sidebar-item-icon">▧</span>
+            <span className="sidebar-item-name">Templates</span>
+            <span className="sidebar-item-badge">SOON</span>
+          </button>
+
+          <div className="sidebar-divider" />
+          <p className="sidebar-section-label">Insights</p>
+          <button className={`sidebar-item ${tab === 'analytics' ? 'active' : ''} coming-soon`}>
+            <span className="sidebar-item-icon">📈</span>
+            <span className="sidebar-item-name">Analytics</span>
+            <span className="sidebar-item-badge">SOON</span>
+          </button>
+          <button className={`sidebar-item ${tab === 'integrations' ? 'active' : ''} coming-soon`}>
+            <span className="sidebar-item-icon">⛓</span>
+            <span className="sidebar-item-name">Integrations</span>
+            <span className="sidebar-item-badge">SOON</span>
+          </button>
+
+          <div className="sidebar-divider" />
+          <p className="sidebar-section-label">Account</p>
           <button className="sidebar-item" onClick={() => { openProfileModal(); setSidebarOpen(false); }}>
             <span className="sidebar-item-icon">🏢</span>
             <span className="sidebar-item-name">Business Profile</span>
@@ -3298,15 +3390,13 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <span className="sidebar-item-name">Team</span>
             {teamMembers.length > 0 && <span className="sidebar-item-badge" style={{ background: '#22c55e' }}>{teamMembers.length}</span>}
           </button>
+
+          <div style={{ flex: 1 }} />
           <div className="sidebar-divider" />
-          <p className="sidebar-section-label">Coming Soon</p>
-          {COMING_SOON_FEATURES.map(feature => (
-            <div key={feature.name} className="sidebar-item coming-soon">
-              <span className="sidebar-item-icon">{feature.icon}</span>
-              <span className="sidebar-item-name">{feature.name}</span>
-              <span className="sidebar-item-badge">SOON</span>
-            </div>
-          ))}
+          <div style={{ padding: '8px 12px', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+            <div style={{ fontWeight: 700, marginBottom: '4px' }}>NovaMind AI Hub</div>
+            <div>Enterprise Operations Platform</div>
+          </div>
         </aside>
         {/* Mobile sidebar toggle */}
         <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar">
@@ -4442,8 +4532,91 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           )}
         </>)}
-        {tab === 'crm' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state" style={{ position: 'relative' }}><span style={{ display: 'inline-block', fontSize: '9px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#fff', letterSpacing: '0.5px', marginBottom: '10px' }}>COMING SOON</span><h3>📇 CRM</h3><p>Manage contacts, deals & pipeline — coming soon in this view!</p><p>Use the full CRM features in your dashboard.</p></div> : <div className="empty-state"><h3>CRM</h3><p>Manage contacts, deals & activities</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
-        {tab === 'projects' && (['solopreneur','team','business','business_pro'].includes(usage.plan) ? <div className="empty-state" style={{ position: 'relative' }}><span style={{ display: 'inline-block', fontSize: '9px', fontWeight: 700, padding: '2px 8px', borderRadius: '12px', background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#fff', letterSpacing: '0.5px', marginBottom: '10px' }}>COMING SOON</span><h3>📋 Projects</h3><p>Track projects & tasks with AI — coming soon in this view!</p><p>Use the full project management features in your dashboard.</p></div> : <div className="empty-state"><h3>Projects</h3><p>Track projects & tasks with AI</p><p className="upgrade-hint">Available on Solopreneur Hub and above</p><button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')}>Upgrade Now</button></div>)}
+        {/* Enterprise Coming Soon Views */}
+        {tab === 'crm' && (
+          <div className="ent-coming-soon-view">
+            <div className="ent-icon">📇</div>
+            <h2>CRM</h2>
+            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
+            <p className="ent-desc" style={{ marginTop: '16px' }}>Manage your relationships. Track your revenue. AI-powered contact management, deal pipeline, and revenue forecasting — all in one view.</p>
+            {!['solopreneur','team','business','business_pro'].includes(usage.plan) && (
+              <button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')} style={{ marginTop: '8px' }}>Upgrade to Unlock</button>
+            )}
+            <div className="ent-features-preview">
+              <div className="ent-feature-card"><div className="feat-icon">👤</div><h4>Contact Management</h4><p>Organize clients, leads & partners with AI-enriched profiles</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">📊</div><h4>Deal Pipeline</h4><p>Visual pipeline tracking from lead to close</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">🤖</div><h4>AI Insights</h4><p>Automated follow-ups, scoring & next-best-action recommendations</p></div>
+            </div>
+          </div>
+        )}
+        {tab === 'projects' && (
+          <div className="ent-coming-soon-view">
+            <div className="ent-icon">📋</div>
+            <h2>Projects</h2>
+            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
+            <p className="ent-desc" style={{ marginTop: '16px' }}>Track projects & tasks with AI. Kanban boards, Gantt charts, and smart task management — built for teams that move fast.</p>
+            {!['solopreneur','team','business','business_pro'].includes(usage.plan) && (
+              <button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')} style={{ marginTop: '8px' }}>Upgrade to Unlock</button>
+            )}
+            <div className="ent-features-preview">
+              <div className="ent-feature-card"><div className="feat-icon">📌</div><h4>Kanban Board</h4><p>Drag-and-drop task management with custom columns</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">📅</div><h4>Gantt Timeline</h4><p>Visualize project phases, dependencies & deadlines</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">🤖</div><h4>AI Task Breakdown</h4><p>Describe a project — AI creates the full task list</p></div>
+            </div>
+          </div>
+        )}
+        {tab === 'inbox' && (
+          <div className="ent-coming-soon-view">
+            <div className="ent-icon">✉️</div>
+            <h2>Inbox</h2>
+            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
+            <p className="ent-desc" style={{ marginTop: '16px' }}>Your unified communications hub. Connect email, read messages, and let AI draft replies — all without leaving NovaMind.</p>
+            <div className="ent-features-preview">
+              <div className="ent-feature-card"><div className="feat-icon">📨</div><h4>Email Connect</h4><p>Connect Gmail or Outlook and manage emails in one place</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">🤖</div><h4>AI Auto-Reply</h4><p>Smart drafts that match your tone and style</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">🎙️</div><h4>Meeting Notes</h4><p>AI-powered meeting transcription and action items</p></div>
+            </div>
+          </div>
+        )}
+        {tab === 'templates' && (
+          <div className="ent-coming-soon-view">
+            <div className="ent-icon">▧</div>
+            <h2>Templates</h2>
+            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
+            <p className="ent-desc" style={{ marginTop: '16px' }}>Professional templates for every business need. Proposals, emails, social posts, reports — pre-built and AI-customizable.</p>
+            <div className="ent-features-preview">
+              <div className="ent-feature-card"><div className="feat-icon">📄</div><h4>Document Templates</h4><p>Proposals, contracts, reports — ready to customize</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">📱</div><h4>Social Templates</h4><p>Platform-optimized social media content templates</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">📧</div><h4>Email Sequences</h4><p>Multi-step email campaigns with AI personalization</p></div>
+            </div>
+          </div>
+        )}
+        {tab === 'analytics' && (
+          <div className="ent-coming-soon-view">
+            <div className="ent-icon">📈</div>
+            <h2>Analytics</h2>
+            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
+            <p className="ent-desc" style={{ marginTop: '16px' }}>Business intelligence powered by AI. Track performance, spot trends, and get actionable insights across every tool you use.</p>
+            <div className="ent-features-preview">
+              <div className="ent-feature-card"><div className="feat-icon">📊</div><h4>Usage Analytics</h4><p>See how your team uses NovaMind and measure impact</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">💡</div><h4>AI Recommendations</h4><p>Proactive suggestions to improve your business outcomes</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">📉</div><h4>Custom Reports</h4><p>Generate and schedule reports for stakeholders</p></div>
+            </div>
+          </div>
+        )}
+        {tab === 'integrations' && (
+          <div className="ent-coming-soon-view">
+            <div className="ent-icon">⛓️</div>
+            <h2>Integrations</h2>
+            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
+            <p className="ent-desc" style={{ marginTop: '16px' }}>Connect your existing tools and let NovaMind be the AI brain on top. Your data, your workflows, supercharged with intelligence.</p>
+            <div className="ent-features-preview">
+              <div className="ent-feature-card"><div className="feat-icon">📧</div><h4>Email & Calendar</h4><p>Gmail, Outlook, Google Calendar sync</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">💳</div><h4>Payments</h4><p>Stripe, QuickBooks, and invoicing integrations</p></div>
+              <div className="ent-feature-card"><div className="feat-icon">📱</div><h4>Social Platforms</h4><p>Auto-post to LinkedIn, Facebook, Instagram & more</p></div>
+            </div>
+          </div>
+        )}
       </div>
       </div>{/* main-content-area */}
       </div>{/* app-layout */}
@@ -4454,12 +4627,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       )}
       <nav className="bottom-nav">
         {(isPersonalMode 
-            ? (['home','create','gallery','community','chats'] as Tab[])
-            : (['home','create','chats','gallery','community','crm','projects'] as Tab[])
+            ? (['home','create','gallery','chats'] as Tab[])
+            : (['home','create','crm','projects','chats'] as Tab[])
           ).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
-            <span className="bottom-nav-icon">{{ home: '🏠', create: '✨', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋' }[id]}</span>
-            {{ home: 'Home', create: 'Create', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects' }[id]}
+            <span className="bottom-nav-icon">{{ home: '▦', create: '◎', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋', inbox: '✉', templates: '▧', analytics: '📈', integrations: '⛓' }[id]}</span>
+            {{ home: 'Dashboard', create: 'AI Studio', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects', inbox: 'Inbox', templates: 'Templates', analytics: 'Analytics', integrations: 'Integrations' }[id]}
           </button>
         ))}
       </nav>
