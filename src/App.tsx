@@ -1389,6 +1389,11 @@ const App: React.FC = () => {
   const [completedMissions, setCompletedMissions] = useState<string[]>([]);
   const [showMissionCelebration, setShowMissionCelebration] = useState<string | null>(null);
   const [showMilestones, setShowMilestones] = useState(true);
+
+  // 🔲 Skeleton + First Value + Security Page state
+  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [hasFirstValue, setHasFirstValue] = useState(false);
+  const [showSecurityPage, setShowSecurityPage] = useState(false);
   const growthScore = Math.round((completedMissions.length / MISSIONS.length) * 100);
 
   // 📊 ROI Cockpit computed values
@@ -1675,12 +1680,14 @@ const App: React.FC = () => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u); setLoading(false);
       if (u) {
+        setDashboardLoading(true);
         const usageDoc = await getDoc(doc(db, 'users', u.uid));
         if (usageDoc.exists()) {
           const data = usageDoc.data();
           const plan = data.plan || 'free';
           const limits: Record<string, number> = { free: 5, pro: 100, business: 999999, solopreneur: 999999, team: 999999, business_pro: 999999 };
           setUsage({ used: data.monthlyUsage || 0, limit: limits[plan] || 5, plan });
+          if (data.firstValueEvent) setHasFirstValue(true);
         }
         try {
           const q = query(collection(db, 'creations'), where('userId', '==', u.uid), orderBy('createdAt', 'desc'));
@@ -1691,6 +1698,7 @@ const App: React.FC = () => {
         loadTemplates(u.uid);
         loadHistory(u.uid);
         loadChats(u.uid);
+        setDashboardLoading(false);
 
         // Load business profile & team
         try {
@@ -2667,6 +2675,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       const missionMap: Record<string, string> = { 'email-assistant': 'first-email', 'flyer-maker': 'first-flyer', 'certificate-maker': 'first-cert', 'ad-maker': 'first-ad', 'competitor-analysis': 'competitor', 'business-plan': 'business-plan', 'sales-proposal': 'proposal' };
       if (missionMap[activeAgentMode]) completeMission(missionMap[activeAgentMode]);
       if (currentPrompt.includes('90-Day Action Plan') || currentPrompt.includes('action plan')) completeMission('action-plan');
+      // 🎯 First Value Event — track first successful generation
+      if (!hasFirstValue && user) {
+        setHasFirstValue(true);
+        showToast('🎉 You\'ve unlocked your first value!', 'success');
+        setDoc(doc(db, 'users', user.uid), { firstValueEvent: true, firstValueAt: serverTimestamp() }, { merge: true }).catch(() => {});
+      }
     } catch (e: unknown) { 
       const err = e as { message?: string }; 
       const errorMsg: ChatMessage = { role: 'assistant', content: `⚠️ **Something went wrong:** ${err.message || 'Unknown error'}`, isError: true, timestamp: Date.now() };
@@ -2962,7 +2976,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' as const }}>
                 <a href="/privacy" style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', textDecoration: 'none' }}>Privacy</a>
                 <a href="/terms" style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', textDecoration: 'none' }}>Terms</a>
-                <a href="/security" style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', textDecoration: 'none' }}>Security</a>
+                <a href="#" onClick={(e: React.MouseEvent) => { e.preventDefault(); setShowSecurityPage(true); }} style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', textDecoration: 'none' }}>Security</a>
               </div>
               <span style={{ fontSize: '12px' }}>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org" style={{ fontSize: '12px' }}>admin@piegroup.org</a>
             </div>
@@ -3178,11 +3192,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <h1 className="hero-title" style={{ fontSize: '1.6rem' }}>{user?.displayName ? `Hey ${user.displayName.split(' ')[0]}! 🛠️` : 'Your AI Toolkit 🛠️'}</h1>
               <p className="hero-subtitle">{user?.displayName ? '12 tools designed for real life — what are we making today?' : '12 tools designed for real life — not enterprise jargon.'}</p>
             </div>
+            {dashboardLoading ? (
+              <div className="stats-row">
+                {[0,1,2].map(i => (<div key={i} className="stat-card"><div className="skeleton-block" style={{ width: '40px', height: '28px', margin: '0 auto 4px' }}></div><div className="skeleton-block" style={{ width: '50px', height: '12px', margin: '0 auto' }}></div></div>))}
+              </div>
+            ) : (
             <div className="stats-row">
               <div className="stat-card"><div className="stat-value">{usage.used}</div><div className="stat-label">Used</div></div>
               <div className="stat-card"><div className="stat-value">{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</div><div className="stat-label">Limit</div></div>
               <div className="stat-card"><div className="stat-value">{creations.length}</div><div className="stat-label">Created</div></div>
             </div>
+            )}
             {Object.entries(PILLAR_INFO).map(([key, pillar]) => (
               <div key={key} style={{ marginBottom: '24px' }}>
                 <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3234,6 +3254,58 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <p className="hero-subtitle">{user?.displayName ? `What can I help you with today?` : 'Content, emails, images and more — powered by premium AI at a fraction of the cost.'}</p>
             <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
           </div>
+
+          {/* 🎯 First Value CTA */}
+          {!hasFirstValue && !dashboardLoading && (
+            <div className="first-value-banner">
+              <div className="first-value-icon">🚀</div>
+              <div className="first-value-content">
+                <h3 className="first-value-title">Create Your First Output</h3>
+                <p className="first-value-desc">Try any AI tool — draft an email, generate a logo, write a proposal. Your first creation is just one click away.</p>
+              </div>
+              <button className="nav-btn btn-primary" onClick={() => switchTab('create')} style={{ whiteSpace: 'nowrap' as const }}>✨ Let's Go</button>
+            </div>
+          )}
+
+          {/* 📊 ROI COCKPIT — skeleton loader */}
+          {dashboardLoading ? (
+            <div className="skeleton-cockpit">
+              <div className="skeleton-cockpit-header">
+                <div className="skeleton-block" style={{ width: '44px', height: '44px', borderRadius: '14px' }}></div>
+                <div style={{ flex: 1 }}>
+                  <div className="skeleton-block" style={{ width: '160px', height: '18px', marginBottom: '6px' }}></div>
+                  <div className="skeleton-block" style={{ width: '240px', height: '12px' }}></div>
+                </div>
+              </div>
+              <div className="skeleton-kpi-grid">
+                {[0,1,2,3].map(i => (
+                  <div key={i} className="skeleton-kpi-card">
+                    <div className="skeleton-block" style={{ width: '28px', height: '28px', borderRadius: '8px', marginBottom: '8px' }}></div>
+                    <div className="skeleton-block" style={{ width: '80px', height: '24px', marginBottom: '6px' }}></div>
+                    <div className="skeleton-block" style={{ width: '120px', height: '11px' }}></div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: '16px' }}>
+                <div className="skeleton-block" style={{ width: '100%', height: '10px', borderRadius: '999px' }}></div>
+              </div>
+              {/* Skeleton agents */}
+              <div style={{ padding: '16px', paddingTop: '0' }}>
+                <div className="skeleton-block" style={{ width: '140px', height: '18px', marginBottom: '14px' }}></div>
+                <div className="agent-grid">
+                  {[0,1,2,3,4,5].map(i => (
+                    <div key={i} className="skeleton-agent-card">
+                      <div className="skeleton-block" style={{ width: '36px', height: '36px', borderRadius: '12px', margin: '0 auto 8px' }}></div>
+                      <div className="skeleton-block" style={{ width: '70px', height: '13px', margin: '0 auto 4px' }}></div>
+                      <div className="skeleton-block" style={{ width: '100px', height: '11px', margin: '0 auto' }}></div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {!dashboardLoading && (<>
 
           {/* 📊 AI ROI COCKPIT */}
           <div style={{
@@ -3652,6 +3724,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           </div>
 
+          </>)}
           <div className="powered-footer">
             <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
           </div>
@@ -4217,7 +4290,20 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               ))}
             </div>
           )}
-          {filteredHistory.length === 0 && creations.length === 0 ? (
+          {dashboardLoading && (
+            <div className="gallery-grid">
+              {[0,1,2,3].map(i => (
+                <div key={i} className="skeleton-gallery-card">
+                  <div className="skeleton-block" style={{ width: '100%', height: '140px', borderRadius: '12px 12px 0 0' }}></div>
+                  <div style={{ padding: '12px' }}>
+                    <div className="skeleton-block" style={{ width: '80%', height: '14px', marginBottom: '8px' }}></div>
+                    <div className="skeleton-block" style={{ width: '60%', height: '11px' }}></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!dashboardLoading && (filteredHistory.length === 0 && creations.length === 0 ? (
             <div className="empty-state"><p>{historyFilter === 'favorites' ? 'No favorites yet — star items to save them here' : 'No creations yet'}</p></div>
           ) : (
             <div className="gallery-grid">
@@ -4258,7 +4344,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 </div>
               ))}
             </div>
-          )}
+          ))}
         </>)}
 
         {/* Chats Tab */}
@@ -4280,7 +4366,22 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 </button>
               ))}
             </div>
-            {chats.length === 0 ? (
+            {dashboardLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column' as const, gap: '10px' }}>
+                {[0,1,2].map(i => (
+                  <div key={i} className="skeleton-chat-card">
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' as const }}>
+                      <div className="skeleton-block" style={{ width: '40px', height: '40px', borderRadius: '12px', flexShrink: 0 }}></div>
+                      <div style={{ flex: 1 }}>
+                        <div className="skeleton-block" style={{ width: '70%', height: '15px', marginBottom: '8px' }}></div>
+                        <div className="skeleton-block" style={{ width: '50%', height: '11px', marginBottom: '6px' }}></div>
+                        <div className="skeleton-block" style={{ width: '90%', height: '13px' }}></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : chats.length === 0 ? (
               <div className="empty-state">
                 <p>No chats yet. Start a conversation to see it here!</p>
                 <button className="nav-btn btn-primary" onClick={() => { startNewChat(); setTab('create'); }}>Start Chatting</button>
@@ -4343,7 +4444,23 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           <p style={{ color: 'var(--text-secondary, #999)', fontSize: '14px', marginBottom: '20px', lineHeight: 1.5 }}>
             Discover what others are creating with NovaMind AI. Like your favorites and share your own! 🎨
           </p>
-          {communityPosts.length === 0 ? (
+          {communityLoading && communityPosts.length === 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '16px' }}>
+              {[0,1,2].map(i => (
+                <div key={i} className="skeleton-community-card">
+                  <div className="skeleton-block" style={{ width: '100%', height: '180px', borderRadius: '16px 16px 0 0' }}></div>
+                  <div style={{ padding: '16px' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px' }}>
+                      <div className="skeleton-block" style={{ width: '32px', height: '32px', borderRadius: '50%' }}></div>
+                      <div><div className="skeleton-block" style={{ width: '80px', height: '13px', marginBottom: '4px' }}></div><div className="skeleton-block" style={{ width: '60px', height: '11px' }}></div></div>
+                    </div>
+                    <div className="skeleton-block" style={{ width: '100%', height: '13px', marginBottom: '6px' }}></div>
+                    <div className="skeleton-block" style={{ width: '70%', height: '13px' }}></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : communityPosts.length === 0 ? (
             <div className="empty-state" style={{ textAlign: 'center', padding: '48px 24px' }}>
               <div style={{ fontSize: '64px', marginBottom: '16px' }}>🌟</div>
               <h3 style={{ marginBottom: '8px' }}>The Gallery Awaits!</h3>
@@ -5024,6 +5141,60 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           </div>
         </div>
       )}
+
+        {/* 🔒 SECURITY PAGE MODAL */}
+        {showSecurityPage && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, background: 'var(--bg-primary, #fff)', overflow: 'auto' }}>
+            <div style={{ maxWidth: '800px', margin: '0 auto', padding: '24px 20px 60px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <img src="/icon-192.png" alt="NovaMind AI" style={{ width: '36px', height: '36px', borderRadius: '10px' }} />
+                  <h1 style={{ margin: 0, fontSize: '22px', fontWeight: 800, color: 'var(--text-primary)' }}>Security & Privacy</h1>
+                </div>
+                <button onClick={() => setShowSecurityPage(false)} style={{ background: 'rgba(0,0,0,0.06)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', fontSize: '18px', cursor: 'pointer', color: 'var(--text-primary)' }}>✕</button>
+              </div>
+              <div className="security-badge-row">
+                <div className="security-badge"><span>🔒</span> SOC 2 Aligned</div>
+                <div className="security-badge"><span>🛡️</span> GDPR Ready</div>
+                <div className="security-badge"><span>✅</span> 256-bit TLS</div>
+              </div>
+              <div className="security-section">
+                <h2 className="security-heading">🛡️ Your Data, Your Rules</h2>
+                <div className="security-card"><h3>We Never Train on Your Data</h3><p>Your business content, prompts, and generated outputs are <strong>never used to train AI models</strong>. Your intellectual property stays yours — period.</p><ul><li>All AI processing uses isolated, stateless API calls</li><li>No data is retained by AI model providers after processing</li><li>Your content is never shared with other users or third parties</li></ul></div>
+                <div className="security-card"><h3>Data Sovereignty</h3><p>Your data is stored in <strong>Google Cloud (Firebase)</strong> with enterprise-grade infrastructure:</p><ul><li>US-based data centers (nam5 multi-region)</li><li>Automatic backups and disaster recovery</li><li>You can request full data export or deletion at any time</li></ul></div>
+              </div>
+              <div className="security-section">
+                <h2 className="security-heading">🔒 Encryption & Authentication</h2>
+                <div className="security-card"><h3>End-to-End Protection</h3><ul><li><strong>TLS 1.3</strong> encryption for all data in transit</li><li><strong>AES-256</strong> encryption for data at rest</li><li>Secure token-based authentication via Firebase Auth</li><li>Google OAuth integration with industry-standard security</li></ul></div>
+                <div className="security-card"><h3>Session Management</h3><ul><li>Automatic session expiration and refresh token rotation</li><li>Secure cookie handling with HttpOnly and SameSite flags</li><li>Immediate session revocation on sign-out</li></ul></div>
+              </div>
+              <div className="security-section">
+                <h2 className="security-heading">💳 Payment Security</h2>
+                <div className="security-card"><h3>Stripe-Powered Billing</h3><p>All payments are processed by <strong>Stripe</strong>, a PCI DSS Level 1 certified payment processor.</p><ul><li>PCI DSS Level 1 compliant payment processing</li><li>3D Secure authentication support</li><li>Tokenized card storage — no sensitive data on our servers</li></ul></div>
+              </div>
+              <div className="security-section">
+                <h2 className="security-heading">🏗️ Infrastructure & Monitoring</h2>
+                <div className="security-card"><h3>Enterprise Cloud Infrastructure</h3><ul><li>Hosted on <strong>Google Cloud Platform</strong> + <strong>Netlify</strong></li><li>Automatic scaling and 99.9% uptime SLA</li><li>DDoS protection via Cloudflare and GCP shields</li><li>Continuous monitoring and alerting</li></ul></div>
+              </div>
+              <div className="security-section">
+                <h2 className="security-heading">⚡ Support & Response</h2>
+                <div className="security-card"><h3>24-Hour Support Commitment</h3><ul><li>Email support: <a href="mailto:admin@piegroup.org" style={{ color: '#008080' }}>admin@piegroup.org</a></li><li>Response within 24 hours for all inquiries</li><li>Priority support for Team Hub subscribers</li><li>Dedicated account manager for Custom Solutions</li></ul></div>
+              </div>
+              <div className="security-section">
+                <h2 className="security-heading">📋 Compliance & Certifications</h2>
+                <div className="security-grid">
+                  <div className="security-compliance-card"><div style={{ fontSize: '28px', marginBottom: '8px' }}>🔐</div><h4>SOC 2 Aligned</h4><p>Controls aligned with SOC 2 Trust Service Criteria</p></div>
+                  <div className="security-compliance-card"><div style={{ fontSize: '28px', marginBottom: '8px' }}>🇪🇺</div><h4>GDPR Ready</h4><p>Data processing compliant with GDPR requirements</p></div>
+                  <div className="security-compliance-card"><div style={{ fontSize: '28px', marginBottom: '8px' }}>🏦</div><h4>PCI DSS</h4><p>Payment processing via PCI Level 1 certified Stripe</p></div>
+                  <div className="security-compliance-card"><div style={{ fontSize: '28px', marginBottom: '8px' }}>🔑</div><h4>OAuth 2.0</h4><p>Industry-standard authentication protocols</p></div>
+                </div>
+              </div>
+              <div className="powered-footer" style={{ marginTop: '40px' }}>
+                <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 };
