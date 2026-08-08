@@ -1389,6 +1389,7 @@ const App: React.FC = () => {
   const [completedMissions, setCompletedMissions] = useState<string[]>([]);
   const [showMissionCelebration, setShowMissionCelebration] = useState<string | null>(null);
   const [showMilestones, setShowMilestones] = useState(true);
+  const [showGrowthPanel, setShowGrowthPanel] = useState(true);
 
   // 🔲 Skeleton + First Value + Security Page state
   const [dashboardLoading, setDashboardLoading] = useState(true);
@@ -3544,6 +3545,80 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>You've mastered NovaMind. Keep creating amazing things!</div>
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Growth & Acquisition Panel */}
+            <div style={{ padding: '0 16px 16px' }}>
+              <div style={{
+                borderRadius: '16px',
+                border: '1px solid rgba(0,128,128,0.15)',
+                background: 'var(--bg-card, #fff)',
+                overflow: 'hidden',
+              }}>
+                <div style={{
+                  padding: '14px 16px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  borderBottom: showGrowthPanel ? '1px solid rgba(0,128,128,0.1)' : 'none',
+                }} onClick={() => setShowGrowthPanel(!showGrowthPanel)}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '18px' }}>📈</span>
+                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Growth & Acquisition</h4>
+                  </div>
+                  <span style={{
+                    fontSize: '14px', transition: 'transform 0.2s',
+                    transform: showGrowthPanel ? 'rotate(180deg)' : 'rotate(0deg)',
+                  }}>▾</span>
+                </div>
+                {showGrowthPanel && (
+                  <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                    {/* Trial Signups */}
+                    <div style={{
+                      borderRadius: '12px', padding: '14px',
+                      background: 'rgba(0,128,128,0.06)',
+                      border: '1px solid rgba(0,128,128,0.15)',
+                      textAlign: 'center' as const,
+                    }}>
+                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>🚀</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#008080' }}>12</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Trial Signups</div>
+                    </div>
+                    {/* Trial → Paid */}
+                    <div style={{
+                      borderRadius: '12px', padding: '14px',
+                      background: 'rgba(34,197,94,0.06)',
+                      border: '1px solid rgba(34,197,94,0.15)',
+                      textAlign: 'center' as const,
+                    }}>
+                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>💳</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#22c55e' }}>0%</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Trial → Paid</div>
+                    </div>
+                    {/* Audit Bookings */}
+                    <div style={{
+                      borderRadius: '12px', padding: '14px',
+                      background: 'rgba(6,182,212,0.06)',
+                      border: '1px solid rgba(6,182,212,0.15)',
+                      textAlign: 'center' as const,
+                    }}>
+                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>📋</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#06b6d4' }}>0</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Audit Bookings</div>
+                    </div>
+                    {/* Enterprise Calls */}
+                    <div style={{
+                      borderRadius: '12px', padding: '14px',
+                      background: 'rgba(139,92,246,0.06)',
+                      border: '1px solid rgba(139,92,246,0.15)',
+                      textAlign: 'center' as const,
+                    }}>
+                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>🏢</div>
+                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#8b5cf6' }}>0</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Enterprise Calls</div>
+                    </div>
                   </div>
                 )}
               </div>
