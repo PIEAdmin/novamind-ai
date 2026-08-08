@@ -1,17 +1,30 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
+
+function requiredEnv(key: string): string {
+  const v = (import.meta as any).env?.[key] as string | undefined;
+  if (!v) {
+    throw new Error(
+      `[env] Missing required client environment variable: ${key}. ` +
+      `Add it to Netlify environment variables and rebuild.`
+    );
+  }
+  return v;
+}
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBiP98Erv2xiMtMFqh46Y8ReBEH1v2dw3E',
-  authDomain: 'novamind-ai-5417c.firebaseapp.com',
-  projectId: 'novamind-ai-5417c',
-  storageBucket: 'novamind-ai-5417c.firebasestorage.app',
-  messagingSenderId: '1027376518343',
-  appId: '1:1027376518343:web:9a6f3c6b1d4f8e2a3b5c7d'
+  apiKey: requiredEnv("VITE_FIREBASE_API_KEY"),
+  authDomain: requiredEnv("VITE_FIREBASE_AUTH_DOMAIN"),
+  projectId: requiredEnv("VITE_FIREBASE_PROJECT_ID"),
+  storageBucket: requiredEnv("VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: requiredEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: requiredEnv("VITE_FIREBASE_APP_ID"),
+  measurementId: requiredEnv("VITE_FIREBASE_MEASUREMENT_ID"),
 };
 
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-export default app;
+const app: FirebaseApp = initializeApp(firebaseConfig);
+const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app);
+
+export { app, auth, db };

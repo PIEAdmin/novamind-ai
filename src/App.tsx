@@ -3401,10 +3401,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       <div className="main-content">
         {showWhatsNew && user && (
           <div style={{
-            background: 'linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%)',
+            background: 'linear-gradient(135deg, #1A2B4C 0%, #008080 100%)',
             borderRadius: '12px', padding: '16px 20px', margin: '0 0 16px 0',
             display: 'flex', alignItems: 'flex-start', gap: '12px',
-            boxShadow: '0 4px 15px rgba(124,58,237,0.3)', position: 'relative',
+            boxShadow: '0 4px 15px rgba(0,128,128,0.3)', position: 'relative',
           }}>
             <div style={{ fontSize: '28px', lineHeight: 1 }}>🚀</div>
             <div style={{ flex: 1 }}>
