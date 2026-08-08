@@ -3062,7 +3062,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           <p className="sidebar-section-label">Primary</p>
           {([
             { id: 'home' as Tab, icon: '▦', name: 'Dashboard', roi: null },
-            { id: 'create' as Tab, icon: '◎', name: 'AI Studio', roi: `${usage.count} outputs` },
+            { id: 'create' as Tab, icon: '◎', name: 'AI Studio', roi: `${usage.used} outputs` },
             { id: 'crm' as Tab, icon: '📇', name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
             { id: 'projects' as Tab, icon: '📋', name: 'Projects', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
             { id: 'inbox' as Tab, icon: '✉', name: 'Inbox', comingSoon: true, roi: null },
@@ -3678,21 +3678,21 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {/* ROI Strip — time saved this session */}
             <div className="roi-strip">
               <div className="roi-strip-item">
-                <span className="roi-strip-value">{usage.count}</span>
+                <span className="roi-strip-value">{usage.used}</span>
                 <span className="roi-strip-label">Outputs Created</span>
               </div>
               <div className="roi-strip-item">
-                <span className="roi-strip-value">{Math.round(usage.count * 12)}m</span>
+                <span className="roi-strip-value">{Math.round(usage.used * 12)}m</span>
                 <span className="roi-strip-label">Est. Time Saved</span>
               </div>
               <div className="roi-strip-item">
-                <span className="roi-strip-value">${Math.round(usage.count * 8)}</span>
+                <span className="roi-strip-value">${Math.round(usage.used * 8)}</span>
                 <span className="roi-strip-label">Est. Value Generated</span>
               </div>
             </div>
 
             {/* Guided Workflow Actions (5.2) — replaces generic prompt for new users */}
-            {!result && !generating && chatHistory.length === 0 && (
+            {!result && !generating && chatMessages.length === 0 && (
               <div className="guided-actions">
                 <p className="guided-actions-title">Start with a workflow</p>
                 <div className="guided-actions-grid">
