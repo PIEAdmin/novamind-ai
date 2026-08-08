@@ -1333,6 +1333,18 @@ const App: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<{ content?: string; text?: string; imageUrl?: string; error?: string } | null>(null);
   const [model, setModel] = useState('deepseek');
+  const [engineMode, setEngineMode] = useState<'auto' | 'speed' | 'balanced' | 'deep'>(() => {
+    try { return (localStorage.getItem('novamind_engine_mode') as 'auto' | 'speed' | 'balanced' | 'deep') || 'auto'; } catch { return 'auto'; }
+  });
+  const [engineSwitchFeedback, setEngineSwitchFeedback] = useState('');
+  const handleEngineModeChange = (mode: 'auto' | 'speed' | 'balanced' | 'deep') => {
+    if (mode === engineMode) return;
+    setEngineMode(mode);
+    try { localStorage.setItem('novamind_engine_mode', mode); } catch {}
+    const labels: Record<string, string> = { auto: '⚡ Switched to Auto Mode', speed: '🚀 Switched to Speed Mode', balanced: '🎯 Switched to Balanced Mode', deep: '🔬 Switched to Deep Mode' };
+    setEngineSwitchFeedback(labels[mode] || '');
+    setTimeout(() => setEngineSwitchFeedback(''), 2000);
+  };
   const [contentType, setContentType] = useState('text');
   const [usage, setUsage] = useState({ used: 0, limit: 5, plan: 'free' });
   const [creations, setCreations] = useState<Array<{ id: string; prompt?: string; imageUrl?: string; model?: string; [key: string]: unknown }>>([]);
@@ -2398,24 +2410,41 @@ Rules:
       }
     }
 
+    // 🎛️ Model Router Override — user-selected engine mode
+    if (engineMode !== 'auto' && activeModel !== 'gpt-image-1') {
+      // Image generation always uses gpt-image-1 regardless of engine mode
+      if (engineMode === 'speed') {
+        activeModel = 'deepseek';
+        setModel('deepseek');
+      } else if (engineMode === 'balanced') {
+        activeModel = 'gpt-4o';
+        setModel('gpt-4o');
+      } else if (engineMode === 'deep') {
+        activeModel = 'kimi';
+        setModel('kimi');
+      }
+    }
+
     // 🤖 Smart Model Selection — NovaMind picks the best AI automatically
     const pLower = currentPrompt.toLowerCase();
     const hasImageAttachments = pendingFiles.some(f => f.type.startsWith('image/'));
 
-    // Image generation → GPT Image
+    // 🖼️ Image generation ALWAYS uses gpt-image-1 regardless of engine mode
     if (/\b(generate.*image|create.*image|draw\s+(a|an|me|the)|design\s+(a|an|me|the)\s*(logo|image|graphic|poster|banner|icon|illustration)|make.*picture|make.*image|create.*illustration|render\s+(a|an|me)|visualize|create.*graphic|make.*poster|make.*banner|make.*infographic|make.*logo|make.*icon|create.*logo|draw.*picture)\b/.test(pLower) && !hasImageAttachments && pendingFiles.length === 0) {
       activeModel = 'gpt-image-1';
       activeContentType = 'image';
       setModel('gpt-image-1');
       setContentType('image');
     }
-    // Image analysis (uploaded images) → GPT-4o
+    // 📷 Image analysis (uploaded images) ALWAYS uses GPT-4o for vision
     else if (hasImageAttachments) {
       activeModel = 'gpt-4o';
       setModel('gpt-4o');
     }
+    // 🤖 Auto mode: smart model selection based on prompt analysis
+    else if (engineMode === 'auto') {
     // Deep research, market analysis, comprehensive reports → Kimi K2.6 (256K context, agent swarm)
-    else if (/\b(deep\s*research|market\s*research|industry\s*analysis|competitor\s*report|comprehensive\s*analysis|detailed\s*report|research\s*report|thorough\s*analysis|full\s*analysis|in.?depth\s*research|market\s*study|trend\s*analysis|benchmark|due\s*diligence)\b/.test(pLower)) {
+    if (/\b(deep\s*research|market\s*research|industry\s*analysis|competitor\s*report|comprehensive\s*analysis|detailed\s*report|research\s*report|thorough\s*analysis|full\s*analysis|in.?depth\s*research|market\s*study|trend\s*analysis|benchmark|due\s*diligence)\b/.test(pLower)) {
       activeModel = 'kimi';
       setModel('kimi');
     }
@@ -2429,6 +2458,7 @@ Rules:
       activeModel = 'deepseek';
       setModel('deepseek');
     }
+    }
 
     // 🛡️ AGENT OVERRIDE: These agents MUST stay on text — never image generation
     // flyer-maker and form-builder need GPT-4o (DeepSeek ignores HTML output instructions)
@@ -2436,16 +2466,17 @@ Rules:
     // 🚀 PREMIUM ROUTING: Route all client-facing tools to GPT-4o for Fortune 500 quality
     const GPT4O_AGENTS = ['flyer-maker', 'certificate-maker', 'form-builder', 'business-plan', 'ad-maker', 'competitor-analysis', 'proposal-writer', 'contract-generator', 'seo-optimizer', 'idea-spark'];
     // Also route Action Plan requests (general agent but premium prompt) to GPT-4o
-    if (activeAgentMode === 'general' && pLower.includes('action plan')) {
+    // 🎛️ User's explicit engine mode choice takes priority over premium agent routing (except image gen, always gpt-image-1)
+    if (engineMode === 'auto' && activeAgentMode === 'general' && pLower.includes('action plan')) {
       activeModel = 'gpt-4o';
       setModel('gpt-4o');
     }
-    if (GPT4O_AGENTS.includes(activeAgentMode)) {
+    if (engineMode === 'auto' && GPT4O_AGENTS.includes(activeAgentMode)) {
       activeModel = 'gpt-4o';
       activeContentType = 'text';
       setModel('gpt-4o');
       setContentType('text');
-    } else if (activeAgentMode === 'doc-summarizer') {
+    } else if (engineMode === 'auto' && activeAgentMode === 'doc-summarizer') {
       activeModel = 'deepseek';
       activeContentType = 'text';
       setModel('deepseek');
@@ -4205,6 +4236,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </>
             )}
 
+            {/* 🎛️ Model Router Toggle — lets users control which AI engine powers their request */}
+            <div className="model-router" role="group" aria-label="AI engine mode">
+              <button type="button" className={`model-router-btn ${engineMode === 'auto' ? 'active' : ''}`} title="AI picks the best engine" onClick={() => handleEngineModeChange('auto')}>⚡ Auto</button>
+              <button type="button" className={`model-router-btn ${engineMode === 'speed' ? 'active' : ''}`} title="Fast results, instant answers" onClick={() => handleEngineModeChange('speed')}>🚀 Speed</button>
+              <button type="button" className={`model-router-btn ${engineMode === 'balanced' ? 'active' : ''}`} title="Premium quality output" onClick={() => handleEngineModeChange('balanced')}>🎯 Balanced</button>
+              <button type="button" className={`model-router-btn ${engineMode === 'deep' ? 'active' : ''}`} title="Research-grade analysis" onClick={() => handleEngineModeChange('deep')}>🔬 Deep</button>
+              <span className="model-router-info" tabIndex={0}>?</span>
+            </div>
+            {engineSwitchFeedback && (
+              <div className="engine-switch-toast">{engineSwitchFeedback}</div>
+            )}
             {/* Mood auto-detected from prompt — no manual selector needed */}
             <div style={{ position: 'relative' }}
               onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#008080'; }}
