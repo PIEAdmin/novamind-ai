@@ -1022,11 +1022,6 @@ const AGENT_SUGGESTIONS: Record<AgentMode, { icon: string; text: string }[]> = {
     { icon: '💡', text: 'Find market gaps in the fitness app industry that I can exploit' },
     { icon: '🎯', text: 'How should I position my cleaning service against Stanley Steemer?' }
   ],
-  'certificate-maker': [
-    { icon: '📧', label: 'Email Certificate', agent: 'email-assistant', promptPrefix: 'Write a professional email to send this certificate to the recipient:\n\n' },
-    { icon: '📱', label: 'Announce on Social', agent: 'social-media', promptPrefix: 'Create a social media post announcing this certification/award:\n\n' },
-    { icon: '📄', label: 'Event Flyer', agent: 'flyer-maker', promptPrefix: 'Create a flyer promoting this certification program:\n\n' },
-  ],
   'ad-maker': [
     { icon: '📱', text: 'Create a Facebook ad for my new fitness coaching program at $99/month' },
     { icon: '🎯', text: 'Write Google Search ad copy for a personal injury law firm' },
