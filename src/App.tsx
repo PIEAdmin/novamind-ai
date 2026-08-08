@@ -2131,7 +2131,7 @@ Rules:
       setShowAuth(false);
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Medium }); } catch {} }
     } catch (e: unknown) { const err = e as { code?: string; message?: string }; 
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') setAuthError('No account found with that email. Try "Create a Free Account" below!');
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') setAuthError('No account found with that email. Try "Start Free Trial" below!');
       else if (err.code === 'auth/wrong-password') setAuthError('Incorrect password. Try again or use "Forgot Password".');
       else if (err.code === 'auth/email-already-in-use') setAuthError('An account with this email already exists. Try signing in instead!');
       else if (err.code === 'auth/weak-password') setAuthError('Password must be at least 6 characters.');
@@ -2913,11 +2913,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           <div className="auth-modal" style={{ width: '100%', maxWidth: '420px', margin: '0 auto' }}>
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
               <img src="/icon-192.png" alt="NovaMind AI" style={{ width: '64px', height: '64px', marginBottom: '16px' }} />
-              <h2 style={{ margin: '0 0 8px' }}>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Create Your Account'}</h2>
+              <h2 style={{ margin: '0 0 8px' }}>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Start Your Free Trial'}</h2>
               <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: 14 }}>
                 {authMode === 'login'
                   ? (isPersonalMode ? 'Sign in or create an account to get started' : 'Sign in or create an account to get started')
-                  : (isPersonalMode ? 'Join NovaMind Personal — AI for everyday life' : 'Start creating with NovaMind AI')}
+                  : (isPersonalMode ? '14 days free · No credit card · Cancel anytime' : '14 days free · No credit card · Cancel anytime')}
               </p>
             </div>
             {authError && <div className="auth-error">{authError}</div>}
@@ -2929,7 +2929,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </p>
             )}
             {resetSent && <p style={{ color: '#4ade80', fontSize: '14px', margin: 0, textAlign: 'center', padding: '12px', background: 'rgba(74,222,128,0.1)', borderRadius: '10px', border: '1px solid rgba(74,222,128,0.3)' }}>✅ Password reset email sent! Check your inbox (and spam/junk folder).</p>}
-            <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
+            <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Start Free Trial'}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
               <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
               <span style={{ fontSize: '13px', color: 'var(--text-secondary, #5a6068)' }}>or</span>
@@ -2942,7 +2942,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <div style={{ textAlign: 'center', margin: '16px 0 0' }}>
               {authMode === 'login' ? (
                 <button onClick={() => { setAuthMode('signup'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #008080)', color: 'var(--primary, #008080)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
-                  New here? Create a Free Account
+                  ✨ Start Free Trial
                 </button>
               ) : (
                 <button onClick={() => { setAuthMode('login'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #008080)', color: 'var(--primary, #008080)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
@@ -2950,29 +2950,21 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 </button>
               )}
             </div>
-            {/* 🏢 Agency Waitlist */}
-            <div style={{ marginTop: '28px', padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(0,128,128,0.08) 50%, rgba(0,128,128,0.08) 100%)', border: '1px solid rgba(0,128,128,0.15)' }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#008080', letterSpacing: '1px', marginBottom: '6px' }}>COMING SOON</div>
-                <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>🏢 NovaMind for Agencies</h3>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: '0 0 14px', lineHeight: '1.5' }}>
-                  White-label NovaMind under your brand. Your logo, your domain, your clients — powered by our AI.
-                </p>
-                {agencySubmitted ? (
-                  <div style={{ padding: '12px', borderRadius: '10px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', fontSize: '13px', color: '#22c55e', fontWeight: 600 }}>
-                    ✅ You're on the list! We'll reach out soon.
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <input className="auth-input" type="email" placeholder="agency@email.com" value={agencyEmail} onChange={e => setAgencyEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitAgencyWaitlist()} style={{ margin: 0, flex: 1, fontSize: '13px' }} />
-                    <button onClick={submitAgencyWaitlist} style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #008080, #006666)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>Join Waitlist</button>
-                  </div>
-                )}
-              </div>
+
+            {/* Trust cues */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', marginTop: '20px', flexWrap: 'wrap' as const }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', display: 'flex', alignItems: 'center', gap: '4px' }}>🔒 Secure sign-in</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', display: 'flex', alignItems: 'center', gap: '4px' }}>🛡️ We never train on your data</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', display: 'flex', alignItems: 'center', gap: '4px' }}>⚡ 24h support response</span>
             </div>
 
-            <div className="powered-footer" style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-              <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
+            <div className="powered-footer" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' as const }}>
+                <a href="/privacy" style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', textDecoration: 'none' }}>Privacy</a>
+                <a href="/terms" style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', textDecoration: 'none' }}>Terms</a>
+                <a href="/security" style={{ fontSize: '12px', color: 'var(--text-secondary, #888)', textDecoration: 'none' }}>Security</a>
+              </div>
+              <span style={{ fontSize: '12px' }}>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org" style={{ fontSize: '12px' }}>admin@piegroup.org</a>
             </div>
           </div>
         </div>
@@ -3058,7 +3050,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         </div>
       )}
       {passwordResetMsg && (
-        <div style={{ background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', padding: '12px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 600, borderRadius: '0 0 12px 12px', margin: '0 20px', boxShadow: '0 4px 12px rgba(16,185,129,0.3)', animation: 'fadeIn 0.3s ease' }}>
+        <div style={{ background: '#059669', color: '#fff', padding: '12px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 600, borderRadius: '0 0 12px 12px', margin: '0 20px', boxShadow: '0 4px 12px rgba(16,185,129,0.3)', animation: 'fadeIn 0.3s ease' }}>
           ✅ {passwordResetMsg}
         </div>
       )}
@@ -3159,7 +3151,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       <div className="main-content">
         {showWhatsNew && user && (
           <div style={{
-            background: 'linear-gradient(135deg, #1A2B4C 0%, #008080 100%)',
+            background: '#1A2B4C',
             borderRadius: '12px', padding: '16px 20px', margin: '0 0 16px 0',
             display: 'flex', alignItems: 'flex-start', gap: '12px',
             boxShadow: '0 4px 15px rgba(0,128,128,0.3)', position: 'relative',
@@ -3246,26 +3238,26 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           {/* 📊 AI ROI COCKPIT */}
           <div style={{
             borderRadius: '20px', overflow: 'hidden', marginBottom: '28px',
-            background: 'linear-gradient(135deg, rgba(0,128,128,0.06) 0%, rgba(6,182,212,0.04) 50%, rgba(0,128,128,0.06) 100%)',
+            background: 'rgba(0,128,128,0.06)',
             border: '1px solid rgba(0,128,128,0.15)',
           }}>
             {/* Cockpit Header */}
             <div style={{
               padding: '20px 20px 16px',
-              background: 'linear-gradient(135deg, rgba(0,128,128,0.12), rgba(6,182,212,0.08))',
+              background: 'rgba(0,128,128,0.1)',
               borderBottom: '1px solid rgba(0,128,128,0.1)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{
                     width: '44px', height: '44px', borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #008080, #06b6d4)',
+                    background: '#008080',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '22px', flexShrink: 0,
                     boxShadow: '0 4px 16px rgba(0,128,128,0.35)',
                   }}>📊</div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: 'linear-gradient(135deg, #008080, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: '#008080', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                       AI ROI Cockpit
                     </h3>
                     <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -3298,7 +3290,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {/* Hours Saved */}
               <div style={{
                 borderRadius: '14px', padding: '16px',
-                background: 'linear-gradient(135deg, rgba(0,128,128,0.10), rgba(0,128,128,0.02))',
+                background: 'rgba(0,128,128,0.06)',
                 border: '1px solid rgba(0,128,128,0.18)',
                 transition: 'all 0.3s ease', cursor: 'default',
               }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
@@ -3310,7 +3302,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {/* Value Created */}
               <div style={{
                 borderRadius: '14px', padding: '16px',
-                background: 'linear-gradient(135deg, rgba(34,197,94,0.10), rgba(34,197,94,0.02))',
+                background: 'rgba(34,197,94,0.06)',
                 border: '1px solid rgba(34,197,94,0.18)',
                 transition: 'all 0.3s ease', cursor: 'default',
               }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
@@ -3322,7 +3314,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {/* Tools Replaced */}
               <div style={{
                 borderRadius: '14px', padding: '16px',
-                background: 'linear-gradient(135deg, rgba(6,182,212,0.10), rgba(6,182,212,0.02))',
+                background: 'rgba(6,182,212,0.06)',
                 border: '1px solid rgba(6,182,212,0.18)',
                 transition: 'all 0.3s ease', cursor: 'default',
               }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
@@ -3334,7 +3326,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {/* ROI Score */}
               <div style={{
                 borderRadius: '14px', padding: '16px',
-                background: 'linear-gradient(135deg, rgba(245,158,11,0.10), rgba(245,158,11,0.02))',
+                background: 'rgba(245,158,11,0.06)',
                 border: '1px solid rgba(245,158,11,0.18)',
                 transition: 'all 0.3s ease', cursor: 'default',
               }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
@@ -3356,20 +3348,20 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <div style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'rgba(0,128,128,0.10)', overflow: 'hidden' }}>
                   <div style={{
                     width: `${pct}%`, height: '100%', borderRadius: '999px',
-                    background: pct >= 100 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : pct > 80 ? 'linear-gradient(90deg, #f59e0b, #fb923c)' : 'linear-gradient(90deg, #008080, #06b6d4)',
+                    background: pct >= 100 ? '#ef4444' : pct > 80 ? '#f59e0b' : '#008080',
                     transition: 'width 0.5s ease',
                   }} />
                 </div>
               </div>
               {/* Upgrade nudges for free users */}
               {usage.plan === 'free' && pct >= 80 && pct < 100 && (
-                <div style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08))', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
+                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
                   <span style={{ fontSize: '20px' }}>⚡</span>
                   <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Only <strong>{usage.limit - usage.used}</strong> generations left this month! <span style={{ color: 'var(--primary, #008080)', fontWeight: 700, textDecoration: 'underline' }}>Upgrade for unlimited →</span></span>
                 </div>
               )}
               {usage.plan === 'free' && pct >= 100 && (
-                <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.08))', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
+                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
                   <span style={{ fontSize: '20px' }}>🚀</span>
                   <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>You&apos;ve used all free generations! <span style={{ color: 'var(--primary, #008080)', fontWeight: 700, textDecoration: 'underline' }}>Unlock unlimited access →</span></span>
                 </div>
@@ -3425,7 +3417,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         <div key={mission.id} style={{
                           display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', marginBottom: '8px',
                           borderRadius: '14px', cursor: isActive ? 'pointer' : isComplete ? 'default' : 'not-allowed',
-                          background: isCelebrating ? 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))' : isActive ? 'rgba(0,128,128,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
+                          background: isCelebrating ? 'rgba(34,197,94,0.1)' : isActive ? 'rgba(0,128,128,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
                           border: isCelebrating ? '2px solid rgba(34,197,94,0.4)' : isActive ? '2px solid rgba(0,128,128,0.3)' : '1px solid rgba(128,128,128,0.1)',
                           opacity: isLocked ? 0.45 : 1,
                           transition: 'all 0.3s ease',
@@ -3451,7 +3443,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           <div style={{
                             width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                             fontSize: isComplete ? '18px' : '14px', fontWeight: 800,
-                            background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : isActive ? 'linear-gradient(135deg, #008080, #006666)' : 'rgba(128,128,128,0.15)',
+                            background: isComplete ? '#22c55e' : isActive ? '#008080' : 'rgba(128,128,128,0.15)',
                             color: isComplete || isActive ? '#fff' : 'var(--text-secondary)',
                             boxShadow: isActive ? '0 0 12px rgba(0,128,128,0.3)' : 'none',
                           }}>
@@ -3489,7 +3481,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <div style={{ padding: '0 16px 20px' }}>
               <div style={{
                 borderRadius: '14px', padding: '16px',
-                background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(0,128,128,0.08) 50%, rgba(0,128,128,0.08) 100%)',
+                background: 'rgba(0,128,128,0.06)',
                 border: '1px solid rgba(0,128,128,0.15)',
                 position: 'relative' as const, overflow: 'hidden',
               }}>
@@ -3515,7 +3507,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     </div>
                   ))}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.06))', border: '1px solid rgba(34,197,94,0.25)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}>
                   <div>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>NovaMind — All of this for</div>
                     <div style={{ fontSize: '28px', fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>$49<span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>/mo</span></div>
@@ -3567,7 +3559,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     fontWeight: 700,
                     padding: '2px 8px',
                     borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #008080, #006666)',
+                    background: '#008080',
                     color: '#fff',
                     letterSpacing: '0.5px',
                   }}>COMING SOON</span>
@@ -3678,7 +3670,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <button key={feature.name} className="agent-tab" style={{ opacity: 0.4, cursor: 'default', pointerEvents: 'none' as const }} disabled>
                   <span className="agent-tab-icon">{feature.icon}</span>
                   <span className="agent-tab-name">{feature.name}</span>
-                  <span className="agent-tab-badge" style={{ background: 'linear-gradient(135deg, #008080, #006666)', fontSize: '8px' }}>SOON</span>
+                  <span className="agent-tab-badge" style={{ background: '#008080', fontSize: '8px' }}>SOON</span>
                 </button>
               ))}
             </div>)}
@@ -3979,7 +3971,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                   showToast(`Switched to ${chain.label} — hit Generate! 🚀`, 'info');
                                 }} style={{
                                   padding: '6px 14px', fontSize: '12px', fontWeight: 600,
-                                  background: 'linear-gradient(135deg, rgba(0,128,128,0.12), rgba(0,128,128,0.08))',
+                                  background: 'rgba(0,128,128,0.1)',
                                   color: 'var(--primary, #008080)',
                                   border: '1px solid rgba(0,128,128,0.25)',
                                   borderRadius: '20px', cursor: 'pointer',
@@ -4009,7 +4001,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     )}
                     {/* ⚡ Subtle upgrade hint — shows after every 3rd generation for free users */}
                     {isLastAssistant && !msg.isError && usage.plan === 'free' && usage.used > 0 && usage.used % 2 === 0 && (
-                      <div onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '10px', padding: '10px 16px', background: 'linear-gradient(135deg, rgba(0,128,128,0.08), rgba(0,128,128,0.06))', border: '1px solid rgba(0,128,128,0.15)', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                      <div onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '10px', padding: '10px 16px', background: 'rgba(0,128,128,0.07)', border: '1px solid rgba(0,128,128,0.15)', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
                         <span style={{ fontSize: '16px' }}>⚡</span>
                         <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Enjoying NovaMind? <span style={{ color: 'var(--primary, #008080)', fontWeight: 700 }}>Unlock unlimited access →</span></span>
                       </div>
@@ -4077,7 +4069,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               )}
             </div>
             {routeNotification && (
-              <div style={{ background: 'linear-gradient(135deg, #008080 0%, #006666 100%)', color: 'white', padding: '12px 20px', borderRadius: '12px', margin: '12px 0', textAlign: 'center', fontSize: '15px', fontWeight: '600', boxShadow: '0 4px 15px rgba(0,128,128,0.3)' }}>
+              <div style={{ background: '#008080', color: 'white', padding: '12px 20px', borderRadius: '12px', margin: '12px 0', textAlign: 'center', fontSize: '15px', fontWeight: '600', boxShadow: '0 4px 15px rgba(0,128,128,0.3)' }}>
                 {routeNotification}
               </div>
             )}
@@ -4371,7 +4363,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     )}
                     <div style={{ padding: '16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #008080, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#008080', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff' }}>
                           {(post.displayName || 'A').charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -4491,7 +4483,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       </div>{/* main-content-area */}
       </div>{/* app-layout */}
       {toastVisible && (
-        <div className="toast-enter" style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: toastType === 'error' ? '#ef4444' : toastType === 'success' ? '#22c55e' : toastType === 'warning' ? '#f59e0b' : 'linear-gradient(135deg, #008080, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+        <div className="toast-enter" style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: toastType === 'error' ? '#ef4444' : toastType === 'success' ? '#22c55e' : toastType === 'warning' ? '#f59e0b' : '#008080', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
           {toastMsg}
         </div>
       )}
@@ -4520,6 +4512,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {onboardingStep === 0 && (
               <>
                 <h2 style={{ fontSize: '1.5rem', marginBottom: '8px' }}>👋 Welcome to NovaMind AI!</h2>
+                <div style={{ padding: '12px 16px', borderRadius: '10px', background: 'rgba(0,128,128,0.08)', border: '1px solid rgba(0,128,128,0.2)', marginBottom: '16px', textAlign: 'center' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--primary, #008080)' }}>🎉 Trial Started — Day 1 of 14</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>Full access to all features · No credit card required</div>
+                </div>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', fontSize: '14px' }}>Let's personalize your experience. This takes about 30 seconds.</p>
                 <label style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px', display: 'block' }}>Your Name</label>
                 <input className="auth-input" placeholder="Enter your name" value={onboardingData.displayName} onChange={e => setOnboardingData(prev => ({ ...prev, displayName: e.target.value }))} />
@@ -4762,7 +4758,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <button onClick={polishProfile} disabled={polishingProfile}
                     style={{ 
                       marginTop: '20px', width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
-                      background: polishingProfile ? 'rgba(0,128,128,0.3)' : 'linear-gradient(135deg, #008080 0%, #006666 100%)',
+                      background: polishingProfile ? 'rgba(0,128,128,0.3)' : '#008080',
                       color: '#fff', fontSize: '15px', fontWeight: 700, cursor: polishingProfile ? 'wait' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                       boxShadow: polishingProfile ? 'none' : '0 4px 15px rgba(0,128,128,0.3)',
@@ -4796,7 +4792,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <button onClick={generateActionPlan}
                     style={{
                       marginTop: '16px', width: '100%', padding: '16px', borderRadius: '14px', border: 'none',
-                      background: 'linear-gradient(135deg, #0ea5e9 0%, #008080 50%, #006666 100%)',
+                      background: '#008080',
                       color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
                       boxShadow: '0 4px 20px rgba(0,128,128,0.35)', transition: 'all 0.3s',
@@ -4916,7 +4912,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           <div style={{ fontWeight: 600, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.displayName || 'You'}</div>
                           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.email}</div>
                         </div>
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #008080, #006666)', color: '#fff' }}>OWNER</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '8px', background: '#008080', color: '#fff' }}>OWNER</span>
                       </div>
 
                       {teamMembers.map(member => (
@@ -5003,8 +4999,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       {showAuth && (
         <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowAuth(false)}>
           <div className="auth-modal">
-            <h2>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Create Your Account'}</h2>
-            <p style={{ color: 'var(--text-secondary)', margin: '8px 0 20px', fontSize: 14 }}>{authMode === 'login' ? 'Sign in to NovaMind AI' : 'Start creating with NovaMind AI'}</p>
+            <h2>{authMode === 'login' ? 'Welcome to NovaMind AI' : 'Start Your Free Trial'}</h2>
+            <p style={{ color: 'var(--text-secondary)', margin: '8px 0 20px', fontSize: 14 }}>{authMode === 'login' ? 'Sign in to NovaMind AI' : '14 days free · No credit card · Cancel anytime'}</p>
             {authError && <div className="auth-error">{authError}</div>}
             <input className="auth-input" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
             <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} />
@@ -5014,7 +5010,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </p>
             )}
             {resetSent && <p style={{ color: '#4ade80', fontSize: '14px', margin: 0, textAlign: 'center', padding: '12px', background: 'rgba(74,222,128,0.1)', borderRadius: '10px', border: '1px solid rgba(74,222,128,0.3)' }}>✅ Password reset email sent! Check your inbox (and spam/junk folder).</p>}
-            <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
+            <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Start Free Trial'}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
               <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
               <span style={{ fontSize: '13px', color: 'var(--text-secondary, #999)' }}>or</span>
