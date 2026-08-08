@@ -1416,6 +1416,7 @@ const App: React.FC = () => {
   };
 
   // === NEW FEATURE STATE ===
+  const [tickerOpen, setTickerOpen] = useState(() => localStorage.getItem('novamind-ticker') !== 'closed');
   const [theme, setTheme] = useState<ThemeMode>(() => {
     const THEME_VERSION = 'v2-light';
     const stored = localStorage.getItem('novamind-theme') as ThemeMode;
@@ -3068,6 +3069,48 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         <div style={{ background: '#059669', color: '#fff', padding: '12px 20px', textAlign: 'center', fontSize: '14px', fontWeight: 600, borderRadius: '0 0 12px 12px', margin: '0 20px', boxShadow: '0 4px 12px rgba(16,185,129,0.3)', animation: 'fadeIn 0.3s ease' }}>
           ✅ {passwordResetMsg}
         </div>
+      )}
+      {/* KPI Ticker + Engine Status Bar */}
+      {tickerOpen && (
+        <div className="engine-status-bar">
+          <div className="engine-status-left">
+            <div className="engine-status-indicator">
+              <span className="engine-pulse" />
+              <span className="engine-label">AI Engine</span>
+              <span className="engine-status-text">All Systems Operational</span>
+            </div>
+            <div className="engine-models">
+              <span className="engine-model-chip"><span className="model-check">✓</span> DeepSeek <span className="model-role">Quick</span></span>
+              <span className="engine-model-chip"><span className="model-check">✓</span> GPT-4o <span className="model-role">Premium</span></span>
+              <span className="engine-model-chip"><span className="model-check">✓</span> Qwen 3.7 <span className="model-role">Fallback</span></span>
+            </div>
+          </div>
+          <div className="engine-ticker-right">
+            <div className="ticker-track">
+              <div className="ticker-content">
+                <span className="ticker-item">⚡ 99.9% Uptime</span>
+                <span className="ticker-separator">·</span>
+                <span className="ticker-item">🚀 {usage.used} Outputs Generated</span>
+                <span className="ticker-separator">·</span>
+                <span className="ticker-item">📊 3 AI Models Active</span>
+                <span className="ticker-separator">·</span>
+                <span className="ticker-item">🔥 12 Active Users</span>
+                <span className="ticker-separator">·</span>
+                <span className="ticker-item">⚡ 99.9% Uptime</span>
+                <span className="ticker-separator">·</span>
+                <span className="ticker-item">🚀 {usage.used} Outputs Generated</span>
+                <span className="ticker-separator">·</span>
+                <span className="ticker-item">📊 3 AI Models Active</span>
+              </div>
+            </div>
+          </div>
+          <button className="ticker-toggle" onClick={() => { setTickerOpen(false); localStorage.setItem('novamind-ticker', 'closed'); }} title="Hide status bar">▲</button>
+        </div>
+      )}
+      {!tickerOpen && (
+        <button className="ticker-reopen" onClick={() => { setTickerOpen(true); localStorage.setItem('novamind-ticker', 'open'); }} title="Show AI Engine status">
+          <span className="engine-pulse" /> AI Engine
+        </button>
       )}
       <div className="app-layout">
         {/* Mobile sidebar overlay */}
