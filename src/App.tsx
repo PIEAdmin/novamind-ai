@@ -95,10 +95,27 @@ interface PinnedOutput {
   id: string;
   title: string;
   content: string;
-  type: 'text' | 'image' | 'document';
+  type: 'email' | 'proposal' | 'social-post' | 'brief' | 'report' | 'checklist' | 'image' | 'other';
   pinnedAt: number;
   agentMode: string;
+  tags?: string[];
+  clientName?: string;
+  status: 'draft' | 'approved';
+  versionGroup?: string; // groups versions together
+  versionLabel?: string; // e.g. "V1", "Client edits", "Final"
+  versionNumber?: number;
 }
+
+const DELIVERABLE_TYPES: { id: PinnedOutput['type']; label: string }[] = [
+  { id: 'email', label: 'Email' },
+  { id: 'proposal', label: 'Proposal' },
+  { id: 'social-post', label: 'Social Post' },
+  { id: 'brief', label: 'Brief' },
+  { id: 'report', label: 'Report' },
+  { id: 'checklist', label: 'Checklist' },
+  { id: 'image', label: 'Image' },
+  { id: 'other', label: 'Other' },
+];
 
 interface ProjectBrief {
   id: string;
@@ -1503,6 +1520,8 @@ const App: React.FC = () => {
   const canAdmin = userRole === 'owner' || userRole === 'admin';
   const canDeleteWorkspace = userRole === 'owner';
   const canManageBilling = userRole === 'owner';
+  const canViewOnly = userRole === 'viewer';
+  const canEditProject = (p: ProjectBrief) => canAdmin || (canCreate && p.createdBy === user?.uid);
 
   // 📋 Audit Log helper — write-only, immutable entries
   const logAudit = async (action: string, object: string, metadata?: Record<string, unknown>) => {
@@ -1578,6 +1597,25 @@ const App: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
   const [projectMenuOpenId, setProjectMenuOpenId] = useState<string | null>(null);
   const [pinMenuOpenFor, setPinMenuOpenFor] = useState<string | null>(null);
+  const [brandVoiceMode, setBrandVoiceMode] = useState<'workspace' | 'custom'>('workspace');
+
+  // ====== PIN FLOW MODAL (structured deliverable metadata) ======
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinModalData, setPinModalData] = useState<{
+    projectId: string; content: string; agentModeAtPin: string; title: string;
+    type: PinnedOutput['type']; clientName: string; tags: string; status: 'draft' | 'approved';
+  }>({ projectId: '', content: '', agentModeAtPin: 'general', title: '', type: 'other', clientName: '', tags: '', status: 'draft' });
+
+  // ====== DELIVERABLE FILTERS (project detail view) ======
+  const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<'all' | PinnedOutput['type']>('all');
+  const [deliverableStatusFilter, setDeliverableStatusFilter] = useState<'all' | 'draft' | 'approved'>('all');
+  const [expandedVersionGroups, setExpandedVersionGroups] = useState<Record<string, boolean>>({});
+  const [versioningOutputId, setVersioningOutputId] = useState<string | null>(null);
+  const [versionLabelInput, setVersionLabelInput] = useState('');
+
+  // ====== PROJECT CONTEXT INJECTION ======
+  const [contextSettings, setContextSettings] = useState({ objective: true, audience: true, constraints: true, brandVoice: true, deliverables: false });
+  const [contextPanelOpen, setContextPanelOpen] = useState(false);
 
 
   // Scroll to bottom of chat when messages change
@@ -1649,6 +1687,7 @@ const App: React.FC = () => {
       setProjects(prev => [created, ...prev]);
       setShowProjectForm(false);
       setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' });
+      logAudit('project.created', newProjectData.name, { projectId: docRef.id });
       showToast('Project created', 'success');
     } catch (e) {
       console.error('Create project err:', e);
@@ -1662,6 +1701,10 @@ const App: React.FC = () => {
       await updateDoc(doc(db, 'projects', id), payload as any);
       setProjects(prev => prev.map(p => (p.id === id ? { ...p, ...payload } : p)));
       setActiveProject(prev => (prev && prev.id === id ? { ...prev, ...payload } : prev));
+      if (updates.status === 'archived') {
+        logAudit('project.archived', id);
+      }
+      logAudit('project.updated', id, { fields: Object.keys(updates) });
       showToast('Project updated', 'success');
     } catch (e) {
       console.error('Update project err:', e);
@@ -1671,9 +1714,11 @@ const App: React.FC = () => {
 
   const deleteProject = async (id: string) => {
     try {
+      const projectName = projects.find(p => p.id === id)?.name || id;
       await deleteDoc(doc(db, 'projects', id));
       setProjects(prev => prev.filter(p => p.id !== id));
       setActiveProject(prev => (prev && prev.id === id ? null : prev));
+      logAudit('project.deleted', id, { name: projectName });
       showToast('Project deleted', 'success');
     } catch (e) {
       console.error('Delete project err:', e);
@@ -1685,15 +1730,20 @@ const App: React.FC = () => {
     try {
       const project = projects.find(p => p.id === projectId);
       if (!project) return;
+      const newId = `po_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       const newOutput: PinnedOutput = {
         ...output,
-        id: `po_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id: newId,
         pinnedAt: Date.now(),
+        versionGroup: output.versionGroup || newId,
+        versionNumber: output.versionNumber || 1,
+        versionLabel: output.versionLabel || 'V1',
       };
       const updatedOutputs = [...(project.pinnedOutputs || []), newOutput];
       await updateDoc(doc(db, 'projects', projectId), { pinnedOutputs: updatedOutputs, updatedAt: Date.now() });
       setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : p)));
       setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : prev));
+      logAudit('deliverable.pinned', output.title, { projectId, type: output.type });
       showToast('Pinned to project', 'success');
     } catch (e) {
       console.error('Pin output err:', e);
@@ -1709,6 +1759,7 @@ const App: React.FC = () => {
       await updateDoc(doc(db, 'projects', projectId), { pinnedOutputs: updatedOutputs, updatedAt: Date.now() });
       setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : p)));
       setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : prev));
+      logAudit('deliverable.unpinned', outputId, { projectId });
       showToast('Removed from project', 'info');
     } catch (e) {
       console.error('Unpin output err:', e);
@@ -1717,6 +1768,7 @@ const App: React.FC = () => {
   };
 
   const exportProjectBrief = (project: ProjectBrief) => {
+    logAudit('project.exported', project.name, { projectId: project.id, deliverableCount: (project.pinnedOutputs || []).length });
     const pw = window.open('', '_blank');
     if (!pw) return;
     const statusLabel = project.status.charAt(0).toUpperCase() + project.status.slice(1);
@@ -4451,7 +4503,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         {!msg.imageUrl && <button className="chat-action-btn" onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>NovaMind Export</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}h1,h2,h3{color:#333}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto}</style></head><body>' + renderMarkdown(msg.content) + '<hr><p style="color:#999;font-size:12px">Exported from NovaMind AI</p></body></html>'); pw.document.close(); pw.print(); } }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', cursor: 'pointer' }}>📄 PDF</button>}
                         {!msg.imageUrl && <button className="chat-action-btn" onClick={() => { const html = '<html><head><meta charset="utf-8"><title>NovaMind Export</title></head><body>' + renderMarkdown(msg.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'novamind-export.doc'; a.click(); URL.revokeObjectURL(url); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px', cursor: 'pointer' }}>📝 Word</button>}
                         <button className="chat-share-btn" onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
-                        {projects.length > 0 && (
+                        {!canViewOnly && projects.filter(p => canEditProject(p)).length > 0 && (
                           <div style={{ position: 'relative', display: 'inline-block' }}>
                             <button className="chat-action-btn" onClick={() => setPinMenuOpenFor(pinMenuOpenFor === `chat-${idx}` ? null : `chat-${idx}`)}
                               style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
@@ -4460,9 +4512,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                             </button>
                             {pinMenuOpenFor === `chat-${idx}` && (
                               <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '6px', background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', minWidth: '200px', zIndex: 30, overflow: 'hidden' }}>
-                                {projects.filter(p => p.status === 'active').map(p => (
+                                {projects.filter(p => p.status === 'active' && canEditProject(p)).map(p => (
                                   <button key={p.id} onClick={() => {
-                                    pinOutput(p.id, { title: (chatMessages.find(m => m.role === 'user')?.content || 'Output').slice(0, 60), content: msg.imageUrl || msg.content, type: msg.imageUrl ? 'image' : 'text', agentMode });
+                                    const content = msg.imageUrl || msg.content;
+                                    const titleSeed = (chatMessages.find(m => m.role === 'user')?.content || 'Output').slice(0, 60);
+                                    setPinModalData({ projectId: p.id, content, agentModeAtPin: agentMode, title: titleSeed, type: msg.imageUrl ? 'image' : 'other', clientName: '', tags: '', status: 'draft' });
+                                    setShowPinModal(true);
                                     setPinMenuOpenFor(null);
                                   }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{p.name}</button>
                                 ))}
@@ -4639,7 +4694,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   )}
                   <button className="action-btn" onClick={() => setShowShareMenu(showShareMenu === 'result' ? null : 'result')} style={{ background: 'rgba(0,128,128,0.2)', color: 'var(--primary, #008080)' }}>🔗 Share</button>
                   <button className="action-btn" onClick={() => publishToCommunity(lastPrompt, result.content || result.text || '', result.imageUrl)} style={{ background: 'rgba(255,165,0,0.15)', color: '#ffa500' }}>🌟 Publish to Community</button>
-                  {projects.length > 0 && (
+                  {!canViewOnly && projects.filter(p => canEditProject(p)).length > 0 && (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       <button className="action-btn" onClick={() => setPinMenuOpenFor(pinMenuOpenFor === 'result' ? null : 'result')}
                         style={{ background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
@@ -4648,9 +4703,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       </button>
                       {pinMenuOpenFor === 'result' && (
                         <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '6px', background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', minWidth: '200px', zIndex: 30, overflow: 'hidden' }}>
-                          {projects.filter(p => p.status === 'active').map(p => (
+                          {projects.filter(p => p.status === 'active' && canEditProject(p)).map(p => (
                             <button key={p.id} onClick={() => {
-                              pinOutput(p.id, { title: (lastPrompt || 'Output').slice(0, 60), content: result.imageUrl || result.content || result.text || '', type: result.imageUrl ? 'image' : 'text', agentMode });
+                              const content = result.imageUrl || result.content || result.text || '';
+                              const titleSeed = (lastPrompt || 'Output').slice(0, 60);
+                              setPinModalData({ projectId: p.id, content, agentModeAtPin: agentMode, title: titleSeed, type: result.imageUrl ? 'image' : 'other', clientName: '', tags: '', status: 'draft' });
+                              setShowPinModal(true);
                               setPinMenuOpenFor(null);
                             }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{p.name}</button>
                           ))}
@@ -5026,15 +5084,23 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             download: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 19h16" /></svg>,
             spark: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M17.5 17.5 15 15M6 18l2.5-2.5M17.5 6.5 15 9" /></svg>,
             empty: <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>,
+            chevronDown: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>,
+            chevronRight: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6l6 6-6 6" /></svg>,
+            layers: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2 3 7l9 5 9-5-9-5z" /><path d="M3 12l9 5 9-5" /><path d="M3 17l9 5 9-5" /></svg>,
           };
           const statusColors: Record<string, { bg: string; fg: string }> = {
             active: { bg: 'rgba(0,128,128,0.08)', fg: '#008080' },
             completed: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' },
             archived: { bg: 'rgba(102,112,133,0.1)', fg: '#667085' },
           };
+          const deliverableStatusColors: Record<string, { bg: string; fg: string }> = {
+            draft: { bg: 'rgba(245,158,11,0.1)', fg: '#b45309' },
+            approved: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' },
+          };
           const filteredProjects = projects.filter(p => projectFilter === 'all' || p.status === projectFilter);
           const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--card-bg, #f9fafb)', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' };
           const labelStyle: React.CSSProperties = { display: 'block', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' };
+          const chipStyle = (active: boolean): React.CSSProperties => ({ padding: '5px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '999px', border: active ? '1px solid #008080' : '1px solid var(--border-color, #e5e7eb)', background: active ? 'rgba(0,128,128,0.08)' : 'transparent', color: active ? '#008080' : 'var(--text-secondary)', cursor: 'pointer', textTransform: 'capitalize' });
 
           // ===== View B: New / Edit Project Form =====
           if (showProjectForm) {
@@ -5063,12 +5129,28 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   </div>
                   <div>
                     <label style={labelStyle}>Brand Voice</label>
-                    <select style={inputStyle} value={projectFormData.brandVoice} onChange={e => setProjectFormData(f => ({ ...f, brandVoice: e.target.value }))}>
-                      <option value="">Select a brand voice…</option>
-                      {['Professional', 'Friendly', 'Bold', 'Minimal', 'Luxury', 'Technical', 'Conversational'].map(v => (
-                        <option key={v} value={v}>{v}</option>
-                      ))}
-                    </select>
+                    <div style={{ display: 'flex', gap: '16px', marginBottom: '10px' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                        <input type="radio" checked={brandVoiceMode === 'workspace'} onChange={() => { setBrandVoiceMode('workspace'); setProjectFormData(f => ({ ...f, brandVoice: businessProfile?.brandVoice || 'Professional' })); }} />
+                        Use workspace voice
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                        <input type="radio" checked={brandVoiceMode === 'custom'} onChange={() => setBrandVoiceMode('custom')} />
+                        Custom voice
+                      </label>
+                    </div>
+                    {brandVoiceMode === 'workspace' ? (
+                      <div style={{ ...inputStyle, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                        {businessProfile?.brandVoice ? businessProfile.brandVoice.charAt(0).toUpperCase() + businessProfile.brandVoice.slice(1) : 'No workspace voice set — visit Business Profile'}
+                      </div>
+                    ) : (
+                      <select style={inputStyle} value={projectFormData.brandVoice} onChange={e => setProjectFormData(f => ({ ...f, brandVoice: e.target.value }))}>
+                        <option value="">Select a brand voice…</option>
+                        {['Professional', 'Friendly', 'Bold', 'Minimal', 'Luxury', 'Technical', 'Conversational'].map(v => (
+                          <option key={v} value={v}>{v}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                     <button
@@ -5101,7 +5183,26 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           // ===== View C: Project Detail =====
           if (activeProject) {
             const sc = statusColors[activeProject.status] || statusColors.active;
-            const deliverables = activeProject.pinnedOutputs || [];
+            const allDeliverables = activeProject.pinnedOutputs || [];
+            const deliverables = allDeliverables.filter(o =>
+              (deliverableTypeFilter === 'all' || o.type === deliverableTypeFilter) &&
+              (deliverableStatusFilter === 'all' || (o.status || 'draft') === deliverableStatusFilter)
+            );
+            const canEditThis = canEditProject(activeProject);
+            const activeFieldCount = Object.values(contextSettings).filter(Boolean).length;
+            const totalFieldCount = Object.keys(contextSettings).length;
+            // group deliverables by versionGroup for versioning display
+            const groups: Record<string, PinnedOutput[]> = {};
+            deliverables.forEach(o => {
+              const g = o.versionGroup || o.id;
+              if (!groups[g]) groups[g] = [];
+              groups[g].push(o);
+            });
+            const groupList = Object.entries(groups).map(([g, items]) => ({
+              groupId: g,
+              items: items.sort((a, b) => (b.versionNumber || 1) - (a.versionNumber || 1)),
+            })).sort((a, b) => (b.items[0]?.pinnedAt || 0) - (a.items[0]?.pinnedAt || 0));
+
             return (
               <div style={{ maxWidth: '860px', margin: '0 auto', padding: '8px 0' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
@@ -5109,10 +5210,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{activeProject.name}</h2>
                   <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 12px', borderRadius: '999px', background: sc.bg, color: sc.fg, textTransform: 'capitalize' }}>{activeProject.status}</span>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-                    <button onClick={() => { setEditingProject(activeProject); setProjectFormData({ name: activeProject.name, objective: activeProject.objective, targetAudience: activeProject.targetAudience, constraints: activeProject.constraints, brandVoice: activeProject.brandVoice }); setShowProjectForm(true); }}
-                      style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.edit} Edit</button>
-                    <button onClick={() => exportProjectBrief(activeProject)}
-                      style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.download} Export</button>
+                    {canEditThis && (
+                      <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(activeProject); setProjectFormData({ name: activeProject.name, objective: activeProject.objective, targetAudience: activeProject.targetAudience, constraints: activeProject.constraints, brandVoice: activeProject.brandVoice }); setShowProjectForm(true); }}
+                        style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.edit} Edit</button>
+                    )}
+                    {canExport && !canViewOnly && (canAdmin || activeProject.createdBy === user?.uid) && (
+                      <button onClick={() => exportProjectBrief(activeProject)}
+                        style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.download} Export</button>
+                    )}
                   </div>
                 </div>
                 <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 24px' }}>Updated {new Date(activeProject.updatedAt).toLocaleDateString()}</p>
@@ -5139,44 +5244,167 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   </div>
                 </div>
 
-                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '24px', marginBottom: '24px' }}>
-                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' }}>Deliverables ({deliverables.length})</h3>
-                  {deliverables.length === 0 ? (
-                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>Pin outputs from your AI chats to track project deliverables here.</p>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {deliverables.map(o => (
-                        <div key={o.id} style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '14px 16px', background: '#ffffff' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
-                            <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{o.title}</strong>
-                            <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', textTransform: 'capitalize' }}>{o.type}</span>
-                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Pinned {new Date(o.pinnedAt).toLocaleDateString()}</span>
-                          </div>
-                          {o.type !== 'image' && (
-                            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>{o.content.slice(0, 100)}{o.content.length > 100 ? '…' : ''}</p>
-                          )}
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + o.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + (o.type === 'image' ? '<img src="' + o.content + '" style="max-width:100%"/>' : renderMarkdown(o.content)) + '</body></html>'); pw.document.close(); } }}
-                              style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer' }}>View</button>
-                            <button onClick={() => unpinOutput(activeProject.id, o.id)} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.unpin} Unpin</button>
-                            {o.type !== 'image' && (<>
-                              <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + o.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + renderMarkdown(o.content) + '</body></html>'); pw.document.close(); pw.print(); } }}
-                                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export PDF</button>
-                              <button onClick={() => { const html = '<html><head><meta charset="utf-8"><title>' + o.title + '</title></head><body>' + renderMarkdown(o.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = o.title.replace(/[^a-z0-9]+/gi, '-') + '.doc'; a.click(); URL.revokeObjectURL(url); }}
-                                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export Word</button>
-                            </>)}
-                          </div>
-                        </div>
-                      ))}
+                {/* ===== AI Context Panel ===== */}
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', marginBottom: '24px', overflow: 'hidden' }}>
+                  <button onClick={() => setContextPanelOpen(!contextPanelOpen)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '18px 24px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                    <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>{contextPanelOpen ? ICONS.chevronDown : ICONS.chevronRight}</span>
+                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>AI Context</h3>
+                    <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', marginLeft: 'auto' }}>
+                      Context: {activeFieldCount} of {totalFieldCount} fields active
+                    </span>
+                  </button>
+                  {contextPanelOpen && (
+                    <div style={{ padding: '0 24px 20px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '12px' }}>
+                        {([
+                          ['objective', 'Include objective'],
+                          ['audience', 'Include target audience'],
+                          ['constraints', 'Include constraints'],
+                          ['brandVoice', 'Include brand voice'],
+                          ['deliverables', 'Include pinned deliverables'],
+                        ] as const).map(([key, label]) => (
+                          <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={contextSettings[key]} onChange={e => setContextSettings(s => ({ ...s, [key]: e.target.checked }))} />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>These settings control what project context is included when you click "Generate with AI".</p>
                     </div>
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button onClick={() => { switchTab('create'); setPrompt(`Project: ${activeProject.name}\nObjective: ${activeProject.objective}\nTarget Audience: ${activeProject.targetAudience}\nConstraints: ${activeProject.constraints}\nBrand Voice: ${activeProject.brandVoice}\n\n`); }}
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '24px', marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' }}>Deliverables ({allDeliverables.length})</h3>
+                  {allDeliverables.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', alignSelf: 'center', marginRight: '4px' }}>Type:</span>
+                      <button onClick={() => setDeliverableTypeFilter('all')} style={chipStyle(deliverableTypeFilter === 'all')}>All ({allDeliverables.length})</button>
+                      {DELIVERABLE_TYPES.filter(t => allDeliverables.some(o => o.type === t.id)).map(t => (
+                        <button key={t.id} onClick={() => setDeliverableTypeFilter(t.id)} style={chipStyle(deliverableTypeFilter === t.id)}>
+                          {t.label} ({allDeliverables.filter(o => o.type === t.id).length})
+                        </button>
+                      ))}
+                      <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', alignSelf: 'center', margin: '0 4px' }}>Status:</span>
+                      {(['all', 'draft', 'approved'] as const).map(s => (
+                        <button key={s} onClick={() => setDeliverableStatusFilter(s)} style={chipStyle(deliverableStatusFilter === s)}>
+                          {s === 'all' ? `All (${allDeliverables.length})` : `${s.charAt(0).toUpperCase() + s.slice(1)} (${allDeliverables.filter(o => (o.status || 'draft') === s).length})`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {allDeliverables.length === 0 ? (
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>Pin outputs from your AI chats to track project deliverables here.</p>
+                  ) : deliverables.length === 0 ? (
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>No deliverables match these filters.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {groupList.map(({ groupId, items }) => {
+                        const o = items[0];
+                        const hasVersions = items.length > 1;
+                        const isExpanded = !!expandedVersionGroups[groupId];
+                        const dsc = deliverableStatusColors[o.status || 'draft'] || deliverableStatusColors.draft;
+                        return (
+                          <div key={groupId} style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '14px 16px', background: '#ffffff' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                              <strong style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{o.title}</strong>
+                              <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', textTransform: 'capitalize' }}>{o.type}</span>
+                              <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: dsc.bg, color: dsc.fg, textTransform: 'capitalize' }}>{o.status || 'draft'}</span>
+                              {o.versionLabel && (
+                                <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(102,112,133,0.1)', color: '#667085' }}>{o.versionLabel}</span>
+                              )}
+                              {o.clientName && (
+                                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Client: {o.clientName}</span>
+                              )}
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Pinned {new Date(o.pinnedAt).toLocaleDateString()}</span>
+                            </div>
+                            {o.tags && o.tags.length > 0 && (
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                {o.tags.map((tag, i) => (
+                                  <span key={i} style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.06)', color: '#008080' }}>{tag}</span>
+                                ))}
+                              </div>
+                            )}
+                            {o.type !== 'image' && (
+                              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>{o.content.slice(0, 100)}{o.content.length > 100 ? '…' : ''}</p>
+                            )}
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + o.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + (o.type === 'image' ? '<img src="' + o.content + '" style="max-width:100%"/>' : renderMarkdown(o.content)) + '</body></html>'); pw.document.close(); } }}
+                                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer' }}>View</button>
+                              {canEditThis && (
+                                <button onClick={() => unpinOutput(activeProject.id, o.id)} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.unpin} Unpin</button>
+                              )}
+                              {o.type !== 'image' && canExport && (canAdmin || activeProject.createdBy === user?.uid) && (<>
+                                <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + o.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + renderMarkdown(o.content) + '</body></html>'); pw.document.close(); pw.print(); } }}
+                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export PDF</button>
+                                <button onClick={() => { const html = '<html><head><meta charset="utf-8"><title>' + o.title + '</title></head><body>' + renderMarkdown(o.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = o.title.replace(/[^a-z0-9]+/gi, '-') + '.doc'; a.click(); URL.revokeObjectURL(url); }}
+                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export Word</button>
+                              </>)}
+                              {canEditThis && (
+                                versioningOutputId === o.id ? (
+                                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                    <input autoFocus value={versionLabelInput} onChange={e => setVersionLabelInput(e.target.value)} placeholder="Version label (e.g. Client edits)"
+                                      style={{ padding: '5px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--card-bg, #f9fafb)', color: 'var(--text-primary)' }} />
+                                    <button onClick={() => {
+                                      const nextNumber = (Math.max(...items.map(v => v.versionNumber || 1)) || 1) + 1;
+                                      const label = versionLabelInput.trim() || `V${nextNumber}`;
+                                      pinOutput(activeProject.id, { title: o.title, content: o.content, type: o.type, agentMode: o.agentMode, tags: o.tags, clientName: o.clientName, status: 'draft', versionGroup: groupId, versionNumber: nextNumber, versionLabel: label });
+                                      setVersioningOutputId(null);
+                                      setVersionLabelInput('');
+                                      switchTab('create');
+                                      setPrompt(o.content);
+                                    }} style={{ padding: '5px 12px', fontSize: '12px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save</button>
+                                    <button onClick={() => { setVersioningOutputId(null); setVersionLabelInput(''); }} style={{ padding: '5px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => { setVersioningOutputId(o.id); setVersionLabelInput(''); }}
+                                    style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.layers} Save New Version</button>
+                                )
+                              )}
+                              {hasVersions && (
+                                <button onClick={() => setExpandedVersionGroups(s => ({ ...s, [groupId]: !s[groupId] }))}
+                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'rgba(0,128,128,0.08)', color: '#008080', border: 'none', borderRadius: '999px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', marginLeft: 'auto' }}>
+                                  {items.length} versions {isExpanded ? ICONS.chevronDown : ICONS.chevronRight}
+                                </button>
+                              )}
+                            </div>
+                            {hasVersions && isExpanded && (
+                              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color, #e5e7eb)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {items.map(v => (
+                                  <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '12px' }}>
+                                    <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080' }}>{v.versionLabel || `V${v.versionNumber || 1}`}</span>
+                                    <span style={{ color: 'var(--text-secondary)' }}>{new Date(v.pinnedAt).toLocaleDateString()}</span>
+                                    <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + v.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + (v.type === 'image' ? '<img src="' + v.content + '" style="max-width:100%"/>' : renderMarkdown(v.content)) + '</body></html>'); pw.document.close(); } }}
+                                      style={{ padding: '4px 10px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer', marginLeft: 'auto' }}>View</button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button onClick={() => {
+                    let contextPrefix = `Project: ${activeProject.name}\n`;
+                    if (contextSettings.objective && activeProject.objective) contextPrefix += `Objective: ${activeProject.objective}\n`;
+                    if (contextSettings.audience && activeProject.targetAudience) contextPrefix += `Target Audience: ${activeProject.targetAudience}\n`;
+                    if (contextSettings.constraints && activeProject.constraints) contextPrefix += `Constraints: ${activeProject.constraints}\n`;
+                    if (contextSettings.brandVoice && activeProject.brandVoice) contextPrefix += `Brand Voice: ${activeProject.brandVoice}\n`;
+                    if (contextSettings.deliverables && allDeliverables.length > 0) {
+                      contextPrefix += `\nExisting deliverables:\n`;
+                      allDeliverables.forEach(d => { contextPrefix += `- ${d.title} (${d.type}): ${d.content.slice(0, 200)}\n`; });
+                    }
+                    switchTab('create');
+                    setPrompt(`${contextPrefix}\n`);
+                  }}
                     style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
                     {ICONS.spark} Generate with AI
                   </button>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Context: {activeFieldCount} of {totalFieldCount} fields active</span>
                 </div>
               </div>
             );
@@ -5188,10 +5416,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
                 <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Projects</h2>
                 <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080' }}>{projects.length}</span>
-                <button onClick={() => { setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' }); setShowProjectForm(true); }}
-                  style={{ marginLeft: 'auto', padding: '10px 18px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
-                  {ICONS.plus} New Project
-                </button>
+                {!canViewOnly && (
+                  <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '' }); setShowProjectForm(true); }}
+                    style={{ marginLeft: 'auto', padding: '10px 18px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
+                    {ICONS.plus} New Project
+                  </button>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
@@ -5217,11 +5447,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <div style={{ textAlign: 'center', padding: '64px 24px', color: 'var(--text-secondary)' }}>
                   <div style={{ display: 'inline-flex', color: 'var(--text-secondary)', marginBottom: '16px' }}>{ICONS.empty}</div>
                   <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>
-                    {projects.length === 0 ? 'Create your first project' : 'No projects match this filter'}
+                    {projects.length === 0 ? (canViewOnly ? 'No projects yet' : 'Create your first project') : 'No projects match this filter'}
                   </h3>
                   <p style={{ fontSize: '13px', margin: '0 0 20px' }}>Organize your briefs, targets, and deliverables in one place.</p>
-                  {projects.length === 0 && (
-                    <button onClick={() => { setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' }); setShowProjectForm(true); }}
+                  {projects.length === 0 && !canViewOnly && (
+                    <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '' }); setShowProjectForm(true); }}
                       style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
                       New Project
                     </button>
@@ -5231,21 +5461,26 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '16px' }}>
                   {filteredProjects.map(p => {
                     const sc = statusColors[p.status] || statusColors.active;
+                    const canEditThis = canEditProject(p);
                     return (
                       <div key={p.id} onClick={() => setActiveProject(p)}
                         style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', cursor: 'pointer', position: 'relative' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                           <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, paddingRight: '8px' }}>{p.name}</h3>
-                          <button onClick={e => { e.stopPropagation(); setProjectMenuOpenId(projectMenuOpenId === p.id ? null : p.id); }}
-                            style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', flexShrink: 0 }}>{ICONS.dots}</button>
-                          {projectMenuOpenId === p.id && (
+                          {canEditThis && (
+                            <button onClick={e => { e.stopPropagation(); setProjectMenuOpenId(projectMenuOpenId === p.id ? null : p.id); }}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', padding: '2px', flexShrink: 0 }}>{ICONS.dots}</button>
+                          )}
+                          {canEditThis && projectMenuOpenId === p.id && (
                             <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '40px', right: '16px', background: '#ffffff', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', zIndex: 20, minWidth: '150px', overflow: 'hidden' }}>
-                              <button onClick={() => { setProjectMenuOpenId(null); setEditingProject(p); setProjectFormData({ name: p.name, objective: p.objective, targetAudience: p.targetAudience, constraints: p.constraints, brandVoice: p.brandVoice }); setShowProjectForm(true); }}
+                              <button onClick={() => { setProjectMenuOpenId(null); setBrandVoiceMode('custom'); setEditingProject(p); setProjectFormData({ name: p.name, objective: p.objective, targetAudience: p.targetAudience, constraints: p.constraints, brandVoice: p.brandVoice }); setShowProjectForm(true); }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{ICONS.edit} Edit</button>
                               <button onClick={() => { setProjectMenuOpenId(null); updateProject(p.id, { status: p.status === 'archived' ? 'active' : 'archived' }); }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{ICONS.archive} {p.status === 'archived' ? 'Unarchive' : 'Archive'}</button>
-                              <button onClick={() => { setProjectMenuOpenId(null); if (window.confirm(`Delete "${p.name}"? This cannot be undone.`)) deleteProject(p.id); }}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: '#d92d20', cursor: 'pointer' }}>{ICONS.trash} Delete</button>
+                              {canAdmin && (
+                                <button onClick={() => { setProjectMenuOpenId(null); if (window.confirm(`Delete "${p.name}"? This cannot be undone.`)) deleteProject(p.id); }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: '#d92d20', cursor: 'pointer' }}>{ICONS.trash} Delete</button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -5264,6 +5499,70 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           );
         })()}
+
+        {/* ===== Pin to Project Modal (structured deliverable metadata) ===== */}
+        {showPinModal && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={() => setShowPinModal(false)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '460px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#101828', margin: '0 0 16px' }}>Pin to Project</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#101828', marginBottom: '6px' }}>Title</label>
+                  <input value={pinModalData.title} onChange={e => setPinModalData(d => ({ ...d, title: e.target.value }))}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#101828' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#101828', marginBottom: '6px' }}>Type</label>
+                  <select value={pinModalData.type} onChange={e => setPinModalData(d => ({ ...d, type: e.target.value as PinnedOutput['type'] }))}
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#101828' }}>
+                    {DELIVERABLE_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#101828', marginBottom: '6px' }}>Client Name (optional)</label>
+                  <input value={pinModalData.clientName} onChange={e => setPinModalData(d => ({ ...d, clientName: e.target.value }))} placeholder="e.g. Acme Corp"
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#101828' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#101828', marginBottom: '6px' }}>Tags (comma-separated)</label>
+                  <input value={pinModalData.tags} onChange={e => setPinModalData(d => ({ ...d, tags: e.target.value }))} placeholder="e.g. Q3, launch, priority"
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid #e5e7eb', background: '#f9fafb', color: '#101828' }} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#101828', marginBottom: '6px' }}>Status</label>
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    {(['draft', 'approved'] as const).map(s => (
+                      <label key={s} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#101828', cursor: 'pointer', textTransform: 'capitalize' }}>
+                        <input type="radio" checked={pinModalData.status === s} onChange={() => setPinModalData(d => ({ ...d, status: s }))} />
+                        {s}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                  <button onClick={() => {
+                    pinOutput(pinModalData.projectId, {
+                      title: pinModalData.title.trim() || 'Untitled Deliverable',
+                      content: pinModalData.content,
+                      type: pinModalData.type,
+                      agentMode: pinModalData.agentModeAtPin,
+                      tags: pinModalData.tags.split(',').map(t => t.trim()).filter(Boolean),
+                      clientName: pinModalData.clientName.trim() || undefined,
+                      status: pinModalData.status,
+                    });
+                    setShowPinModal(false);
+                  }} style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
+                    Pin Deliverable
+                  </button>
+                  <button onClick={() => setShowPinModal(false)}
+                    style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: '#101828', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {tab === 'inbox' && (
           <div className="ent-coming-soon-view">
             <div className="ent-icon">✉️</div>
@@ -5378,7 +5677,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>📋 Audit Log</h3>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {['all', 'user', 'generation', 'team', 'model'].map(f => (
+                  {['all', 'user', 'generation', 'team', 'model', 'project', 'deliverable'].map(f => (
                     <button key={f} onClick={() => setAuditFilter(f)}
                       style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${auditFilter === f ? '#008080' : 'var(--border-color, #e5e7eb)'}`, background: auditFilter === f ? '#008080' : 'transparent', color: auditFilter === f ? '#fff' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
                       {f.charAt(0).toUpperCase() + f.slice(1)}
