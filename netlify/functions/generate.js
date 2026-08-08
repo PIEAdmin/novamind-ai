@@ -14,11 +14,11 @@ if (!admin.apps.length) {
   if (serviceAccount) {
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      projectId: 'novamind-ai-5417c',
+      projectId: process.env.FIREBASE_PROJECT_ID || 'novamind-ai-5417c',
     });
   } else {
     admin.initializeApp({
-      projectId: 'novamind-ai-5417c',
+      projectId: process.env.FIREBASE_PROJECT_ID || 'novamind-ai-5417c',
     });
   }
 }

@@ -2925,14 +2925,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} />
             {authMode === 'login' && (
               <p style={{ textAlign: 'right', margin: '-4px 0 0 0' }}>
-                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #a855f7)', fontSize: '14px', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px' }}>Forgot Password?</span>
+                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #006666)', fontSize: '14px', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px' }}>Forgot Password?</span>
               </p>
             )}
             {resetSent && <p style={{ color: '#4ade80', fontSize: '14px', margin: 0, textAlign: 'center', padding: '12px', background: 'rgba(74,222,128,0.1)', borderRadius: '10px', border: '1px solid rgba(74,222,128,0.3)' }}>✅ Password reset email sent! Check your inbox (and spam/junk folder).</p>}
             <button className="generate-btn" onClick={handleAuth}>{authMode === 'login' ? 'Sign In' : 'Create Account'}</button>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
               <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary, #5a5680)' }}>or</span>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary, #5a6068)' }}>or</span>
               <div style={{ flex: 1, height: '1px', background: theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)' }} />
             </div>
             <button className="generate-btn" onClick={handleGoogleSignIn} style={{ background: '#fff', color: '#333', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
@@ -2941,19 +2941,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </button>
             <div style={{ textAlign: 'center', margin: '16px 0 0' }}>
               {authMode === 'login' ? (
-                <button onClick={() => { setAuthMode('signup'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                <button onClick={() => { setAuthMode('signup'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #008080)', color: 'var(--primary, #008080)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
                   New here? Create a Free Account
                 </button>
               ) : (
-                <button onClick={() => { setAuthMode('login'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
+                <button onClick={() => { setAuthMode('login'); setResetSent(false); setAuthError(''); }} style={{ background: 'transparent', border: '2px solid var(--primary, #008080)', color: 'var(--primary, #008080)', padding: '12px 24px', borderRadius: '12px', fontSize: '15px', fontWeight: 600, cursor: 'pointer', width: '100%' }}>
                   Already have an account? Sign In
                 </button>
               )}
             </div>
             {/* 🏢 Agency Waitlist */}
-            <div style={{ marginTop: '28px', padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(99,102,241,0.08) 50%, rgba(168,85,247,0.08) 100%)', border: '1px solid rgba(99,102,241,0.15)' }}>
+            <div style={{ marginTop: '28px', padding: '20px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(0,128,128,0.08) 50%, rgba(0,128,128,0.08) 100%)', border: '1px solid rgba(0,128,128,0.15)' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '13px', fontWeight: 700, color: '#6366f1', letterSpacing: '1px', marginBottom: '6px' }}>COMING SOON</div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#008080', letterSpacing: '1px', marginBottom: '6px' }}>COMING SOON</div>
                 <h3 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>🏢 NovaMind for Agencies</h3>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '12px', margin: '0 0 14px', lineHeight: '1.5' }}>
                   White-label NovaMind under your brand. Your logo, your domain, your clients — powered by our AI.
@@ -2965,7 +2965,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 ) : (
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input className="auth-input" type="email" placeholder="agency@email.com" value={agencyEmail} onChange={e => setAgencyEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitAgencyWaitlist()} style={{ margin: 0, flex: 1, fontSize: '13px' }} />
-                    <button onClick={submitAgencyWaitlist} style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366f1, #a855f7)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>Join Waitlist</button>
+                    <button onClick={submitAgencyWaitlist} style={{ padding: '10px 16px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #008080, #006666)', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>Join Waitlist</button>
                   </div>
                 )}
               </div>
@@ -3035,17 +3035,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
     <div className="app-container" data-theme={theme}>
       <style>{`
         :root, [data-theme="light"] {
-          --bg-primary: #fafaff;
-          --bg-secondary: #f0eef9;
-          --bg-tertiary: #e8e5f5;
+          --bg-primary: #fafafa;
+          --bg-secondary: #f0f4f4;
+          --bg-tertiary: #e8eded;
           --text-primary: #1a1a2e;
-          --text-secondary: #5a5680;
+          --text-secondary: #5a6068;
           --surface: #ffffff;
-          --border-color: #e0ddf0;
-          --primary: #6c63ff;
-          --primary-hover: #5b52ee;
+          --border-color: #e0e4e8;
+          --primary: #008080;
+          --primary-hover: #006666;
           --accent: #06b6d4;
-          --gradient-hero: linear-gradient(135deg, #6c63ff 0%, #06b6d4 100%);
+          --gradient-hero: linear-gradient(135deg, #008080 0%, #06b6d4 100%);
           --glass-bg: rgba(255, 255, 255, 0.8);
           --glass-border: rgba(108, 99, 255, 0.12);
           --card-shadow: 0 4px 20px rgba(108, 99, 255, 0.08);
@@ -3069,103 +3069,103 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           --ent-shadow-md: 0 4px 12px rgba(0,0,0,0.10);
         }
         [data-theme="dark"] {
-          --bg-primary: #0a0a1a; --bg-secondary: #12122a; --bg-tertiary: #1a1a3e;
-          --text-primary: #f0f0ff; --text-secondary: #a0a0c0;
-          --surface: #12122a; --border-color: rgba(108,99,255,0.2);
-          --primary: #6c63ff; --primary-hover: #7b73ff;
-          --accent: #00d4ff; --gradient-hero: linear-gradient(135deg, #6c63ff 0%, #00d4ff 100%);
+          --bg-primary: #0a0a1a; --bg-secondary: #121820; --bg-tertiary: #1a2230;
+          --text-primary: #f0f2f4; --text-secondary: #a0a8b0;
+          --surface: #121820; --border-color: rgba(0,128,128,0.2);
+          --primary: #008080; --primary-hover: #009999;
+          --accent: #009999; --gradient-hero: linear-gradient(135deg, #008080 0%, #009999 100%);
           --glass-bg: rgba(18, 18, 42, 0.85); --glass-border: rgba(108, 99, 255, 0.15);
           --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3); --glow-primary: 0 0 20px rgba(108, 99, 255, 0.3);
         }
         .app-container { background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%); color: var(--text-primary); min-height: 100vh; transition: background 0.3s ease, color 0.3s ease; }
-        [data-theme="light"] .app-container { background: linear-gradient(180deg, #fafaff 0%, #f0eef9 50%, #e8e5f5 100%); color: #1a1a2e; }
-        [data-theme="dark"] .app-container { background: linear-gradient(180deg, #0a0a1a 0%, #12122a 50%, #1a1a3e 100%); color: #f0f0ff; }
-        [data-theme="light"] .navbar { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); }
-        [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.9); backdrop-filter: blur(12px); border-top: 1px solid rgba(108,99,255,0.1); box-shadow: 0 -2px 12px rgba(108,99,255,0.06); }
-        [data-theme="light"] .auth-input, [data-theme="light"] .prompt-input { background: #fff; border-color: #e0ddf0; color: #1a1a2e; box-shadow: 0 2px 8px rgba(108,99,255,0.04); }
-        [data-theme="light"] .auth-input:focus, [data-theme="light"] .prompt-input:focus { border-color: #6c63ff; box-shadow: 0 0 0 3px rgba(108,99,255,0.1); }
-        [data-theme="light"] .stat-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); }
-        [data-theme="light"] .tool-card, [data-theme="light"] .gallery-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); transition: all 0.25s ease; }
-        [data-theme="light"] .tool-card:hover, [data-theme="light"] .gallery-card:hover { border-color: #6c63ff; box-shadow: 0 6px 24px rgba(108,99,255,0.12); transform: translateY(-2px); }
-        [data-theme="light"] .suggestion-chip { background: #fff; border: 1px solid rgba(108,99,255,0.12); color: #1a1a2e; }
-        [data-theme="light"] .suggestion-chip:hover { border-color: #6c63ff; background: rgba(108,99,255,0.04); }
-        [data-theme="light"] .industry-chip { background: rgba(108,99,255,0.04); border-color: rgba(108,99,255,0.12); color: #1a1a2e; }
-        [data-theme="light"] .industry-chip.active { background: rgba(108,99,255,0.12); border-color: #6c63ff; color: #6c63ff; }
-        [data-theme="light"] .model-chip { background: rgba(108,99,255,0.04); color: #1a1a2e; }
-        [data-theme="light"] .result-container { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 4px 16px rgba(108,99,255,0.06); }
-        [data-theme="light"] .agent-info-banner { background: linear-gradient(135deg, rgba(108,99,255,0.05), rgba(6,182,212,0.05)); border-color: rgba(108,99,255,0.12); }
-        [data-theme="light"] .auth-modal { background: #fff; color: #1a1a2e; box-shadow: 0 20px 60px rgba(108,99,255,0.15); }
-        [data-theme="light"] .empty-state { color: #5a5680; }
-        [data-theme="light"] .hero-section { background: linear-gradient(135deg, rgba(108,99,255,0.08) 0%, rgba(6,182,212,0.06) 50%, rgba(168,85,247,0.06) 100%); border-radius: 16px; }
+        [data-theme="light"] .app-container { background: linear-gradient(180deg, #fafafa 0%, #f0f4f4 50%, #e8eded 100%); color: #1a1a2e; }
+        [data-theme="dark"] .app-container { background: linear-gradient(180deg, #0a0a1a 0%, #121820 50%, #1a2230 100%); color: #f0f2f4; }
+        [data-theme="light"] .navbar { background: rgba(255,255,255,0.85); backdrop-filter: none; border-bottom: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); }
+        [data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.9); backdrop-filter: none; border-top: 1px solid rgba(0,128,128,0.1); box-shadow: 0 -2px 12px rgba(0,128,128,0.06); }
+        [data-theme="light"] .auth-input, [data-theme="light"] .prompt-input { background: #fff; border-color: #e0e4e8; color: #1a1a2e; box-shadow: 0 2px 8px rgba(0,128,128,0.04); }
+        [data-theme="light"] .auth-input:focus, [data-theme="light"] .prompt-input:focus { border-color: #008080; box-shadow: 0 0 0 3px rgba(0,128,128,0.1); }
+        [data-theme="light"] .stat-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); }
+        [data-theme="light"] .tool-card, [data-theme="light"] .gallery-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); transition: all 0.25s ease; }
+        [data-theme="light"] .tool-card:hover, [data-theme="light"] .gallery-card:hover { border-color: #008080; box-shadow: 0 6px 24px rgba(0,128,128,0.12); transform: translateY(-2px); }
+        [data-theme="light"] .suggestion-chip { background: #fff; border: 1px solid rgba(0,128,128,0.12); color: #1a1a2e; }
+        [data-theme="light"] .suggestion-chip:hover { border-color: #008080; background: rgba(0,128,128,0.04); }
+        [data-theme="light"] .industry-chip { background: rgba(0,128,128,0.04); border-color: rgba(0,128,128,0.12); color: #1a1a2e; }
+        [data-theme="light"] .industry-chip.active { background: rgba(0,128,128,0.12); border-color: #008080; color: #008080; }
+        [data-theme="light"] .model-chip { background: rgba(0,128,128,0.04); color: #1a1a2e; }
+        [data-theme="light"] .result-container { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 4px 16px rgba(0,128,128,0.06); }
+        [data-theme="light"] .agent-info-banner { background: linear-gradient(135deg, rgba(0,128,128,0.05), rgba(6,182,212,0.05)); border-color: rgba(0,128,128,0.12); }
+        [data-theme="light"] .auth-modal { background: #fff; color: #1a1a2e; box-shadow: 0 20px 60px rgba(0,128,128,0.15); }
+        [data-theme="light"] .empty-state { color: #5a6068; }
+        [data-theme="light"] .hero-section { background: linear-gradient(135deg, rgba(0,128,128,0.08) 0%, rgba(6,182,212,0.06) 50%, rgba(0,128,128,0.06) 100%); border-radius: 16px; }
         [data-theme="light"] .hero-title { color: #1a1a2e !important; }
-        [data-theme="light"] .hero-subtitle { color: #5a5680 !important; }
+        [data-theme="light"] .hero-subtitle { color: #5a6068 !important; }
         [data-theme="light"] .section-title { color: #1a1a2e; }
-        [data-theme="light"] .powered-footer { color: #5a5680; }
-        [data-theme="light"] .powered-footer a { color: #6c63ff; }
+        [data-theme="light"] .powered-footer { color: #5a6068; }
+        [data-theme="light"] .powered-footer a { color: #008080; }
         [data-theme="light"] .navbar .logo-text { color: #1a1a2e !important; }
-        [data-theme="light"] .chat-card, [data-theme="light"] .history-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); box-shadow: 0 2px 12px rgba(108,99,255,0.06); }
-        [data-theme="light"] .chat-card:hover, [data-theme="light"] .history-card:hover { border-color: #6c63ff; box-shadow: 0 6px 24px rgba(108,99,255,0.12); }
-        [data-theme="light"] .usage-bar { background: rgba(108,99,255,0.08); }
-        [data-theme="light"] .prompt-input::placeholder { color: #9890b8; }
-        [data-theme="light"] .bottom-nav button { color: #5a5680; }
-        [data-theme="light"] .bottom-nav button.active { color: #6c63ff; }
-        [data-theme="light"] .agent-card { background: #fff; border: 1px solid rgba(108,99,255,0.1); color: #1a1a2e; box-shadow: 0 2px 12px rgba(108,99,255,0.06); transition: all 0.25s ease; }
-        [data-theme="light"] .agent-card:hover { border-color: #6c63ff; box-shadow: 0 6px 24px rgba(108,99,255,0.15); transform: translateY(-2px); }
+        [data-theme="light"] .chat-card, [data-theme="light"] .history-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); box-shadow: 0 2px 12px rgba(0,128,128,0.06); }
+        [data-theme="light"] .chat-card:hover, [data-theme="light"] .history-card:hover { border-color: #008080; box-shadow: 0 6px 24px rgba(0,128,128,0.12); }
+        [data-theme="light"] .usage-bar { background: rgba(0,128,128,0.08); }
+        [data-theme="light"] .prompt-input::placeholder { color: #98a0a8; }
+        [data-theme="light"] .bottom-nav button { color: #5a6068; }
+        [data-theme="light"] .bottom-nav button.active { color: #008080; }
+        [data-theme="light"] .agent-card { background: #fff; border: 1px solid rgba(0,128,128,0.1); color: #1a1a2e; box-shadow: 0 2px 12px rgba(0,128,128,0.06); transition: all 0.25s ease; }
+        [data-theme="light"] .agent-card:hover { border-color: #008080; box-shadow: 0 6px 24px rgba(0,128,128,0.15); transform: translateY(-2px); }
         [data-theme="light"] .agent-card .agent-name { color: #1a1a2e; }
-        [data-theme="light"] .agent-card .agent-desc { color: #5a5680; }
-        [data-theme="light"] .result-container pre { background: rgba(108,99,255,0.04); color: #1a1a2e; border: 1px solid rgba(108,99,255,0.08); }
+        [data-theme="light"] .agent-card .agent-desc { color: #5a6068; }
+        [data-theme="light"] .result-container pre { background: rgba(0,128,128,0.04); color: #1a1a2e; border: 1px solid rgba(0,128,128,0.08); }
         [data-theme="light"] .onboarding-modal { background: #fff; color: #1a1a2e; }
-        [data-theme="light"] .generate-btn { box-shadow: 0 4px 16px rgba(108,99,255,0.25); }
-        [data-theme="light"] .generate-btn:hover { box-shadow: 0 6px 24px rgba(108,99,255,0.35); transform: translateY(-1px); }
-        [data-theme="light"] .agent-tab { color: #5a5680; }
-        [data-theme="light"] .agent-tab.active { color: #6c63ff; background: rgba(108,99,255,0.08); }
-        [data-theme="light"] .agent-selector-bar { background: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(108,99,255,0.08); }
+        [data-theme="light"] .generate-btn { box-shadow: 0 4px 16px rgba(0,128,128,0.25); }
+        [data-theme="light"] .generate-btn:hover { box-shadow: 0 6px 24px rgba(0,128,128,0.35); transform: translateY(-1px); }
+        [data-theme="light"] .agent-tab { color: #5a6068; }
+        [data-theme="light"] .agent-tab.active { color: #008080; background: rgba(0,128,128,0.08); }
+        [data-theme="light"] .agent-selector-bar { background: rgba(255,255,255,0.8); border-bottom: 1px solid rgba(0,128,128,0.08); }
         /* === DARK MODE explicit fixes === */
-        [data-theme="dark"] .result-container { background: rgba(18,18,42,0.95); color: #f0f0ff; border: 1px solid rgba(108,99,255,0.2); }
-        [data-theme="dark"] .result-area { color: #f0f0ff; }
-        [data-theme="dark"] .markdown-content { color: #f0f0ff !important; }
+        [data-theme="dark"] .result-container { background: rgba(18,18,42,0.95); color: #f0f2f4; border: 1px solid rgba(0,128,128,0.2); }
+        [data-theme="dark"] .result-area { color: #f0f2f4; }
+        [data-theme="dark"] .markdown-content { color: #f0f2f4 !important; }
         [data-theme="dark"] .markdown-content h1, [data-theme="dark"] .markdown-content h2, [data-theme="dark"] .markdown-content h3 { color: #fff !important; }
         [data-theme="dark"] .markdown-content strong { color: #fff !important; }
         [data-theme="dark"] .markdown-content em { color: #e0e0ff !important; }
-        [data-theme="dark"] .markdown-content code { background: rgba(108,99,255,0.2) !important; color: #a8a0ff !important; }
-        [data-theme="dark"] .markdown-content pre { background: rgba(0,0,0,0.3) !important; color: #f0f0ff !important; border: 1px solid rgba(108,99,255,0.2) !important; }
-        [data-theme="dark"] .markdown-content a { color: #00d4ff !important; }
-        [data-theme="dark"] .markdown-content blockquote { border-left-color: #6c63ff !important; color: #c0c0e0 !important; }
-        [data-theme="dark"] .markdown-content li { color: #f0f0ff !important; }
-        [data-theme="dark"] .markdown-content p { color: #f0f0ff !important; }
-        [data-theme="dark"] .chat-bubble-assistant { background: rgba(108,99,255,0.12) !important; color: #f0f0ff !important; border: 1px solid rgba(108,99,255,0.25) !important; }
-        [data-theme="dark"] .chat-bubble-assistant.question { background: rgba(108,99,255,0.18) !important; border: 1px solid rgba(108,99,255,0.35) !important; }
-        [data-theme="dark"] .chat-bubble-user { background: var(--primary, #6c63ff) !important; color: #fff !important; }
+        [data-theme="dark"] .markdown-content code { background: rgba(0,128,128,0.2) !important; color: #a8a0ff !important; }
+        [data-theme="dark"] .markdown-content pre { background: rgba(0,0,0,0.3) !important; color: #f0f2f4 !important; border: 1px solid rgba(0,128,128,0.2) !important; }
+        [data-theme="dark"] .markdown-content a { color: #009999 !important; }
+        [data-theme="dark"] .markdown-content blockquote { border-left-color: #008080 !important; color: #c0c0e0 !important; }
+        [data-theme="dark"] .markdown-content li { color: #f0f2f4 !important; }
+        [data-theme="dark"] .markdown-content p { color: #f0f2f4 !important; }
+        [data-theme="dark"] .chat-bubble-assistant { background: rgba(0,128,128,0.12) !important; color: #f0f2f4 !important; border: 1px solid rgba(0,128,128,0.25) !important; }
+        [data-theme="dark"] .chat-bubble-assistant.question { background: rgba(0,128,128,0.18) !important; border: 1px solid rgba(0,128,128,0.35) !important; }
+        [data-theme="dark"] .chat-bubble-user { background: var(--primary, #008080) !important; color: #fff !important; }
         [data-theme="dark"] .chat-msg-label { color: rgba(255,255,255,0.65) !important; }
         [data-theme="dark"] .chat-action-btn { background: rgba(255,255,255,0.1) !important; color: rgba(255,255,255,0.8) !important; border: 1px solid rgba(255,255,255,0.15) !important; }
         [data-theme="dark"] .chat-img-caption { color: rgba(255,255,255,0.75) !important; }
-        [data-theme="dark"] .chat-share-menu { background: #1a1a3e !important; border: 1px solid rgba(108,99,255,0.3) !important; }
-        [data-theme="dark"] .result-container pre { background: rgba(0,0,0,0.3) !important; color: #f0f0ff !important; border: 1px solid rgba(108,99,255,0.15) !important; }
+        [data-theme="dark"] .chat-share-menu { background: #1a2230 !important; border: 1px solid rgba(0,128,128,0.3) !important; }
+        [data-theme="dark"] .result-container pre { background: rgba(0,0,0,0.3) !important; color: #f0f2f4 !important; border: 1px solid rgba(0,128,128,0.15) !important; }
         /* Light mode chat & inline element fixes */
         [data-theme="light"] .chat-msg-label { color: rgba(0,0,0,0.45) !important; }
-        [data-theme="light"] .chat-bubble-assistant { background: rgba(108,99,255,0.06) !important; color: #1a1a2e !important; border: 1px solid rgba(108,99,255,0.12) !important; }
-        [data-theme="light"] .chat-bubble-assistant.question { background: rgba(108,99,255,0.1) !important; border: 1px solid rgba(108,99,255,0.25) !important; }
-        [data-theme="light"] .chat-bubble-user { background: var(--primary, #6c63ff) !important; color: #fff !important; }
+        [data-theme="light"] .chat-bubble-assistant { background: rgba(0,128,128,0.06) !important; color: #1a1a2e !important; border: 1px solid rgba(0,128,128,0.12) !important; }
+        [data-theme="light"] .chat-bubble-assistant.question { background: rgba(0,128,128,0.1) !important; border: 1px solid rgba(0,128,128,0.25) !important; }
+        [data-theme="light"] .chat-bubble-user { background: var(--primary, #008080) !important; color: #fff !important; }
         [data-theme="light"] .chat-bubble-error { background: rgba(255,80,80,0.08) !important; color: #1a1a2e !important; border: 1px solid rgba(255,80,80,0.25) !important; }
-        [data-theme="light"] .chat-action-btn { background: rgba(108,99,255,0.06) !important; color: #5a5680 !important; border: 1px solid rgba(108,99,255,0.15) !important; }
-        [data-theme="light"] .chat-action-btn:hover { background: rgba(108,99,255,0.12) !important; color: #6c63ff !important; }
-        [data-theme="light"] .chat-share-btn { background: rgba(108,99,255,0.1) !important; color: #6c63ff !important; border: 1px solid rgba(108,99,255,0.25) !important; }
-        [data-theme="light"] .chat-img-caption { color: #5a5680 !important; }
-        [data-theme="light"] .chat-share-menu { background: #fff !important; border: 1px solid rgba(108,99,255,0.15) !important; box-shadow: 0 8px 32px rgba(108,99,255,0.12) !important; }
+        [data-theme="light"] .chat-action-btn { background: rgba(0,128,128,0.06) !important; color: #5a6068 !important; border: 1px solid rgba(0,128,128,0.15) !important; }
+        [data-theme="light"] .chat-action-btn:hover { background: rgba(0,128,128,0.12) !important; color: #008080 !important; }
+        [data-theme="light"] .chat-share-btn { background: rgba(0,128,128,0.1) !important; color: #008080 !important; border: 1px solid rgba(0,128,128,0.25) !important; }
+        [data-theme="light"] .chat-img-caption { color: #5a6068 !important; }
+        [data-theme="light"] .chat-share-menu { background: #fff !important; border: 1px solid rgba(0,128,128,0.15) !important; box-shadow: 0 8px 32px rgba(0,128,128,0.12) !important; }
         [data-theme="light"] .markdown-content { color: #1a1a2e !important; }
         [data-theme="light"] .markdown-content h1, [data-theme="light"] .markdown-content h2, [data-theme="light"] .markdown-content h3 { color: #1a1a2e !important; }
-        [data-theme="light"] .markdown-content code { background: rgba(108,99,255,0.06) !important; color: #6c63ff !important; }
-        [data-theme="light"] .markdown-content pre { background: rgba(108,99,255,0.04) !important; color: #1a1a2e !important; border: 1px solid rgba(108,99,255,0.1) !important; }
-        [data-theme="light"] .markdown-content a { color: #6c63ff !important; }
-        [data-theme="light"] .markdown-content blockquote { border-left-color: #6c63ff !important; color: #5a5680 !important; }
-        [data-theme="light"] .markdown-content li::marker { color: #6c63ff !important; }
-        [data-theme="light"] .powered-footer { color: #5a5680 !important; }
-        [data-theme="light"] .powered-footer a { color: #6c63ff !important; }
+        [data-theme="light"] .markdown-content code { background: rgba(0,128,128,0.06) !important; color: #008080 !important; }
+        [data-theme="light"] .markdown-content pre { background: rgba(0,128,128,0.04) !important; color: #1a1a2e !important; border: 1px solid rgba(0,128,128,0.1) !important; }
+        [data-theme="light"] .markdown-content a { color: #008080 !important; }
+        [data-theme="light"] .markdown-content blockquote { border-left-color: #008080 !important; color: #5a6068 !important; }
+        [data-theme="light"] .markdown-content li::marker { color: #008080 !important; }
+        [data-theme="light"] .powered-footer { color: #5a6068 !important; }
+        [data-theme="light"] .powered-footer a { color: #008080 !important; }
         [data-theme="light"] .auth-error { color: #dc2626 !important; }
-        [data-theme="light"] .chat-typing-indicator { color: #5a5680 !important; }
-        [data-theme="light"] .error-retry-btn { background: var(--primary, #6c63ff) !important; color: #fff !important; }
-        [data-theme="light"] .result-container { background: #fff !important; color: #1a1a2e !important; border: 1px solid rgba(108,99,255,0.12) !important; }
-        [data-theme="light"] .left-sidebar { background: rgba(255,255,255,0.8) !important; border-right: 1px solid rgba(108,99,255,0.1) !important; }
+        [data-theme="light"] .chat-typing-indicator { color: #5a6068 !important; }
+        [data-theme="light"] .error-retry-btn { background: var(--primary, #008080) !important; color: #fff !important; }
+        [data-theme="light"] .result-container { background: #fff !important; color: #1a1a2e !important; border: 1px solid rgba(0,128,128,0.12) !important; }
+        [data-theme="light"] .left-sidebar { background: rgba(255,255,255,0.8) !important; border-right: 1px solid rgba(0,128,128,0.1) !important; }
 
 
         /* Enterprise Left Sidebar */
@@ -3177,7 +3177,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           scrollbar-width: thin;
         }
         .left-sidebar::-webkit-scrollbar { width: 4px; }
-        .left-sidebar::-webkit-scrollbar-thumb { background: rgba(108,99,255,0.2); border-radius: 4px; }
+        .left-sidebar::-webkit-scrollbar-thumb { background: rgba(0,128,128,0.2); border-radius: 4px; }
         .sidebar-section-label {
           font-size: 0.7rem; font-weight: 750; text-transform: uppercase; letter-spacing: 0.08em;
           color: var(--text-secondary); padding: 16px 12px 6px; margin: 0;
@@ -3189,35 +3189,35 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           font-size: 0.875rem; font-weight: 500; color: var(--text-primary); transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
           position: relative;
         }
-        .sidebar-item:hover { background: var(--ent-primary-100, rgba(108,99,255,0.06)); border-color: var(--border-color); color: var(--primary); }
-        .sidebar-item.active { background: var(--ent-primary-100, rgba(108,99,255,0.1)); border-color: var(--ent-primary-200, rgba(108,99,255,0.2)); color: var(--primary); font-weight: 600; }
+        .sidebar-item:hover { background: var(--ent-primary-100, rgba(0,128,128,0.06)); border-color: var(--border-color); color: var(--primary); }
+        .sidebar-item.active { background: var(--ent-primary-100, rgba(0,128,128,0.1)); border-color: var(--ent-primary-200, rgba(0,128,128,0.2)); color: var(--primary); font-weight: 600; }
         .sidebar-item.active::before {
           content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
           width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--primary);
         }
         .sidebar-item-icon {
           width: 28px; height: 28px; display: inline-grid; place-items: center;
-          border-radius: 6px; background: var(--ent-primary-100, rgba(108,99,255,0.06));
+          border-radius: 6px; background: var(--ent-primary-100, rgba(0,128,128,0.06));
           border: 1px solid var(--border-color); font-size: 14px; flex-shrink: 0;
         }
         .sidebar-item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .sidebar-item-badge {
           font-size: 8px; font-weight: 700; padding: 2px 7px; border-radius: 8px;
-          background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #fff; margin-left: auto; flex-shrink: 0;
+          background: linear-gradient(135deg, #008080, #006666); color: #fff; margin-left: auto; flex-shrink: 0;
         }
         .sidebar-item.coming-soon {
           opacity: 0.5; cursor: default;
         }
         .sidebar-item.coming-soon:hover { background: transparent; border-color: transparent; transform: none; }
         .sidebar-item.coming-soon .sidebar-item-badge {
-          background: linear-gradient(135deg, #6366F1, #8B5CF6);
+          background: linear-gradient(135deg, #008080, #006666);
         }
         .sidebar-divider { height: 1px; background: var(--border-color); margin: 8px 10px; }
         .sidebar-toggle {
           display: none; position: fixed; left: 12px; bottom: 72px; z-index: 1001;
           background: var(--primary); color: #fff; border: none; border-radius: 50%;
           width: 44px; height: 44px; font-size: 20px; cursor: pointer;
-          box-shadow: 0 4px 16px rgba(108,99,255,0.4); transition: transform 0.2s;
+          box-shadow: 0 4px 16px rgba(0,128,128,0.4); transition: transform 0.2s;
         }
         .sidebar-toggle:hover { transform: scale(1.1); }
         .main-content-area { flex: 1; min-width: 0; overflow-y: auto; }
@@ -3226,15 +3226,15 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           cursor: pointer; border: 1px solid transparent; background: transparent; text-align: left; width: 100%;
           font-size: 0.875rem; font-weight: 500; color: var(--text-primary); transition: all 150ms ease;
         }
-        .sidebar-agents-toggle:hover { background: var(--ent-primary-100, rgba(108,99,255,0.06)); }
+        .sidebar-agents-toggle:hover { background: var(--ent-primary-100, rgba(0,128,128,0.06)); }
         .sidebar-agents-toggle .toggle-arrow { transition: transform 0.2s; font-size: 10px; margin-left: auto; color: var(--text-secondary); }
         .sidebar-agents-toggle .toggle-arrow.open { transform: rotate(90deg); }
         .sidebar-agents-list { overflow: hidden; transition: max-height 0.3s ease; }
         .sidebar-agents-list .sidebar-item { padding-left: 20px; font-size: 0.8rem; }
         [data-theme="light"] .left-sidebar { background: #fff; border-right: 1px solid var(--border-color); }
-        [data-theme="light"] .sidebar-item:hover { background: rgba(108,99,255,0.04); }
-        [data-theme="light"] .sidebar-item.active { background: rgba(108,99,255,0.08); }
-        [data-theme="dark"] .sidebar-item-icon { background: rgba(108,99,255,0.1); border-color: rgba(108,99,255,0.2); }
+        [data-theme="light"] .sidebar-item:hover { background: rgba(0,128,128,0.04); }
+        [data-theme="light"] .sidebar-item.active { background: rgba(0,128,128,0.08); }
+        [data-theme="dark"] .sidebar-item-icon { background: rgba(0,128,128,0.1); border-color: rgba(0,128,128,0.2); }
         /* Enterprise Coming Soon View */
         .ent-coming-soon-view {
           display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -3243,7 +3243,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         .ent-coming-soon-view .ent-icon { font-size: 56px; margin-bottom: 16px; }
         .ent-coming-soon-view h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
         .ent-coming-soon-view .ent-desc { color: var(--text-secondary); font-size: 0.95rem; max-width: 420px; line-height: 1.6; margin-bottom: 24px; }
-        .ent-coming-soon-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: linear-gradient(135deg, #6366F1, #8B5CF6); color: #fff; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
+        .ent-coming-soon-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: linear-gradient(135deg, #008080, #006666); color: #fff; font-weight: 700; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; }
         .ent-features-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 32px; max-width: 700px; width: 100%; }
         .ent-feature-card { background: var(--surface); border: 1px solid var(--border-color); border-radius: var(--ent-radius-lg); padding: 20px; text-align: left; }
         .ent-feature-card .feat-icon { font-size: 24px; margin-bottom: 8px; }
@@ -3260,7 +3260,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           .sidebar-toggle { display: flex; align-items: center; justify-content: center; }
           .sidebar-overlay {
             position: fixed; inset: 0; z-index: 999; background: rgba(0,0,0,0.4);
-            backdrop-filter: blur(2px);
+            backdrop-filter: none;
           }
         }
 
@@ -3285,14 +3285,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         <div className="nav-controls" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <div style={{ display: 'flex', gap: '2px' }}>
             {(['en','es','fr'] as LangCode[]).map(code => (
-              <button key={code} onClick={() => setLanguage(code)} style={{ background: language === code ? 'rgba(108,99,255,0.3)' : 'transparent', border: language === code ? '1px solid rgba(108,99,255,0.5)' : '1px solid transparent', borderRadius: '6px', padding: '4px 6px', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', color: 'var(--text-primary, #fff)' }}>{{ en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }[code]}</button>
+              <button key={code} onClick={() => setLanguage(code)} style={{ background: language === code ? 'rgba(0,128,128,0.3)' : 'transparent', border: language === code ? '1px solid rgba(0,128,128,0.5)' : '1px solid transparent', borderRadius: '6px', padding: '4px 6px', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', color: 'var(--text-primary, #fff)' }}>{{ en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }[code]}</button>
             ))}
           </div>
           <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#212529' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
-          <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680' }}>⌨️</button>
-          <button onClick={openProfileModal} title="Business Profile & Team" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680', position: 'relative' as const }}>{businessProfile?.businessName ? '🏢' : '🏢'}{!businessProfile?.businessName && <span style={{ position: 'absolute' as const, top: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />}</button>
-          <button className="nav-btn btn-outline" onClick={handleChangePassword} title="Change your password" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(108,99,255,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a5680' }}>🔑</button>
-          <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(108,99,255,0.15)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: theme === 'dark' ? '#fff' : '#1a1a2e' }}>🚪 {t.signOut}</button>
+          <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068' }}>⌨️</button>
+          <button onClick={openProfileModal} title="Business Profile & Team" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068', position: 'relative' as const }}>{businessProfile?.businessName ? '🏢' : '🏢'}{!businessProfile?.businessName && <span style={{ position: 'absolute' as const, top: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />}</button>
+          <button className="nav-btn btn-outline" onClick={handleChangePassword} title="Change your password" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068' }}>🔑</button>
+          <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(0,128,128,0.15)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: theme === 'dark' ? '#fff' : '#1a1a2e' }}>🚪 {t.signOut}</button>
         </div>
       </nav>
       {isOffline && (
@@ -3488,26 +3488,26 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           {/* 📊 AI ROI COCKPIT */}
           <div style={{
             borderRadius: '20px', overflow: 'hidden', marginBottom: '28px',
-            background: 'linear-gradient(135deg, rgba(108,99,255,0.06) 0%, rgba(6,182,212,0.04) 50%, rgba(168,85,247,0.06) 100%)',
-            border: '1px solid rgba(108,99,255,0.15)',
+            background: 'linear-gradient(135deg, rgba(0,128,128,0.06) 0%, rgba(6,182,212,0.04) 50%, rgba(0,128,128,0.06) 100%)',
+            border: '1px solid rgba(0,128,128,0.15)',
           }}>
             {/* Cockpit Header */}
             <div style={{
               padding: '20px 20px 16px',
-              background: 'linear-gradient(135deg, rgba(108,99,255,0.12), rgba(6,182,212,0.08))',
-              borderBottom: '1px solid rgba(108,99,255,0.1)',
+              background: 'linear-gradient(135deg, rgba(0,128,128,0.12), rgba(6,182,212,0.08))',
+              borderBottom: '1px solid rgba(0,128,128,0.1)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{
                     width: '44px', height: '44px', borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #6c63ff, #06b6d4)',
+                    background: 'linear-gradient(135deg, #008080, #06b6d4)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: '22px', flexShrink: 0,
-                    boxShadow: '0 4px 16px rgba(108,99,255,0.35)',
+                    boxShadow: '0 4px 16px rgba(0,128,128,0.35)',
                   }}>📊</div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: 'linear-gradient(135deg, #6c63ff, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: 'linear-gradient(135deg, #008080, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                       AI ROI Cockpit
                     </h3>
                     <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
@@ -3521,11 +3521,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     position: 'relative' as const, width: '56px', height: '56px',
                   }}>
                     <svg viewBox="0 0 36 36" style={{ width: '56px', height: '56px', transform: 'rotate(-90deg)' }}>
-                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(108,99,255,0.15)" strokeWidth="3" />
+                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(0,128,128,0.15)" strokeWidth="3" />
                       <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#scoreGrad)" strokeWidth="3" strokeDasharray={`${growthScore * 0.975} 100`} strokeLinecap="round" />
-                      <defs><linearGradient id="scoreGrad"><stop offset="0%" stopColor="#6c63ff"/><stop offset="100%" stopColor="#06b6d4"/></linearGradient></defs>
+                      <defs><linearGradient id="scoreGrad"><stop offset="0%" stopColor="#008080"/><stop offset="100%" stopColor="#06b6d4"/></linearGradient></defs>
                     </svg>
-                    <div style={{ position: 'absolute' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: 800, color: 'var(--primary, #6c63ff)' }}>{growthScore}</div>
+                    <div style={{ position: 'absolute' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: 800, color: 'var(--primary, #008080)' }}>{growthScore}</div>
                   </div>
                   <div style={{ textAlign: 'left' as const }}>
                     <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>AI Impact Score</div>
@@ -3540,13 +3540,13 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {/* Hours Saved */}
               <div style={{
                 borderRadius: '14px', padding: '16px',
-                background: 'linear-gradient(135deg, rgba(108,99,255,0.10), rgba(108,99,255,0.02))',
-                border: '1px solid rgba(108,99,255,0.18)',
+                background: 'linear-gradient(135deg, rgba(0,128,128,0.10), rgba(0,128,128,0.02))',
+                border: '1px solid rgba(0,128,128,0.18)',
                 transition: 'all 0.3s ease', cursor: 'default',
               }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
                  onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
                 <div style={{ fontSize: '20px', marginBottom: '4px' }}>⏱️</div>
-                <div style={{ fontSize: '24px', fontWeight: 800, color: '#6c63ff', lineHeight: 1.1 }}>{hoursEstSaved} hrs</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: '#008080', lineHeight: 1.1 }}>{hoursEstSaved} hrs</div>
                 <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Time back in your day</div>
               </div>
               {/* Value Created */}
@@ -3595,10 +3595,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Monthly Usage</span>
                   <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{usage.used}/{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</span>
                 </div>
-                <div style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'rgba(108,99,255,0.10)', overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'rgba(0,128,128,0.10)', overflow: 'hidden' }}>
                   <div style={{
                     width: `${pct}%`, height: '100%', borderRadius: '999px',
-                    background: pct >= 100 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : pct > 80 ? 'linear-gradient(90deg, #f59e0b, #fb923c)' : 'linear-gradient(90deg, #6c63ff, #06b6d4)',
+                    background: pct >= 100 ? 'linear-gradient(90deg, #f59e0b, #ef4444)' : pct > 80 ? 'linear-gradient(90deg, #f59e0b, #fb923c)' : 'linear-gradient(90deg, #008080, #06b6d4)',
                     transition: 'width 0.5s ease',
                   }} />
                 </div>
@@ -3607,27 +3607,27 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {usage.plan === 'free' && pct >= 80 && pct < 100 && (
                 <div style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.08))', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
                   <span style={{ fontSize: '20px' }}>⚡</span>
-                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Only <strong>{usage.limit - usage.used}</strong> generations left this month! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Upgrade for unlimited →</span></span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Only <strong>{usage.limit - usage.used}</strong> generations left this month! <span style={{ color: 'var(--primary, #008080)', fontWeight: 700, textDecoration: 'underline' }}>Upgrade for unlimited →</span></span>
                 </div>
               )}
               {usage.plan === 'free' && pct >= 100 && (
                 <div style={{ background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.08))', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
                   <span style={{ fontSize: '20px' }}>🚀</span>
-                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>You&apos;ve used all free generations! <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700, textDecoration: 'underline' }}>Unlock unlimited access →</span></span>
+                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>You&apos;ve used all free generations! <span style={{ color: 'var(--primary, #008080)', fontWeight: 700, textDecoration: 'underline' }}>Unlock unlimited access →</span></span>
                 </div>
               )}
               {/* Stats Breakdown */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
-                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(108,99,255,0.06)', border: '1px solid rgba(108,99,255,0.12)' }}>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary, #6c63ff)' }}>{usage.used}</div>
+                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.12)' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary, #008080)' }}>{usage.used}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.totalGenerations}</div>
                 </div>
                 <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.12)' }}>
                   <div style={{ fontSize: '22px', fontWeight: 800, color: '#22c55e' }}>{history.filter(h => h.contentType === 'text').length}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.textGens}</div>
                 </div>
-                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.12)' }}>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#a855f7' }}>{history.filter(h => h.contentType === 'image' || h.model === 'gpt-image-1').length}</div>
+                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.12)' }}>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#006666' }}>{history.filter(h => h.contentType === 'image' || h.model === 'gpt-image-1').length}</div>
                   <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.imageGens}</div>
                 </div>
               </div>
@@ -3637,19 +3637,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <div style={{ padding: '0 16px 16px' }}>
               <div style={{
                 borderRadius: '14px', overflow: 'hidden',
-                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(108,99,255,0.12)',
+                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,128,128,0.12)',
               }}>
                 <div style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '14px 16px', cursor: 'pointer',
-                  background: 'rgba(108,99,255,0.04)',
+                  background: 'rgba(0,128,128,0.04)',
                 }} onClick={() => setShowMilestones(!showMilestones)}>
                   <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     🏁 ROI Milestones
                     <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>({completedMissions.length}/{MISSIONS.length})</span>
                   </h4>
                   <span style={{
-                    fontSize: '12px', color: 'var(--primary, #6c63ff)', fontWeight: 700,
+                    fontSize: '12px', color: 'var(--primary, #008080)', fontWeight: 700,
                     transition: 'transform 0.3s ease',
                     display: 'inline-block',
                     transform: showMilestones ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -3667,8 +3667,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         <div key={mission.id} style={{
                           display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', marginBottom: '8px',
                           borderRadius: '14px', cursor: isActive ? 'pointer' : isComplete ? 'default' : 'not-allowed',
-                          background: isCelebrating ? 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))' : isActive ? 'rgba(108,99,255,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
-                          border: isCelebrating ? '2px solid rgba(34,197,94,0.4)' : isActive ? '2px solid rgba(108,99,255,0.3)' : '1px solid rgba(128,128,128,0.1)',
+                          background: isCelebrating ? 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))' : isActive ? 'rgba(0,128,128,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
+                          border: isCelebrating ? '2px solid rgba(34,197,94,0.4)' : isActive ? '2px solid rgba(0,128,128,0.3)' : '1px solid rgba(128,128,128,0.1)',
                           opacity: isLocked ? 0.45 : 1,
                           transition: 'all 0.3s ease',
                           transform: isCelebrating ? 'scale(1.02)' : 'scale(1)',
@@ -3693,9 +3693,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           <div style={{
                             width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                             fontSize: isComplete ? '18px' : '14px', fontWeight: 800,
-                            background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : isActive ? 'linear-gradient(135deg, #6c63ff, #a855f7)' : 'rgba(128,128,128,0.15)',
+                            background: isComplete ? 'linear-gradient(135deg, #22c55e, #16a34a)' : isActive ? 'linear-gradient(135deg, #008080, #006666)' : 'rgba(128,128,128,0.15)',
                             color: isComplete || isActive ? '#fff' : 'var(--text-secondary)',
-                            boxShadow: isActive ? '0 0 12px rgba(108,99,255,0.3)' : 'none',
+                            boxShadow: isActive ? '0 0 12px rgba(0,128,128,0.3)' : 'none',
                           }}>
                             {isComplete ? '✓' : isLocked ? '🔒' : mission.step}
                           </div>
@@ -3709,7 +3709,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                               {isComplete ? 'Completed! Tap to view →' : mission.subtitle}
                             </div>
                           </div>
-                          <div style={{ flexShrink: 0, fontSize: '16px', color: isComplete ? '#22c55e' : isActive ? 'var(--primary, #6c63ff)' : 'var(--text-secondary)' }}>
+                          <div style={{ flexShrink: 0, fontSize: '16px', color: isComplete ? '#22c55e' : isActive ? 'var(--primary, #008080)' : 'var(--text-secondary)' }}>
                             {isComplete ? '👁️' : isActive ? '→' : ''}
                           </div>
                         </div>
@@ -3731,8 +3731,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <div style={{ padding: '0 16px 20px' }}>
               <div style={{
                 borderRadius: '14px', padding: '16px',
-                background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(99,102,241,0.08) 50%, rgba(168,85,247,0.08) 100%)',
-                border: '1px solid rgba(99,102,241,0.15)',
+                background: 'linear-gradient(135deg, rgba(14,165,233,0.08) 0%, rgba(0,128,128,0.08) 50%, rgba(0,128,128,0.08) 100%)',
+                border: '1px solid rgba(0,128,128,0.15)',
                 position: 'relative' as const, overflow: 'hidden',
               }}>
                 <div style={{ position: 'absolute' as const, top: '-20px', right: '-20px', fontSize: '80px', opacity: 0.06 }}>💰</div>
@@ -3809,7 +3809,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     fontWeight: 700,
                     padding: '2px 8px',
                     borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                    background: 'linear-gradient(135deg, #008080, #006666)',
                     color: '#fff',
                     letterSpacing: '0.5px',
                   }}>COMING SOON</span>
@@ -3847,7 +3847,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <button key={feature.name} className="agent-tab" style={{ opacity: 0.4, cursor: 'default', pointerEvents: 'none' as const }} disabled>
                   <span className="agent-tab-icon">{feature.icon}</span>
                   <span className="agent-tab-name">{feature.name}</span>
-                  <span className="agent-tab-badge" style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', fontSize: '8px' }}>SOON</span>
+                  <span className="agent-tab-badge" style={{ background: 'linear-gradient(135deg, #008080, #006666)', fontSize: '8px' }}>SOON</span>
                 </button>
               ))}
             </div>)}
@@ -3857,7 +3857,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <h3 className="section-title" style={{ margin: 0 }}>
                 {chatTitle ? `💬 ${chatTitle}` : `${currentAgent?.icon || '✨'} ${currentAgent?.name || 'Create Something Amazing'}`}
               </h3>
-              <button onClick={startNewChat} style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.3)', color: 'var(--primary, #6c63ff)', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <button onClick={startNewChat} style={{ background: 'rgba(0,128,128,0.15)', border: '1px solid rgba(0,128,128,0.3)', color: 'var(--primary, #008080)', padding: '6px 12px', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 ➕ New Chat
               </button>
             </div>
@@ -3881,8 +3881,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   {EMAIL_MODES.map(em => (
                     <button key={em.id} onClick={() => setEmailMode(em.id)}
                       style={{
-                        padding: '10px 6px', borderRadius: '10px', border: emailMode === em.id ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)',
-                        background: emailMode === em.id ? 'rgba(108,99,255,0.2)' : 'rgba(255,255,255,0.03)', color: 'var(--text-primary, #fff)',
+                        padding: '10px 6px', borderRadius: '10px', border: emailMode === em.id ? '2px solid var(--primary, #008080)' : '2px solid rgba(255,255,255,0.1)',
+                        background: emailMode === em.id ? 'rgba(0,128,128,0.2)' : 'rgba(255,255,255,0.03)', color: 'var(--text-primary, #fff)',
                         cursor: 'pointer', textAlign: 'center', fontSize: '12px', transition: 'all 0.2s'
                       }}>
                       <div style={{ fontSize: '18px', marginBottom: '2px' }}>{em.icon}</div>
@@ -3964,8 +3964,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <button key={chip.label} onClick={() => { setAgentMode(chip.agent); setPrompt(''); setResult(null); if (chip.agent === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } }}
                     style={{
                       padding: '8px 16px', fontSize: '13px', fontWeight: 600, borderRadius: '20px', cursor: 'pointer',
-                      background: 'rgba(108,99,255,0.1)', color: 'var(--primary, #6c63ff)',
-                      border: '1px solid rgba(108,99,255,0.25)', transition: 'all 0.2s ease',
+                      background: 'rgba(0,128,128,0.1)', color: 'var(--primary, #008080)',
+                      border: '1px solid rgba(0,128,128,0.25)', transition: 'all 0.2s ease',
                       display: 'flex', alignItems: 'center', gap: '6px'
                     }}>
                     {chip.icon} {chip.label}
@@ -3996,12 +3996,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       width: msg.role === 'assistant' ? '100%' : 'auto',
                       padding: msg.role === 'assistant' ? '16px 18px' : '10px 16px',
                       borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                      background: msg.role === 'user' ? 'var(--primary, #6c63ff)' : msg.isError ? 'rgba(255,80,80,0.1)' : (endsWithQuestion && isLastAssistant) ? 'rgba(108,99,255,0.08)' : 'var(--card-bg, rgba(255,255,255,0.06))',
+                      background: msg.role === 'user' ? 'var(--primary, #008080)' : msg.isError ? 'rgba(255,80,80,0.1)' : (endsWithQuestion && isLastAssistant) ? 'rgba(0,128,128,0.08)' : 'var(--card-bg, rgba(255,255,255,0.06))',
                       color: msg.role === 'user' ? '#fff' : 'var(--text-primary, #1a1a2e)',
                       fontSize: msg.role === 'assistant' ? '15px' : '14px',
                       lineHeight: '1.6',
                       wordBreak: 'break-word' as const,
-                      border: msg.isError ? '1px solid rgba(255,80,80,0.3)' : (endsWithQuestion && isLastAssistant) ? '1px solid rgba(108,99,255,0.2)' : msg.role === 'assistant' ? '1px solid var(--border-color, rgba(0,0,0,0.08))' : 'none',
+                      border: msg.isError ? '1px solid rgba(255,80,80,0.3)' : (endsWithQuestion && isLastAssistant) ? '1px solid rgba(0,128,128,0.2)' : msg.role === 'assistant' ? '1px solid var(--border-color, rgba(0,0,0,0.08))' : 'none',
                     }}>
                       {msg.imageUrl ? (
                         <div>
@@ -4019,14 +4019,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                             return (
                               <div>
                                 {beforeText && <div className="markdown-content" style={{ marginBottom: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(beforeText) }} />}
-                                <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(108,99,255,0.3)', background: '#fff' }}>
+                                <div style={{ position: 'relative', borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(0,128,128,0.3)', background: '#fff' }}>
                                   <iframe
                                     srcDoc={renderHtmlPreview(htmlContent, idx)}
                                     style={{ width: '100%', height: '600px', border: 'none', borderRadius: '10px' }}
                                     sandbox="allow-same-origin"
                                     title="Generated content preview"
                                   />
-                                  <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', background: 'rgba(108,99,255,0.08)', borderTop: '1px solid rgba(108,99,255,0.15)' }}>
+                                  <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', background: 'rgba(0,128,128,0.08)', borderTop: '1px solid rgba(0,128,128,0.15)' }}>
                                     <button onClick={() => {
                                       const printWindow = window.open('', '_blank');
                                       if (printWindow) {
@@ -4035,19 +4035,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                         printWindow.document.close();
                                         setTimeout(() => printWindow.print(), 500);
                                       }
-                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>🖨️ Print / Download PDF</button>
+                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>🖨️ Print / Download PDF</button>
                                     <button onClick={() => {
                                       const w = window.open('', '_blank');
                                       if (w) {
                                         const backBtn = `<div style="position:fixed;top:12px;right:12px;z-index:99999;display:flex;gap:8px">
-                                          <button onclick="window.print()" style="padding:10px 20px;font-size:14px;font-weight:700;background:#6c63ff;color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 12px rgba(108,99,255,0.4)">🖨️ Print</button>
+                                          <button onclick="window.print()" style="padding:10px 20px;font-size:14px;font-weight:700;background:#008080;color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 12px rgba(0,128,128,0.4)">🖨️ Print</button>
                                           <button onclick="window.close()" style="padding:10px 20px;font-size:14px;font-weight:700;background:#ff4757;color:#fff;border:none;border-radius:10px;cursor:pointer;box-shadow:0 2px 12px rgba(255,71,87,0.4)">✕ Close</button>
                                         </div>`;
                                         const fullDoc = htmlContent.includes('<html') ? htmlContent.replace('<body', '<body>' + backBtn + '<') : '<!DOCTYPE html><html><head><meta charset=\"utf-8\"></head><body>' + backBtn + htmlContent + '</body></html>';
                                         w.document.write(fullDoc);
                                         w.document.close();
                                       }
-                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>↗️ Full Screen</button>
+                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>↗️ Full Screen</button>
                                     <button onClick={() => {
                                       const refineText = window.prompt('What would you like to change? (e.g., "Make the headline bigger", "Change colors to blue and gold", "Add my phone number 555-1234")');
                                       if (refineText && refineText.trim()) {
@@ -4059,7 +4059,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                       navigator.clipboard.writeText(htmlContent).then(() => {
                                         alert('HTML copied to clipboard!');
                                       });
-                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy HTML</button>
+                                    }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy HTML</button>
                                   </div>
                                 </div>
                                 {afterText && <div className="markdown-content" style={{ marginTop: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(afterText) }} />}
@@ -4075,17 +4075,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     {msg.role === 'assistant' && (
                       <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap', position: 'relative' }}>
                         {msg.isError ? (<>
-                          <button onClick={() => { setChatMessages(prev => prev.filter((_, i) => i !== idx)); setPrompt(chatMessages.filter(m => m.role === 'user').pop()?.content || ''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>🔄 Try Again</button>
+                          <button onClick={() => { setChatMessages(prev => prev.filter((_, i) => i !== idx)); setPrompt(chatMessages.filter(m => m.role === 'user').pop()?.content || ''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '10px', cursor: 'pointer' }}>🔄 Try Again</button>
                           <button onClick={() => { setResult(null); setPrompt(''); setChatMessages([]); setCurrentChatId(null); setChatTitle(''); }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '2px solid var(--border-color, #333)', borderRadius: '10px', cursor: 'pointer' }}>← Start Over</button>
                         </>) : (<>
-                        <button className="chat-action-btn" onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'var(--card-bg, rgba(108,99,255,0.08))', color: 'var(--text-secondary, #666)', border: '1px solid var(--border-color, rgba(0,0,0,0.1))', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
+                        <button className="chat-action-btn" onClick={() => { navigator.clipboard.writeText(msg.imageUrl || msg.content); showToast('Copied! 📋'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'var(--card-bg, rgba(0,128,128,0.08))', color: 'var(--text-secondary, #666)', border: '1px solid var(--border-color, rgba(0,0,0,0.1))', borderRadius: '8px', cursor: 'pointer' }}>📋 Copy</button>
                         {!msg.imageUrl && <button className="chat-action-btn" onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>NovaMind Export</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}h1,h2,h3{color:#333}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto}</style></head><body>' + renderMarkdown(msg.content) + '<hr><p style="color:#999;font-size:12px">Exported from NovaMind AI</p></body></html>'); pw.document.close(); pw.print(); } }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '8px', cursor: 'pointer' }}>📄 PDF</button>}
                         {!msg.imageUrl && <button className="chat-action-btn" onClick={() => { const html = '<html><head><meta charset="utf-8"><title>NovaMind Export</title></head><body>' + renderMarkdown(msg.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'novamind-export.doc'; a.click(); URL.revokeObjectURL(url); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px', cursor: 'pointer' }}>📝 Word</button>}
-                        <button className="chat-share-btn" onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
+                        <button className="chat-share-btn" onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
                         {msg.imageUrl && <button onClick={() => handleShareDownload(msg.imageUrl!, `novamind-${Date.now()}.webp`)} className="chat-action-btn" style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>📥 Save</button>}
                         {msg.imageUrl && (
                           <>
-                            <button onClick={() => { const originalPrompt = chatMessages.filter(m => m.role === 'user').pop()?.content || ''; setPrompt(`Create 3 different variations of: ${originalPrompt}`); setModel('gpt-image-1'); setContentType('image'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(168,85,247,0.15)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🎲 Variations</button>
+                            <button onClick={() => { const originalPrompt = chatMessages.filter(m => m.role === 'user').pop()?.content || ''; setPrompt(`Create 3 different variations of: ${originalPrompt}`); setModel('gpt-image-1'); setContentType('image'); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.15)', color: '#006666', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🎲 Variations</button>
                             <button onClick={() => { const originalPrompt = chatMessages.filter(m => m.role === 'user').pop()?.content || ''; setPrompt(`Refine this image: ${originalPrompt}. Make it `); setModel('gpt-image-1'); setContentType('image'); setTimeout(() => { const ta = document.querySelector('.prompt-input') as HTMLTextAreaElement; if(ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 100); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '8px', cursor: 'pointer' }}>✏️ Refine</button>
                           </>
                         )}
@@ -4110,9 +4110,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                   showToast(`Switched to ${chain.label} — hit Generate! 🚀`, 'info');
                                 }} style={{
                                   padding: '6px 14px', fontSize: '12px', fontWeight: 600,
-                                  background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(168,85,247,0.08))',
-                                  color: 'var(--primary, #6c63ff)',
-                                  border: '1px solid rgba(99,102,241,0.25)',
+                                  background: 'linear-gradient(135deg, rgba(0,128,128,0.12), rgba(0,128,128,0.08))',
+                                  color: 'var(--primary, #008080)',
+                                  border: '1px solid rgba(0,128,128,0.25)',
                                   borderRadius: '20px', cursor: 'pointer',
                                   transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '4px'
                                 }}>
@@ -4134,15 +4134,15 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       </div>
                     )}
                     {endsWithQuestion && isLastAssistant && (
-                      <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--primary, #6c63ff)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ marginTop: '8px', fontSize: '13px', color: 'var(--primary, #008080)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>💬</span> Type your reply below...
                       </div>
                     )}
                     {/* ⚡ Subtle upgrade hint — shows after every 3rd generation for free users */}
                     {isLastAssistant && !msg.isError && usage.plan === 'free' && usage.used > 0 && usage.used % 2 === 0 && (
-                      <div onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '10px', padding: '10px 16px', background: 'linear-gradient(135deg, rgba(108,99,255,0.08), rgba(168,85,247,0.06))', border: '1px solid rgba(108,99,255,0.15)', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                      <div onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '10px', padding: '10px 16px', background: 'linear-gradient(135deg, rgba(0,128,128,0.08), rgba(0,128,128,0.06))', border: '1px solid rgba(0,128,128,0.15)', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
                         <span style={{ fontSize: '16px' }}>⚡</span>
-                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Enjoying NovaMind? <span style={{ color: 'var(--primary, #6c63ff)', fontWeight: 700 }}>Unlock unlimited access →</span></span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Enjoying NovaMind? <span style={{ color: 'var(--primary, #008080)', fontWeight: 700 }}>Unlock unlimited access →</span></span>
                       </div>
                     )}
                   </div>
@@ -4155,10 +4155,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
 
             {/* Mood auto-detected from prompt — no manual selector needed */}
             <div style={{ position: 'relative' }}
-              onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#6c63ff'; }}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = '#008080'; }}
               onDragLeave={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = ''; }}
               onDrop={e => { e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).style.borderColor = ''; handleFileSelect(e.dataTransfer.files); }}>
-              <textarea className="prompt-input" style={{ paddingRight: '120px', ...(chatMessages.length > 0 ? { borderColor: 'rgba(108,99,255,0.3)', background: 'rgba(108,99,255,0.05)' } : {}) }} placeholder={
+              <textarea className="prompt-input" style={{ paddingRight: '120px', ...(chatMessages.length > 0 ? { borderColor: 'rgba(0,128,128,0.3)', background: 'rgba(0,128,128,0.05)' } : {}) }} placeholder={
                 chatMessages.length > 0 ? 'Type your reply here...' :
                 agentMode === 'competitor-analysis' ? 'Enter a competitor name or describe your market (e.g., "Analyze Mailchimp for a small email marketing startup")...' :
                 agentMode === 'ad-maker' ? 'Describe your product/service and target platform (e.g., "Facebook ad for my yoga studio grand opening")...' :
@@ -4174,7 +4174,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               {attachedFiles.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
                   {attachedFiles.map((f, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(108,99,255,0.1)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '10px', padding: '6px 12px', fontSize: '13px' }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,128,128,0.1)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '10px', padding: '6px 12px', fontSize: '13px' }}>
                       {f.preview ? (
                         <img src={f.preview} alt="" style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
                       ) : (
@@ -4188,11 +4188,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               )}
               <input type="file" ref={fileInputRef} onChange={e => { handleFileSelect(e.target.files); e.target.value = ''; }} multiple accept="image/*,.pdf,.doc,.docx,.txt,.csv,.md" style={{ display: 'none' }} />
               <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <button onClick={() => fileInputRef.current?.click()} title="Attach file" style={{ background: 'rgba(108,99,255,0.15)', border: '1px solid rgba(108,99,255,0.25)', color: '#6c63ff', fontSize: '16px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📎</button>
+                <button onClick={() => fileInputRef.current?.click()} title="Attach file" style={{ background: 'rgba(0,128,128,0.15)', border: '1px solid rgba(0,128,128,0.25)', color: '#008080', fontSize: '16px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📎</button>
                 {prompt && (
                   <button onClick={() => setPrompt('')} title="Clear" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                 )}
-                <button onClick={toggleVoiceRecognition} title={isListening ? t.listening : t.tapToDictate} className={isListening ? 'mic-pulse' : ''} style={{ background: isListening ? 'rgba(255,75,75,0.3)' : 'rgba(108,99,255,0.2)', border: isListening ? '2px solid rgba(255,75,75,0.6)' : '1px solid rgba(108,99,255,0.3)', color: isListening ? '#ff4b4b' : '#6c63ff', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>{isListening ? '🔴' : '🎤'}</button>
+                <button onClick={toggleVoiceRecognition} title={isListening ? t.listening : t.tapToDictate} className={isListening ? 'mic-pulse' : ''} style={{ background: isListening ? 'rgba(255,75,75,0.3)' : 'rgba(0,128,128,0.2)', border: isListening ? '2px solid rgba(255,75,75,0.6)' : '1px solid rgba(0,128,128,0.3)', color: isListening ? '#ff4b4b' : '#008080', fontSize: '18px', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>{isListening ? '🔴' : '🎤'}</button>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
@@ -4201,7 +4201,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </button>
               {user && prompt.trim() && !generating && (
                 <button className="generate-btn" onClick={saveTemplate} disabled={savingTemplate}
-                  style={{ flex: 'none', width: 'auto', padding: '0 16px', background: 'transparent', border: '2px solid var(--primary, #6c63ff)', color: 'var(--primary, #6c63ff)' }}
+                  style={{ flex: 'none', width: 'auto', padding: '0 16px', background: 'transparent', border: '2px solid var(--primary, #008080)', color: 'var(--primary, #008080)' }}
                   title="Save as template">
                   {savingTemplate ? '...' : '⭐ Save'}
                 </button>
@@ -4228,11 +4228,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <button className="action-btn" onClick={handleRegenerate}>🔄 Regenerate</button>
                   {result.imageUrl && (
                     <>
-                      <button className="action-btn" onClick={() => { setPrompt(`Create 3 different variations of this concept: ${lastPrompt}`); setModel('gpt-image-1'); setContentType('image'); }} style={{ background: 'rgba(168,85,247,0.15)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.3)' }}>🎲 Variations</button>
+                      <button className="action-btn" onClick={() => { setPrompt(`Create 3 different variations of this concept: ${lastPrompt}`); setModel('gpt-image-1'); setContentType('image'); }} style={{ background: 'rgba(0,128,128,0.15)', color: '#006666', border: '1px solid rgba(0,128,128,0.3)' }}>🎲 Variations</button>
                       <button className="action-btn" onClick={() => { setPrompt(`Refine this image: ${lastPrompt}. Make it `); setModel('gpt-image-1'); setContentType('image'); setTimeout(() => { const ta = document.querySelector('.prompt-input') as HTMLTextAreaElement; if(ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 100); }} style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>✏️ Refine</button>
                     </>
                   )}
-                  <button className="action-btn" onClick={() => setShowShareMenu(showShareMenu === 'result' ? null : 'result')} style={{ background: 'rgba(108,99,255,0.2)', color: 'var(--primary, #6c63ff)' }}>🔗 Share</button>
+                  <button className="action-btn" onClick={() => setShowShareMenu(showShareMenu === 'result' ? null : 'result')} style={{ background: 'rgba(0,128,128,0.2)', color: 'var(--primary, #008080)' }}>🔗 Share</button>
                   <button className="action-btn" onClick={() => publishToCommunity(lastPrompt, result.content || result.text || '', result.imageUrl)} style={{ background: 'rgba(255,165,0,0.15)', color: '#ffa500' }}>🌟 Publish to Community</button>
                   {showShareMenu === 'result' && (
                     <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', background: 'var(--surface, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '12px', padding: '10px', display: 'flex', gap: '8px', zIndex: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
@@ -4255,14 +4255,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       return (
                         <div>
                           {beforeText && <div className="markdown-content" style={{ marginBottom: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(beforeText) }} />}
-                          <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(108,99,255,0.3)', background: '#fff' }}>
+                          <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid rgba(0,128,128,0.3)', background: '#fff' }}>
                             <iframe
                               srcDoc={renderHtmlPreview(htmlContent, 0)}
                               style={{ width: '100%', height: '600px', border: 'none' }}
                               sandbox="allow-same-origin"
                               title="Generated content"
                             />
-                            <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', background: 'rgba(108,99,255,0.08)', borderTop: '1px solid rgba(108,99,255,0.15)' }}>
+                            <div style={{ display: 'flex', gap: '8px', padding: '10px 14px', background: 'rgba(0,128,128,0.08)', borderTop: '1px solid rgba(0,128,128,0.15)' }}>
                               <button onClick={() => {
                                 const pw = window.open('', '_blank');
                                 if (pw) {
@@ -4271,7 +4271,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                   pw.document.close();
                                   setTimeout(() => pw.print(), 500);
                                 }
-                              }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🖨️ Print / Download PDF</button>
+                              }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>🖨️ Print / Download PDF</button>
                               <button onClick={() => {
                                 const w = window.open('', '_blank');
                                 if (w) {
@@ -4279,7 +4279,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                   w.document.write(fullDoc);
                                   w.document.close();
                                 }
-                              }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.3)', borderRadius: '8px', cursor: 'pointer' }}>↗️ Full Screen</button>
+                              }} style={{ padding: '6px 16px', fontSize: '13px', fontWeight: 600, background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>↗️ Full Screen</button>
                             </div>
                           </div>
                           {afterText && <div className="markdown-content" style={{ marginTop: '12px' }} dangerouslySetInnerHTML={{ __html: renderMarkdown(afterText) }} />}
@@ -4295,7 +4295,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               <div className="result-area" style={{ textAlign: 'center' }}>
                 <div className="error-text" style={{ marginBottom: '16px' }}>{result.error}</div>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button className="action-btn" onClick={() => { setResult(null); setPrompt(lastPrompt || ''); }} style={{ padding: '12px 24px', fontSize: '15px', fontWeight: 600, background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer' }}>
+                  <button className="action-btn" onClick={() => { setResult(null); setPrompt(lastPrompt || ''); }} style={{ padding: '12px 24px', fontSize: '15px', fontWeight: 600, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer' }}>
                     🔄 Try Again
                   </button>
                   <button className="action-btn" onClick={() => { setResult(null); setPrompt(''); setChatMessages([]); setCurrentChatId(null); setChatTitle(''); }} style={{ padding: '12px 24px', fontSize: '15px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '2px solid var(--border-color, #333)', borderRadius: '12px', cursor: 'pointer' }}>
@@ -4371,7 +4371,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     {!h.imageUrl && <button onClick={(e) => { e.stopPropagation(); const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>NovaMind Export</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}h1,h2,h3{color:#333}pre{background:#f5f5f5;padding:16px;border-radius:8px;overflow-x:auto}</style></head><body>' + renderMarkdown(h.resultPreview || '') + '<hr><p style="color:#999;font-size:12px">Exported from NovaMind AI</p></body></html>'); pw.document.close(); pw.print(); } }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '6px', cursor: 'pointer' }}>📄 PDF</button>}
                     {!h.imageUrl && <button onClick={(e) => { e.stopPropagation(); const html = '<html><head><meta charset="utf-8"><title>NovaMind Export</title></head><body>' + renderMarkdown(h.resultPreview || '') + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'novamind-export.doc'; a.click(); URL.revokeObjectURL(url); }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '6px', cursor: 'pointer' }}>📝 Word</button>}
                     {h.imageUrl && <button onClick={(e) => { e.stopPropagation(); const a = document.createElement('a'); a.href = h.imageUrl!; a.download = `novamind-${Date.now()}.png`; a.click(); }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '6px', cursor: 'pointer' }}>📥 Save Image</button>}
-                    <button onClick={(e) => { e.stopPropagation(); setShowShareMenu(showShareMenu === `gal-${h.id}` ? null : `gal-${h.id}`); }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(108,99,255,0.15)', color: 'var(--primary, #6c63ff)', border: '1px solid rgba(108,99,255,0.2)', borderRadius: '6px', cursor: 'pointer' }}>🔗 Share</button>
+                    <button onClick={(e) => { e.stopPropagation(); setShowShareMenu(showShareMenu === `gal-${h.id}` ? null : `gal-${h.id}`); }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.2)', borderRadius: '6px', cursor: 'pointer' }}>🔗 Share</button>
                     <button onClick={(e) => { e.stopPropagation(); publishToCommunity(h.prompt || '', h.resultPreview || '', h.imageUrl); }} style={{ padding: '4px 10px', fontSize: '11px', background: 'rgba(255,165,0,0.1)', color: '#ffa500', border: '1px solid rgba(255,165,0,0.2)', borderRadius: '6px', cursor: 'pointer' }}>🌟 Publish</button>
                     {showShareMenu === `gal-${h.id}` && (
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -4400,7 +4400,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <h3 className="section-title" style={{ margin: 0 }}>💬 {t.myChats}</h3>
               <button onClick={() => { startNewChat(); setTab('create'); }}
-                style={{ background: 'var(--primary, #6c63ff)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+                style={{ background: 'var(--primary, #008080)', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '10px', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
                 ➕ {t.newChat}
               </button>
             </div>
@@ -4448,7 +4448,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         )}
                       </div>
                       <div style={{ display: 'flex', gap: '8px', paddingLeft: '28px' }} onClick={e => e.stopPropagation()}>
-                        <button onClick={() => { loadChat(chat); setTab('create'); }} style={{ background: 'var(--primary, #6c63ff)', border: 'none', color: '#fff', padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+                        <button onClick={() => { loadChat(chat); setTab('create'); }} style={{ background: 'var(--primary, #008080)', border: 'none', color: '#fff', padding: '7px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                           ▶ Continue
                         </button>
                         <button onClick={() => shareChat(chat.id)} style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.3)', color: '#4ade80', padding: '7px 14px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>
@@ -4489,14 +4489,14 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 const isLiked = user && (post.likedBy || []).includes(user.uid);
                 return (
                   <div key={post.id} style={{ background: 'var(--surface, #1a1a2e)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.08)', overflow: 'hidden', transition: 'transform 0.2s, box-shadow 0.2s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 12px 40px rgba(108,99,255,0.15)'; }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-4px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 12px 40px rgba(0,128,128,0.15)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; }}>
                     {post.imageUrl && (
                       <img src={post.imageUrl} alt="" style={{ width: '100%', height: '200px', objectFit: 'cover' }} />
                     )}
                     <div style={{ padding: '16px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #6c63ff, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #008080, #3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#fff' }}>
                           {(post.displayName || 'A').charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -4616,7 +4616,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       </div>{/* main-content-area */}
       </div>{/* app-layout */}
       {toastVisible && (
-        <div className="toast-enter" style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: toastType === 'error' ? '#ef4444' : toastType === 'success' ? '#22c55e' : toastType === 'warning' ? '#f59e0b' : 'linear-gradient(135deg, #6c63ff, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
+        <div className="toast-enter" style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', background: toastType === 'error' ? '#ef4444' : toastType === 'success' ? '#22c55e' : toastType === 'warning' ? '#f59e0b' : 'linear-gradient(135deg, #008080, #3b82f6)', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontSize: '14px', fontWeight: 600, zIndex: 9999, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}>
           {toastMsg}
         </div>
       )}
@@ -4638,7 +4638,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             {/* Progress bar */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '24px' }}>
               {[0,1,2,3,4].map(s => (
-                <div key={s} style={{ flex: 1, height: '4px', borderRadius: '2px', background: s <= onboardingStep ? 'var(--primary, #6c63ff)' : (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.1)'), transition: 'background 0.3s' }} />
+                <div key={s} style={{ flex: 1, height: '4px', borderRadius: '2px', background: s <= onboardingStep ? 'var(--primary, #008080)' : (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.1)'), transition: 'background 0.3s' }} />
               ))}
             </div>
             
@@ -4660,7 +4660,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
                   {INDUSTRIES.map(ind => (
                     <div key={ind.id} onClick={() => setOnboardingData(prev => ({ ...prev, industry: ind.id }))}
-                      style={{ padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center', fontSize: '13px', border: onboardingData.industry === ind.id ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.industry === ind.id ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      style={{ padding: '12px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center', fontSize: '13px', border: onboardingData.industry === ind.id ? '2px solid var(--primary, #008080)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.industry === ind.id ? 'rgba(0,128,128,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
                       <div style={{ fontSize: '24px', marginBottom: '4px' }}>{ind.icon}</div>
                       <div>{ind.name}</div>
                     </div>
@@ -4676,8 +4676,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {ONBOARDING_USES.map(u => (
                     <div key={u.id} onClick={() => setOnboardingData(prev => ({ ...prev, primaryUse: toggleOnboardingArray(prev.primaryUse, u.id) }))}
-                      style={{ padding: '14px 16px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', border: onboardingData.primaryUse.includes(u.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.primaryUse.includes(u.id) ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
-                      <div style={{ width: '24px', height: '24px', borderRadius: '6px', border: onboardingData.primaryUse.includes(u.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', background: onboardingData.primaryUse.includes(u.id) ? 'var(--primary, #6c63ff)' : 'transparent', flexShrink: 0 }}>{onboardingData.primaryUse.includes(u.id) ? '✓' : ''}</div>
+                      style={{ padding: '14px 16px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', border: onboardingData.primaryUse.includes(u.id) ? '2px solid var(--primary, #008080)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.primaryUse.includes(u.id) ? 'rgba(0,128,128,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '6px', border: onboardingData.primaryUse.includes(u.id) ? '2px solid var(--primary, #008080)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', background: onboardingData.primaryUse.includes(u.id) ? 'var(--primary, #008080)' : 'transparent', flexShrink: 0 }}>{onboardingData.primaryUse.includes(u.id) ? '✓' : ''}</div>
                       <div><div style={{ fontWeight: 600, fontSize: '14px' }}>{u.label}</div><div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{u.desc}</div></div>
                     </div>
                   ))}
@@ -4696,7 +4696,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     { id: 'advanced' as const, icon: '🌳', label: 'Advanced', desc: "I use AI daily and know prompt engineering" }
                   ]).map(level => (
                     <div key={level.id} onClick={() => setOnboardingData(prev => ({ ...prev, experienceLevel: level.id }))}
-                      style={{ padding: '16px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px', border: onboardingData.experienceLevel === level.id ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.experienceLevel === level.id ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      style={{ padding: '16px', borderRadius: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '14px', border: onboardingData.experienceLevel === level.id ? '2px solid var(--primary, #008080)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.experienceLevel === level.id ? 'rgba(0,128,128,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
                       <div style={{ fontSize: '28px' }}>{level.icon}</div>
                       <div><div style={{ fontWeight: 600, fontSize: '15px' }}>{level.label}</div><div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>{level.desc}</div></div>
                     </div>
@@ -4712,8 +4712,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {ONBOARDING_GOALS.map(g => (
                     <div key={g.id} onClick={() => setOnboardingData(prev => ({ ...prev, goals: toggleOnboardingArray(prev.goals, g.id) }))}
-                      style={{ padding: '14px 16px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', border: onboardingData.goals.includes(g.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.goals.includes(g.id) ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
-                      <div style={{ width: '24px', height: '24px', borderRadius: '6px', border: onboardingData.goals.includes(g.id) ? '2px solid var(--primary, #6c63ff)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', background: onboardingData.goals.includes(g.id) ? 'var(--primary, #6c63ff)' : 'transparent', flexShrink: 0 }}>{onboardingData.goals.includes(g.id) ? '✓' : ''}</div>
+                      style={{ padding: '14px 16px', borderRadius: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px', border: onboardingData.goals.includes(g.id) ? '2px solid var(--primary, #008080)' : '2px solid rgba(255,255,255,0.1)', background: onboardingData.goals.includes(g.id) ? 'rgba(0,128,128,0.15)' : 'rgba(255,255,255,0.03)', transition: 'all 0.2s' }}>
+                      <div style={{ width: '24px', height: '24px', borderRadius: '6px', border: onboardingData.goals.includes(g.id) ? '2px solid var(--primary, #008080)' : '2px solid rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', background: onboardingData.goals.includes(g.id) ? 'var(--primary, #008080)' : 'transparent', flexShrink: 0 }}>{onboardingData.goals.includes(g.id) ? '✓' : ''}</div>
                       <div><div style={{ fontWeight: 600, fontSize: '14px' }}>{g.label}</div><div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{g.desc}</div></div>
                     </div>
                   ))}
@@ -4749,12 +4749,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         <div className="auth-overlay" onClick={e => e.target === e.currentTarget && setShowProfileModal(false)}>
           <div className="auth-modal" style={{ maxWidth: '560px', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
             {/* Tab header */}
-            <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(108,99,255,0.04)', borderRadius: '12px', padding: '4px' }}>
-              <button onClick={() => setProfileTab('profile')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'profile' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'profile' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>🏢 Business Profile</button>
-              <button onClick={() => setProfileTab('knowledge')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'knowledge' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'knowledge' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,128,128,0.04)', borderRadius: '12px', padding: '4px' }}>
+              <button onClick={() => setProfileTab('profile')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'profile' ? 'var(--primary, #008080)' : 'transparent', color: profileTab === 'profile' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>🏢 Business Profile</button>
+              <button onClick={() => setProfileTab('knowledge')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'knowledge' ? 'var(--primary, #008080)' : 'transparent', color: profileTab === 'knowledge' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s' }}>
                 📚 Knowledge {knowledgeDocs.length > 0 && <span style={{ background: '#0ea5e9', color: '#fff', fontSize: '10px', borderRadius: '10px', padding: '1px 6px', marginLeft: '4px' }}>{knowledgeDocs.length}</span>}
               </button>
-              <button onClick={() => setProfileTab('team')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'team' ? 'var(--primary, #6c63ff)' : 'transparent', color: profileTab === 'team' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s', position: 'relative' as const }}>
+              <button onClick={() => setProfileTab('team')} style={{ flex: 1, padding: '10px', borderRadius: '10px', border: 'none', fontSize: '14px', fontWeight: 600, cursor: 'pointer', background: profileTab === 'team' ? 'var(--primary, #008080)' : 'transparent', color: profileTab === 'team' ? '#fff' : 'var(--text-secondary)', transition: 'all 0.2s', position: 'relative' as const }}>
                 👥 Team {teamMembers.length > 0 && <span style={{ background: '#22c55e', color: '#fff', fontSize: '10px', borderRadius: '10px', padding: '1px 6px', marginLeft: '4px' }}>{teamMembers.length}</span>}
               </button>
             </div>
@@ -4769,8 +4769,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       style={{ 
                         width: '80px', height: '80px', borderRadius: '16px', margin: '0 auto 12px',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                        border: editingProfile.logoUrl ? 'none' : `2px dashed ${theme === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(108,99,255,0.3)'}`,
-                        background: editingProfile.logoUrl ? 'transparent' : (theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(108,99,255,0.04)'),
+                        border: editingProfile.logoUrl ? 'none' : `2px dashed ${theme === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,128,128,0.3)'}`,
+                        background: editingProfile.logoUrl ? 'transparent' : (theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,128,128,0.04)'),
                         overflow: 'hidden', transition: 'all 0.2s',
                         position: 'relative' as const
                       }}
@@ -4857,8 +4857,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       {BRAND_VOICES.map(v => (
                         <div key={v.id} onClick={() => setEditingProfile(p => ({ ...p, brandVoice: v.id }))}
                           style={{ padding: '10px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center',
-                            border: editingProfile.brandVoice === v.id ? '2px solid var(--primary, #6c63ff)' : `2px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.1)'}`,
-                            background: editingProfile.brandVoice === v.id ? 'rgba(108,99,255,0.12)' : 'transparent',
+                            border: editingProfile.brandVoice === v.id ? '2px solid var(--primary, #008080)' : `2px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.1)'}`,
+                            background: editingProfile.brandVoice === v.id ? 'rgba(0,128,128,0.12)' : 'transparent',
                             transition: 'all 0.2s' }}>
                           <div style={{ fontSize: '20px' }}>{v.icon}</div>
                           <div style={{ fontSize: '12px', fontWeight: 600, marginTop: '2px' }}>{v.label}</div>
@@ -4887,10 +4887,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <button onClick={polishProfile} disabled={polishingProfile}
                     style={{ 
                       marginTop: '20px', width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
-                      background: polishingProfile ? 'rgba(108,99,255,0.3)' : 'linear-gradient(135deg, #6c63ff 0%, #a855f7 100%)',
+                      background: polishingProfile ? 'rgba(0,128,128,0.3)' : 'linear-gradient(135deg, #008080 0%, #006666 100%)',
                       color: '#fff', fontSize: '15px', fontWeight: 700, cursor: polishingProfile ? 'wait' : 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                      boxShadow: polishingProfile ? 'none' : '0 4px 15px rgba(108,99,255,0.3)',
+                      boxShadow: polishingProfile ? 'none' : '0 4px 15px rgba(0,128,128,0.3)',
                       transition: 'all 0.3s'
                     }}>
                     {polishingProfile ? (
@@ -4905,7 +4905,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
 
                   <div style={{ display: 'flex', gap: '10px', marginTop: '24px' }}>
                     <button className="generate-btn" onClick={() => setShowProfileModal(false)}
-                      style={{ flex: 'none', width: 'auto', padding: '12px 20px', background: 'transparent', border: `2px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(108,99,255,0.2)'}`, color: 'var(--text-primary)' }}>Cancel</button>
+                      style={{ flex: 'none', width: 'auto', padding: '12px 20px', background: 'transparent', border: `2px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,128,128,0.2)'}`, color: 'var(--text-primary)' }}>Cancel</button>
                     <button className="generate-btn" onClick={saveBusinessProfile} disabled={profileSaving} style={{ flex: 1 }}>
                       {profileSaving ? '💾 Saving...' : '💾 Save Profile'}
                     </button>
@@ -4921,10 +4921,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <button onClick={generateActionPlan}
                     style={{
                       marginTop: '16px', width: '100%', padding: '16px', borderRadius: '14px', border: 'none',
-                      background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #a855f7 100%)',
+                      background: 'linear-gradient(135deg, #0ea5e9 0%, #008080 50%, #006666 100%)',
                       color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                      boxShadow: '0 4px 20px rgba(99,102,241,0.35)', transition: 'all 0.3s',
+                      boxShadow: '0 4px 20px rgba(0,128,128,0.35)', transition: 'all 0.3s',
                       letterSpacing: '0.3px'
                     }}>
                     🧠 Get Your Personalized AI Action Plan
@@ -4947,7 +4947,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   {knowledgeDocs.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
                       {knowledgeDocs.map(kd => (
-                        <div key={kd.id} style={{ padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(108,99,255,0.04)', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.1)'}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div key={kd.id} style={{ padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,128,128,0.04)', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.1)'}`, display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div style={{ fontSize: '24px' }}>📄</div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, fontSize: '14px' }}>{kd.name}</div>
@@ -4959,7 +4959,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       ))}
                     </div>
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-secondary)', marginBottom: '16px', borderRadius: '12px', border: `2px dashed ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.15)'}` }}>
+                    <div style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-secondary)', marginBottom: '16px', borderRadius: '12px', border: `2px dashed ${theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.15)'}` }}>
                       <div style={{ fontSize: '40px', marginBottom: '8px', opacity: 0.5 }}>🧠</div>
                       <p style={{ fontWeight: 600, marginBottom: '4px', fontSize: '14px' }}>Your AI's brain is empty</p>
                       <p style={{ fontSize: '12px', margin: 0 }}>Add documents to make every AI response smarter and more personalized</p>
@@ -4975,23 +4975,23 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       <textarea className="auth-input" placeholder="Paste your content here — brand guidelines, FAQs, product descriptions, pricing info, company policies, talking points..." value={knowledgeText} onChange={e => setKnowledgeText(e.target.value.slice(0, 8000))} rows={6} style={{ margin: '0 0 8px', resize: 'vertical' as const, fontFamily: 'inherit', fontSize: '13px' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                         <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{knowledgeText.length.toLocaleString()}/8,000 characters</span>
-                        <label style={{ fontSize: '12px', color: 'var(--primary, #6c63ff)', cursor: 'pointer', fontWeight: 600 }}>
+                        <label style={{ fontSize: '12px', color: 'var(--primary, #008080)', cursor: 'pointer', fontWeight: 600 }}>
                           📎 Upload .txt/.md file
                           <input type="file" accept=".txt,.md,.csv,.text" onChange={handleKnowledgeFileUpload} style={{ display: 'none' }} />
                         </label>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => { setAddingKnowledge(false); setKnowledgeName(''); setKnowledgeText(''); }} style={{ flex: 'none', padding: '10px 16px', borderRadius: '10px', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(108,99,255,0.2)'}`, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Cancel</button>
+                        <button onClick={() => { setAddingKnowledge(false); setKnowledgeName(''); setKnowledgeText(''); }} style={{ flex: 'none', padding: '10px 16px', borderRadius: '10px', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,128,128,0.2)'}`, background: 'transparent', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>Cancel</button>
                         <button className="generate-btn" onClick={saveKnowledgeDoc} disabled={!knowledgeName.trim() || !knowledgeText.trim()} style={{ flex: 1, margin: 0, opacity: (!knowledgeName.trim() || !knowledgeText.trim()) ? 0.5 : 1 }}>💾 Save to Knowledge Hub</button>
                       </div>
                     </div>
                   ) : (
-                    <button onClick={() => setAddingKnowledge(true)} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: `2px dashed ${theme === 'dark' ? 'rgba(14,165,233,0.3)' : 'rgba(14,165,233,0.25)'}`, background: theme === 'dark' ? 'rgba(14,165,233,0.06)' : 'rgba(14,165,233,0.03)', color: 'var(--primary, #6c63ff)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                    <button onClick={() => setAddingKnowledge(true)} style={{ width: '100%', padding: '14px', borderRadius: '12px', border: `2px dashed ${theme === 'dark' ? 'rgba(14,165,233,0.3)' : 'rgba(14,165,233,0.25)'}`, background: theme === 'dark' ? 'rgba(14,165,233,0.06)' : 'rgba(14,165,233,0.03)', color: 'var(--primary, #008080)', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
                       ➕ Add Knowledge Document
                     </button>
                   )}
 
-                  <div style={{ marginTop: '20px', padding: '14px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(108,99,255,0.08)' : 'rgba(108,99,255,0.04)', border: '1px solid rgba(108,99,255,0.15)' }}>
+                  <div style={{ marginTop: '20px', padding: '14px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(0,128,128,0.08)' : 'rgba(0,128,128,0.04)', border: '1px solid rgba(0,128,128,0.15)' }}>
                     <div style={{ fontWeight: 700, fontSize: '13px', marginBottom: '8px' }}>💡 What to add:</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                       <div>📋 Brand Guidelines</div>
@@ -5033,20 +5033,20 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       {/* Owner (current user) */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(108,99,255,0.08)' : 'rgba(108,99,255,0.04)', border: `1px solid ${theme === 'dark' ? 'rgba(108,99,255,0.2)' : 'rgba(108,99,255,0.1)'}` }}>
-                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--primary, #6c63ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(0,128,128,0.08)' : 'rgba(0,128,128,0.04)', border: `1px solid ${theme === 'dark' ? 'rgba(0,128,128,0.2)' : 'rgba(0,128,128,0.1)'}` }}>
+                        <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--primary, #008080)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
                           {(user.displayName || user.email || '?')[0].toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.displayName || 'You'}</div>
                           <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{user.email}</div>
                         </div>
-                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #6366F1, #8B5CF6)', color: '#fff' }}>OWNER</span>
+                        <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 10px', borderRadius: '8px', background: 'linear-gradient(135deg, #008080, #006666)', color: '#fff' }}>OWNER</span>
                       </div>
 
                       {teamMembers.map(member => (
-                        <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(108,99,255,0.02)', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(108,99,255,0.08)'}`, transition: 'all 0.2s' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: member.status === 'pending' ? (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(108,99,255,0.08)') : '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: member.status === 'pending' ? 'var(--text-secondary)' : '#fff', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
+                        <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderRadius: '12px', background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,128,128,0.02)', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,128,128,0.08)'}`, transition: 'all 0.2s' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: member.status === 'pending' ? (theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.08)') : '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: member.status === 'pending' ? 'var(--text-secondary)' : '#fff', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>
                             {member.status === 'pending' ? '⏳' : (member.displayName || member.email)[0].toUpperCase()}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -5057,7 +5057,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           </div>
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
                             <select value={member.role} onChange={e => updateMemberRole(member.id, e.target.value as 'admin' | 'member')}
-                              style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#fff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(108,99,255,0.15)'}`, borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                              style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#fff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,128,128,0.15)'}`, borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: 'var(--text-primary)', cursor: 'pointer' }}>
                               <option value="member">Member</option>
                               <option value="admin">Admin</option>
                             </select>
@@ -5069,7 +5069,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     </div>
                   )}
 
-                  <div style={{ marginTop: '20px', padding: '14px 16px', borderRadius: '10px', background: theme === 'dark' ? 'rgba(108,99,255,0.06)' : 'rgba(108,99,255,0.03)', border: `1px solid ${theme === 'dark' ? 'rgba(108,99,255,0.15)' : 'rgba(108,99,255,0.08)'}`, fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  <div style={{ marginTop: '20px', padding: '14px 16px', borderRadius: '10px', background: theme === 'dark' ? 'rgba(0,128,128,0.06)' : 'rgba(0,128,128,0.03)', border: `1px solid ${theme === 'dark' ? 'rgba(0,128,128,0.15)' : 'rgba(0,128,128,0.08)'}`, fontSize: '13px', color: 'var(--text-secondary)' }}>
                     💡 <strong style={{ color: 'var(--text-primary)' }}>Tip:</strong> Team members share your subscription and business profile. <strong>Admins</strong> can manage the team; <strong>Members</strong> can use all AI tools.
                   </div>
 
@@ -5107,10 +5107,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <p style={{ color: 'var(--text-secondary)', margin: '0 0 20px', fontSize: '15px', lineHeight: 1.6 }}>
               You&apos;ve already created amazing content. Imagine what you could do with <strong>unlimited</strong> access — plus AI logos, flyers, business plans, and more.
             </p>
-            <div style={{ background: 'rgba(108,99,255,0.08)', borderRadius: '12px', padding: '16px', margin: '0 0 20px', border: '1px solid rgba(108,99,255,0.15)' }}>
+            <div style={{ background: 'rgba(0,128,128,0.08)', borderRadius: '12px', padding: '16px', margin: '0 0 20px', border: '1px solid rgba(0,128,128,0.15)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <span style={{ fontWeight: 700, fontSize: '16px' }}>Solopreneur Hub</span>
-                <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary, #6c63ff)' }}>$49/mo</span>
+                <span style={{ fontWeight: 700, fontSize: '18px', color: 'var(--primary, #008080)' }}>$49/mo</span>
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'left' }}>✅ Unlimited AI generations &nbsp;·&nbsp; ✅ All business tools &nbsp;·&nbsp; ✅ Logo & Flyer Maker &nbsp;·&nbsp; ✅ Priority support</div>
             </div>
@@ -5135,7 +5135,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <input className="auth-input" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAuth()} />
             {authMode === 'login' && (
               <p style={{ textAlign: 'right', margin: '-4px 0 0 0' }}>
-                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #a855f7)', fontSize: '14px', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px' }}>Forgot Password?</span>
+                <span onClick={handleResetPassword} style={{ color: 'var(--accent, #006666)', fontSize: '14px', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline', textUnderlineOffset: '3px' }}>Forgot Password?</span>
               </p>
             )}
             {resetSent && <p style={{ color: '#4ade80', fontSize: '14px', margin: 0, textAlign: 'center', padding: '12px', background: 'rgba(74,222,128,0.1)', borderRadius: '10px', border: '1px solid rgba(74,222,128,0.3)' }}>✅ Password reset email sent! Check your inbox (and spam/junk folder).</p>}

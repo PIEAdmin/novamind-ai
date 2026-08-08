@@ -535,7 +535,7 @@ body {
 
 /* Agent Info Banner */
 .agent-info-banner {
-  background: linear-gradient(135deg, rgba(0, 128, 128, 0.06), rgba(236, 72, 153, 0.03));
+  background: linear-gradient(135deg, rgba(0, 128, 128, 0.06), rgba(0, 128, 128, 0.03));
   border: 1px solid rgba(0, 128, 128, 0.15);
   border-radius: 12px;
   padding: 16px;
