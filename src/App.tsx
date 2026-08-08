@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
-type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects' | 'inbox' | 'templates' | 'analytics' | 'integrations';
+type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects' | 'inbox' | 'templates' | 'analytics' | 'integrations' | 'admin';
 type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'certificate-maker' | 'ai-receptionist' | 'doc-summarizer' | 'form-builder';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
@@ -85,7 +85,7 @@ interface TeamMember {
   id: string;
   email: string;
   displayName: string;
-  role: 'admin' | 'member';
+  role: 'owner' | 'admin' | 'member' | 'viewer';
   status: 'active' | 'pending';
   invitedAt: Timestamp;
   joinedAt?: Timestamp;
@@ -1339,6 +1339,8 @@ const App: React.FC = () => {
   const [engineSwitchFeedback, setEngineSwitchFeedback] = useState('');
   const handleEngineModeChange = (mode: 'auto' | 'speed' | 'balanced' | 'deep') => {
     if (mode === engineMode) return;
+    trackEvent('model_mode_changed', { from: engineMode, to: mode, surface: 'chat' });
+    logAudit('model.mode_changed', mode, { from: engineMode });
     setEngineMode(mode);
     try { localStorage.setItem('novamind_engine_mode', mode); } catch {}
     const labels: Record<string, string> = { auto: '⚡ Switched to Auto Mode', speed: '🚀 Switched to Speed Mode', balanced: '🎯 Switched to Balanced Mode', deep: '🔬 Switched to Deep Mode' };
@@ -1466,6 +1468,69 @@ const App: React.FC = () => {
   const [agencyEmail, setAgencyEmail] = useState('');
   const [agencySubmitted, setAgencySubmitted] = useState(false);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [userRole, setUserRole] = useState<'owner' | 'admin' | 'member' | 'viewer'>('owner');
+  const [auditLogs, setAuditLogs] = useState<Array<{id: string; timestamp: any; actor: string; actorId: string; action: string; object: string; metadata?: Record<string, unknown>}>>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<string>('all');
+
+  // 🔐 RBAC helpers
+  const canManageTeam = userRole === 'owner' || userRole === 'admin';
+  const canCreate = userRole !== 'viewer';
+  const canExport = userRole !== 'viewer';
+  const canAdmin = userRole === 'owner' || userRole === 'admin';
+  const canDeleteWorkspace = userRole === 'owner';
+  const canManageBilling = userRole === 'owner';
+
+  // 📋 Audit Log helper — write-only, immutable entries
+  const logAudit = async (action: string, object: string, metadata?: Record<string, unknown>) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'audit_logs'), {
+        timestamp: serverTimestamp(),
+        actor: user.displayName || user.email || 'Unknown',
+        actorId: user.uid,
+        action,
+        object,
+        metadata: metadata || {},
+        workspaceId: user.uid,
+      });
+    } catch (e) {
+      console.error('Audit log write failed:', e);
+    }
+  };
+
+  // 📊 Analytics event helper
+  const trackEvent = async (event: string, data?: Record<string, unknown>) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'analytics_events'), {
+        timestamp: serverTimestamp(),
+        userId: user.uid,
+        event,
+        data: data || {},
+        sessionId: sessionStorage.getItem('novamind-session') || 'unknown',
+      });
+    } catch {}
+  };
+
+  // Load audit logs
+  const loadAuditLogs = async () => {
+    if (!user || !canAdmin) return;
+    setAuditLoading(true);
+    try {
+      const q = query(
+        collection(db, 'audit_logs'),
+        where('workspaceId', '==', user.uid),
+        orderBy('timestamp', 'desc'),
+        firestoreLimit(200)
+      );
+      const snap = await getDocs(q);
+      setAuditLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
+    } catch (e) {
+      console.error('Failed to load audit logs:', e);
+    }
+    setAuditLoading(false);
+  };
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [teamProjects, setTeamProjects] = useState<{id: string; name: string; members: string[]; status: string; lastUpdate: string; createdBy: string}[]>([]);
@@ -1694,6 +1759,10 @@ const App: React.FC = () => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u); setLoading(false);
       if (u) {
+        // Set session ID for analytics
+        if (!sessionStorage.getItem('novamind-session')) {
+          sessionStorage.setItem('novamind-session', `ns_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
+        }
         setDashboardLoading(true);
         const usageDoc = await getDoc(doc(db, 'users', u.uid));
         if (usageDoc.exists()) {
@@ -1719,6 +1788,13 @@ const App: React.FC = () => {
           const userProfileDoc = await getDoc(doc(db, 'users', u.uid));
           if (userProfileDoc.exists()) {
             const docData = userProfileDoc.data();
+            // Load user role (default to 'owner' for account creator)
+            if (docData.userRole) {
+              setUserRole(docData.userRole);
+            } else {
+              // First time — set as owner
+              setDoc(doc(db, 'users', u.uid), { userRole: 'owner' }, { merge: true }).catch(() => {});
+            }
             if (docData.businessProfile) {
               const pd = docData.businessProfile as BusinessProfile;
               setBusinessProfile(pd);
@@ -2108,6 +2184,8 @@ Rules:
         status: 'pending' as const, invitedAt: Timestamp.now()
       }]);
       setInviteEmail('');
+      logAudit('team.member_invited', emailLower, { role: 'member' });
+      trackEvent('team_member_invited');
       showToast(`✅ Invitation sent to ${emailLower}`, 'success');
     } catch (e) {
       console.error('Failed to invite:', e);
@@ -2121,6 +2199,7 @@ Rules:
     try {
       await deleteDoc(doc(db, 'users', user.uid, 'team', memberId));
       setTeamMembers(prev => prev.filter(m => m.id !== memberId));
+      logAudit('team.member_removed', memberId);
       showToast('Team member removed', 'info');
     } catch {}
   };
@@ -2130,6 +2209,7 @@ Rules:
     try {
       await updateDoc(doc(db, 'users', user.uid, 'team', memberId), { role: newRole });
       setTeamMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: newRole } : m));
+      logAudit('team.role_changed', memberId, { newRole });
       showToast(`Role updated to ${newRole}`, 'success');
     } catch {}
   };
@@ -2674,6 +2754,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       setResult(res); setUsage(prev => ({ ...prev, used: prev.used + 1 }));
       // Persist usage to Firestore
       if (user) { updateDoc(doc(db, 'users', user.uid), { monthlyUsage: increment(1), lastUsageAt: serverTimestamp() }).catch(() => {}); }
+      logAudit('generation.completed', contentType, { engine: model, engineMode, agentMode, latency: Date.now(), tokens: 'estimated' });
+      trackEvent('generation_completed', { engine: model, engineMode, contentType, agentMode });
       if (Capacitor.isNativePlatform()) { try { await Haptics.impact({ style: ImpactStyle.Light }); } catch {} }
 
       // Add assistant message to chat — handle images vs text
@@ -2943,7 +3025,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
     setTab('create');
   };
 
-  const switchTab = (t: Tab) => { setTab(t); if (t === 'community' && communityPosts.length === 0) loadCommunityPosts(); };
+  const switchTab = (t: Tab) => { setTab(t); if (t === 'community' && communityPosts.length === 0) loadCommunityPosts(); if (t === 'admin') loadAuditLogs(); };
   if (loading) return null;
 
   // AUTH GATE: Require login before accessing any part of the app
@@ -3224,6 +3306,13 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             <span className="sidebar-item-name">Team</span>
             {teamMembers.length > 0 && <span className="sidebar-item-badge" style={{ background: '#22c55e' }}>{teamMembers.length}</span>}
           </button>
+          {canAdmin && (
+            <button className={`sidebar-item ${tab === 'admin' ? 'active' : ''}`}
+              onClick={() => { switchTab('admin' as Tab); setSidebarOpen(false); loadAuditLogs(); }}>
+              <span className="sidebar-item-icon">🔐</span>
+              <span className="sidebar-item-name">Admin</span>
+            </button>
+          )}
 
           <div style={{ flex: 1 }} />
           <div className="sidebar-divider" />
@@ -4290,7 +4379,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || (!prompt.trim() && pendingFiles.length === 0)}>
+              <button className="generate-btn" style={{ flex: 1 }} onClick={handleGenerate} disabled={generating || (!prompt.trim() && pendingFiles.length === 0) || !canCreate}>
                 {generating ? '⏳ Thinking...' : chatMessages.length > 0 ? '💬 Reply' : agentMode === 'competitor-analysis' ? '🔍 Analyze Competitor' : agentMode === 'ad-maker' ? '📢 Create Ad' : agentMode === 'email-assistant' ? getEmailButtonText() : agentMode === 'logo-maker' ? '🎨 Design Logo' : '✨ Generate'}
               </button>
               {user && prompt.trim() && !generating && (
@@ -4757,6 +4846,124 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           </div>
         )}
       </div>
+        {tab === 'admin' && canAdmin && (
+          <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
+            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-primary)' }}>🔐 Admin Panel</h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>Manage roles, permissions, and review the audit trail.</p>
+
+            {/* RBAC Section */}
+            <div style={{ background: 'var(--card-bg, #f8f9fa)', borderRadius: '12px', padding: '20px', marginBottom: '20px', border: '1px solid var(--border-color, #e5e7eb)' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-primary)' }}>👥 Team Roles & Permissions</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', marginBottom: '16px' }}>
+                {[
+                  { role: 'Owner', icon: '👑', perms: 'Full control, billing, delete workspace' },
+                  { role: 'Admin', icon: '🛡️', perms: 'Manage members, all tools, export' },
+                  { role: 'Member', icon: '👤', perms: 'Use tools, create projects' },
+                  { role: 'Viewer', icon: '👁️', perms: 'Read-only access' },
+                ].map(r => (
+                  <div key={r.role} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#fff', borderRadius: '10px', padding: '14px', border: `1px solid ${userRole === r.role.toLowerCase() ? '#008080' : 'var(--border-color, #e5e7eb)'}` }}>
+                    <div style={{ fontSize: '20px', marginBottom: '6px' }}>{r.icon}</div>
+                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>{r.role}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{r.perms}</div>
+                    {userRole === r.role.toLowerCase() && <div style={{ fontSize: '11px', color: '#008080', fontWeight: 600, marginTop: '6px' }}>← Your Role</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Team Members with Roles */}
+              <div style={{ marginTop: '16px' }}>
+                <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: '10px', color: 'var(--text-primary)' }}>Current Team ({teamMembers.length} member{teamMembers.length !== 1 ? 's' : ''})</div>
+                {teamMembers.length === 0 ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>No team members yet. Invite from your Business Profile → Team tab.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {teamMembers.map(m => (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', borderRadius: '8px', background: theme === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,128,128,0.03)', border: '1px solid var(--border-color, #e5e7eb)' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #008080, #20B2AA)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '13px' }}>
+                          {(m.displayName || m.email).charAt(0).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>{m.displayName || m.email}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{m.email}</div>
+                        </div>
+                        <select value={m.role} onChange={e => updateMemberRole(m.id, e.target.value as 'owner' | 'admin' | 'member' | 'viewer')}
+                          style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border-color, #e5e7eb)', fontSize: '12px', fontWeight: 600, background: 'var(--card-bg)', color: 'var(--text-primary)', cursor: 'pointer' }}>
+                          <option value="admin">🛡️ Admin</option>
+                          <option value="member">👤 Member</option>
+                          <option value="viewer">👁️ Viewer</option>
+                        </select>
+                        <span style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: m.status === 'pending' ? '#f59e0b22' : '#22c55e22', color: m.status === 'pending' ? '#f59e0b' : '#22c55e' }}>
+                          {m.status === 'pending' ? 'Pending' : 'Active'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Audit Log Section */}
+            <div style={{ background: 'var(--card-bg, #f8f9fa)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color, #e5e7eb)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>📋 Audit Log</h3>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {['all', 'user', 'generation', 'team', 'model'].map(f => (
+                    <button key={f} onClick={() => setAuditFilter(f)}
+                      style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${auditFilter === f ? '#008080' : 'var(--border-color, #e5e7eb)'}`, background: auditFilter === f ? '#008080' : 'transparent', color: auditFilter === f ? '#fff' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                    </button>
+                  ))}
+                  <button onClick={loadAuditLogs}
+                    style={{ padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border-color, #e5e7eb)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer' }}>
+                    🔄 Refresh
+                  </button>
+                </div>
+              </div>
+
+              {auditLoading ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                  <div className="skeleton-shimmer" style={{ height: '20px', borderRadius: '6px', marginBottom: '10px' }} />
+                  <div className="skeleton-shimmer" style={{ height: '20px', borderRadius: '6px', marginBottom: '10px', width: '80%' }} />
+                  <div className="skeleton-shimmer" style={{ height: '20px', borderRadius: '6px', width: '60%' }} />
+                </div>
+              ) : auditLogs.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+                  <div>No audit entries yet. Actions will appear here automatically.</div>
+                </div>
+              ) : (
+                <div style={{ maxHeight: '500px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {auditLogs
+                    .filter(log => {
+                      if (auditFilter === 'all') return true;
+                      return log.action.startsWith(auditFilter);
+                    })
+                    .map(log => (
+                    <div key={log.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', borderRadius: '8px', background: theme === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)', fontSize: '13px' }}>
+                      <div style={{ fontSize: '16px', flexShrink: 0 }}>
+                        {log.action.includes('login') ? '🔑' : log.action.includes('generation') ? '⚡' : log.action.includes('team') ? '👥' : log.action.includes('model') ? '🎛️' : log.action.includes('export') ? '📤' : '📌'}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {log.action.replace(/\./g, ' → ').replace(/^./, (s: string) => s.toUpperCase())}
+                        </div>
+                        <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '2px' }}>
+                          {log.actor} • {log.object} {log.metadata && Object.keys(log.metadata).length > 0 ? `• ${JSON.stringify(log.metadata)}` : ''}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        {log.timestamp?.toDate ? log.timestamp.toDate().toLocaleString() : 'Just now'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', background: theme === 'dark' ? 'rgba(0,128,128,0.1)' : 'rgba(0,128,128,0.05)', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                🔒 Audit entries are immutable — they cannot be edited or deleted. Retention: indefinite.
+              </div>
+            </div>
+          </div>
+        )}
       </div>{/* main-content-area */}
       </div>{/* app-layout */}
       {toastVisible && (
@@ -4770,8 +4977,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             : (['home','create','crm','projects','chats'] as Tab[])
           ).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
-            <span className="bottom-nav-icon">{{ home: '▦', create: '◎', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋', inbox: '✉', templates: '▧', analytics: '📈', integrations: '⛓' }[id]}</span>
-            {{ home: 'Dashboard', create: 'AI Studio', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects', inbox: 'Inbox', templates: 'Templates', analytics: 'Analytics', integrations: 'Integrations' }[id]}
+            <span className="bottom-nav-icon">{{ home: '▦', create: '◎', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋', inbox: '✉', templates: '▧', analytics: '📈', integrations: '⛓', admin: '🔐' }[id]}</span>
+            {{ home: 'Dashboard', create: 'AI Studio', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects', inbox: 'Inbox', templates: 'Templates', analytics: 'Analytics', integrations: 'Integrations', admin: 'Admin' }[id]}
           </button>
         ))}
       </nav>
@@ -5204,7 +5411,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                             </div>
                           </div>
                           <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                            <select value={member.role} onChange={e => updateMemberRole(member.id, e.target.value as 'admin' | 'member')}
+                            <select value={member.role} onChange={e => updateMemberRole(member.id, e.target.value as 'owner' | 'admin' | 'member' | 'viewer')}
                               style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.08)' : '#fff', border: `1px solid ${theme === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,128,128,0.15)'}`, borderRadius: '6px', padding: '4px 8px', fontSize: '11px', color: 'var(--text-primary)', cursor: 'pointer' }}>
                               <option value="member">Member</option>
                               <option value="admin">Admin</option>
