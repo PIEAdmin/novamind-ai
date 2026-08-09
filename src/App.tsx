@@ -143,7 +143,7 @@ interface ExportRecord {
   deliverableId: string;
   projectId: string;
   destination: 'download' | 'email' | 'drive';
-  fileType: 'pdf' | 'docx' | 'html';
+  fileType: 'pdf' | 'docx' | 'html' | 'md' | 'txt';
   exportedBy: string;
   exportedAt: number;
   recipientEmail?: string;
@@ -1564,6 +1564,8 @@ const App: React.FC = () => {
   const [auditLogs, setAuditLogs] = useState<Array<{id: string; timestamp: any; actor: string; actorId: string; action: string; object: string; metadata?: Record<string, unknown>}>>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const [auditFilter, setAuditFilter] = useState<string>('all');
+  const [auditDateFrom, setAuditDateFrom] = useState('');
+  const [auditDateTo, setAuditDateTo] = useState('');
 
   // 🔐 RBAC helpers
   const canManageTeam = userRole === 'owner' || userRole === 'admin';
@@ -1633,6 +1635,34 @@ const App: React.FC = () => {
     } catch (e) {
       console.error('Audit log write failed:', e);
     }
+  };
+
+  // 📋 Human-readable audit action labels
+  const formatAuditAction = (action: string): string => {
+    const map: Record<string, string> = {
+      'project.created': 'Created project',
+      'project.updated': 'Updated project',
+      'project.deleted': 'Deleted project',
+      'project.archived': 'Archived project',
+      'project.exported': 'Exported project',
+      'project.memory_updated': 'Updated project memory',
+      'deliverable.pinned': 'Pinned deliverable',
+      'deliverable.unpinned': 'Unpinned deliverable',
+      'deliverable.status_changed': 'Changed deliverable status',
+      'share.created': 'Created share link',
+      'share.revoked': 'Revoked share link',
+      'share.accessed': 'Share link accessed',
+      'export.download': 'Downloaded export',
+      'export.email': 'Emailed export',
+      'export.cloud': 'Cloud export',
+      'generation.completed': 'Generated content',
+      'team.member_invited': 'Invited team member',
+      'team.member_removed': 'Removed team member',
+      'team.role_changed': 'Changed member role',
+      'model.mode_changed': 'Changed AI model',
+      'settings.updated': 'Updated settings',
+    };
+    return map[action] || action.replace(/\./g, ' → ').replace(/^./, s => s.toUpperCase());
   };
 
   // 📊 Analytics event helper
@@ -1724,6 +1754,9 @@ const App: React.FC = () => {
   const [showShareModal, setShowShareModal] = useState<string | null>(null);
   const [shareScope, setShareScope] = useState<'workspace' | 'specific' | 'public'>('workspace');
   const [shareSpecificUsers, setShareSpecificUsers] = useState<string[]>([]);
+  const [shareAllowedUsers, setShareAllowedUsers] = useState(''); // comma-separated external emails
+  const [shareResourceType, setShareResourceType] = useState<'project' | 'deliverable'>('project');
+  const [shareResourceId, setShareResourceId] = useState<string | null>(null);
 
   // ====== WORKSPACE SETTINGS (Egress Controls) ======
   const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>({
@@ -1737,11 +1770,19 @@ const App: React.FC = () => {
   const [exportHistory, setExportHistory] = useState<ExportRecord[]>([]);
   const [showExportLedger, setShowExportLedger] = useState<string | null>(null); // deliverable ID
 
+  // ====== EXPORT LEDGER (Admin — standalone, all records) ======
+  const [showFullExportLedger, setShowFullExportLedger] = useState(false);
+  const [allExportHistory, setAllExportHistory] = useState<ExportRecord[]>([]);
+  const [exportLedgerFilter, setExportLedgerFilter] = useState<{ project: string; destination: string; dateFrom: string; dateTo: string }>({ project: '', destination: '', dateFrom: '', dateTo: '' });
+  const [exportLedgerLoading, setExportLedgerLoading] = useState(false);
+
   // ====== EXPORT DESTINATIONS ======
   const [showExportModal, setShowExportModal] = useState<string | null>(null); // deliverable ID
   const [exportEmailTo, setExportEmailTo] = useState('');
+  const [exportCustomEmail, setExportCustomEmail] = useState('');
   const [exportFileType, setExportFileType] = useState<'pdf' | 'docx' | 'html'>('pdf');
   const [exportSending, setExportSending] = useState(false);
+  const [exportError, setExportError] = useState<{ action: string; message: string } | null>(null);
 
   // ====== SHARE PERMISSION (View/Edit) ======
   const [sharePermission, setSharePermission] = useState<'view' | 'edit'>('view');
@@ -2089,13 +2130,32 @@ const App: React.FC = () => {
     } catch (e) { console.error('Load export history err:', e); }
   };
 
+  // ====== EXPORT LEDGER (Admin — all records for the workspace) ======
+  const loadAllExportHistory = async () => {
+    if (!user) return;
+    setExportLedgerLoading(true);
+    try {
+      const wsId = workspaceId || user.uid;
+      const q = query(collection(db, 'workspaces', wsId, 'export_history'), orderBy('exportedAt', 'desc'), firestoreLimit(100));
+      const snap = await getDocs(q);
+      setAllExportHistory(snap.docs.map(d => d.data() as ExportRecord));
+    } catch (e) {
+      console.error('Load all exports err:', e);
+      showToast('Failed to load export ledger', 'error');
+    } finally {
+      setExportLedgerLoading(false);
+    }
+  };
+
   const exportToEmail = async (deliverable: PinnedOutput, project: ProjectBrief) => {
-    if (!user || !exportEmailTo.trim()) return;
+    const recipient = (exportCustomEmail.trim() || exportEmailTo.trim());
+    if (!user || !recipient) return;
     if (!workspaceSettings.allowEmailExport) {
       showToast('Email exports are disabled by workspace admin', 'error');
       return;
     }
     setExportSending(true);
+    setExportError(null);
     try {
       // Generate HTML content for the email
       const htmlContent = deliverable.type === 'image'
@@ -2103,50 +2163,76 @@ const App: React.FC = () => {
         : renderMarkdown(deliverable.content);
 
       // Record the export
-      await recordExport(deliverable.id, project.id, 'email', 'html', exportEmailTo.trim(), deliverable.versionLabel);
+      await recordExport(deliverable.id, project.id, 'email', 'html', recipient, deliverable.versionLabel);
 
       // In a real implementation, this would call a Netlify function to send email
       // For now, we create a mailto link with the content
       const subject = encodeURIComponent(`[NovaMind] ${deliverable.title} — ${project.name}`);
       const body = encodeURIComponent(`${deliverable.title}\n\nProject: ${project.name}\nType: ${deliverable.type}\nStatus: ${deliverable.status}\n\n---\n\n${deliverable.content.slice(0, 2000)}`);
-      window.open(`mailto:${exportEmailTo.trim()}?subject=${subject}&body=${body}`, '_self');
+      window.open(`mailto:${recipient}?subject=${subject}&body=${body}`, '_self');
 
-      showToast(`Export sent to ${exportEmailTo.trim()}`, 'success');
+      showToast(`Export sent to ${recipient}`, 'success');
       setShowExportModal(null);
       setExportEmailTo('');
+      setExportCustomEmail('');
     } catch (e) {
       console.error('Export to email err:', e);
+      setExportError({ action: 'email', message: 'Failed to send export. Please try again.' });
       showToast('Failed to send export', 'error');
     } finally {
       setExportSending(false);
     }
   };
 
-  const exportToDownload = async (deliverable: PinnedOutput, project: ProjectBrief, fileType: 'pdf' | 'docx') => {
+  const exportToDownload = async (deliverable: PinnedOutput, project: ProjectBrief, fileType: 'pdf' | 'docx' | 'md' | 'txt') => {
     if (!workspaceSettings.allowExternalExport) {
       showToast('External exports are disabled by workspace admin', 'error');
       return;
     }
-    await recordExport(deliverable.id, project.id, 'download', fileType, undefined, deliverable.versionLabel);
+    try {
+      setExportError(null);
+      await recordExport(deliverable.id, project.id, 'download', fileType, undefined, deliverable.versionLabel);
 
-    if (fileType === 'pdf') {
-      const pw = window.open('', '_blank');
-      if (pw) {
+      if (fileType === 'pdf') {
+        const pw = window.open('', '_blank');
+        if (!pw) throw new Error('Popup blocked');
         pw.document.write('<html><head><title>' + deliverable.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + (deliverable.type === 'image' ? '<img src="' + deliverable.content + '" style="max-width:100%"/>' : renderMarkdown(deliverable.content)) + '</body></html>');
         pw.document.close();
         pw.print();
+      } else if (fileType === 'docx') {
+        const html = '<html><head><meta charset="utf-8"><title>' + deliverable.title + '</title></head><body>' + renderMarkdown(deliverable.content) + '</body></html>';
+        const blob = new Blob([html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = deliverable.title.replace(/[^a-z0-9]+/gi, '-') + '.doc';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else if (fileType === 'md') {
+        const blob = new Blob([deliverable.content], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = deliverable.title.replace(/[^a-z0-9]+/gi, '-') + '.md';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        // Plain text — strip basic markdown syntax
+        const plain = deliverable.content.replace(/[#*_`>~-]/g, '').replace(/\n{3,}/g, '\n\n');
+        const blob = new Blob([plain], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = deliverable.title.replace(/[^a-z0-9]+/gi, '-') + '.txt';
+        a.click();
+        URL.revokeObjectURL(url);
       }
-    } else {
-      const html = '<html><head><meta charset="utf-8"><title>' + deliverable.title + '</title></head><body>' + renderMarkdown(deliverable.content) + '</body></html>';
-      const blob = new Blob([html], { type: 'application/msword' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = deliverable.title.replace(/[^a-z0-9]+/gi, '-') + '.doc';
-      a.click();
-      URL.revokeObjectURL(url);
+      showToast(`${fileType.toUpperCase()} exported`, 'success');
+    } catch (e) {
+      console.error('Export to download err:', e);
+      setExportError({ action: `download:${fileType}`, message: `Failed to export ${fileType.toUpperCase()}. Please try again.` });
+      showToast(`Failed to export ${fileType.toUpperCase()}`, 'error');
     }
-    showToast(`${fileType.toUpperCase()} exported`, 'success');
   };
 
   // ====== SHARE LINKS ======
@@ -6199,21 +6285,34 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         })()}
 
         {/* ===== Share Modal (workspace / specific people / public link) ===== */}
-        {showShareModal && activeProject && (
+        {showShareModal && activeProject && checkPermission(userRole, 'share', showShareModal === 'project' ? 'project' : 'deliverable', { isTeam: isTeamPlan }) && (() => {
+          const resType: 'project' | 'deliverable' = showShareModal === 'project' ? 'project' : 'deliverable';
+          const resId = showShareModal === 'project' ? activeProject.id : showShareModal;
+          const copyLink = async (link: ShareLink) => {
+            const url = `${window.location.origin}/share/${link.resourceType}/${link.id}`;
+            try { await navigator.clipboard.writeText(url); showToast('Link copied to clipboard', 'success'); }
+            catch { showToast('Could not copy link', 'error'); }
+          };
+          return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={() => setShowShareModal(null)}>
-            <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '480px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#101828', margin: '0 0 4px' }}>
-                Share {showShareModal === 'project' ? activeProject.name : (activeProject.pinnedOutputs || []).find(o => o.id === showShareModal)?.title || 'Deliverable'}
-              </h3>
-              <p style={{ fontSize: '12px', color: '#667085', margin: '0 0 20px' }}>Control who can view this {showShareModal === 'project' ? 'project' : 'deliverable'}.</p>
+            <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card-bg, #ffffff)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '480px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                  Share {resType === 'project' ? activeProject.name : (activeProject.pinnedOutputs || []).find(o => o.id === showShareModal)?.title || 'Deliverable'}
+                </h3>
+                <span style={{ fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080' }}>
+                  {resType === 'project' ? 'Project' : 'Deliverable'}
+                </span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 20px' }}>Control who can view this {resType}.</p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
                 {([
-                  ['workspace', 'Workspace members only'],
-                  ['specific', 'Specific people'],
-                  ['public', 'Public link (view-only)'],
+                  ['workspace', 'Workspace Members'],
+                  ['specific', 'Specific People'],
+                  ['public', 'Anyone with Link'],
                 ] as const).map(([val, label]) => (
-                  <label key={val} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#101828', cursor: 'pointer' }}>
+                  <label key={val} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer' }}>
                     <input type="radio" checked={shareScope === val} onChange={() => setShareScope(val)} />
                     {label}
                   </label>
@@ -6221,38 +6320,48 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
 
               {shareScope === 'specific' && (
-                <div style={{ marginBottom: '18px', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '12px', maxHeight: '160px', overflowY: 'auto' }}>
-                  {teamMembers.length === 0 ? (
-                    <p style={{ fontSize: '12px', color: '#667085', margin: 0 }}>No team members yet. Invite teammates from Team Hub.</p>
-                  ) : teamMembers.map(m => (
-                    <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#101828', cursor: 'pointer', padding: '4px 0' }}>
-                      <input type="checkbox" checked={shareSpecificUsers.includes(m.id)}
-                        onChange={e => setShareSpecificUsers(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))} />
-                      {m.displayName || m.email}
-                    </label>
-                  ))}
+                <div style={{ marginBottom: '18px' }}>
+                  {teamMembers.length > 0 && (
+                    <div style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '12px', maxHeight: '140px', overflowY: 'auto', marginBottom: '10px' }}>
+                      {teamMembers.map(m => (
+                        <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px 0' }}>
+                          <input type="checkbox" checked={shareSpecificUsers.includes(m.id)}
+                            onChange={e => setShareSpecificUsers(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))} />
+                          {m.displayName || m.email}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '6px' }}>External Emails (comma-separated)</label>
+                  <input type="text" value={shareAllowedUsers} onChange={e => setShareAllowedUsers(e.target.value)} placeholder="jane@client.com, sam@partner.com"
+                    style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)', boxSizing: 'border-box' }} />
+                  {teamMembers.length === 0 && (
+                    <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '6px 0 0' }}>No team members yet. Invite teammates from Team Hub, or enter external emails above.</p>
+                  )}
                 </div>
               )}
 
               {/* Permission level */}
               <div style={{ marginBottom: '18px' }}>
-                <label style={{ fontSize: '12px', fontWeight: 600, color: '#667085', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>Permission Level</label>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>Permission Level</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {(['view', 'edit'] as const).map(perm => (
                     <button key={perm} onClick={() => setSharePermission(perm)}
-                      style={{ flex: 1, padding: '8px 16px', fontSize: '13px', fontWeight: 600, borderRadius: '4px', cursor: 'pointer', border: sharePermission === perm ? '2px solid #008080' : '1px solid #e5e7eb', background: sharePermission === perm ? 'rgba(0,128,128,0.04)' : '#fff', color: sharePermission === perm ? '#008080' : '#344054' }}>
-                      {perm === 'view' ? 'View Only' : 'Can Edit'}
+                      style={{ flex: 1, padding: '8px 16px', fontSize: '13px', fontWeight: 600, borderRadius: '4px', cursor: 'pointer', border: sharePermission === perm ? '2px solid #008080' : '1px solid var(--border-color, #e5e7eb)', background: sharePermission === perm ? 'rgba(0,128,128,0.04)' : 'var(--card-bg, #fff)', color: sharePermission === perm ? '#008080' : 'var(--text-primary)' }}>
+                      {perm === 'view' ? 'Can View' : 'Can Edit'}
                     </button>
                   ))}
                 </div>
-                <p style={{ fontSize: '11px', color: '#98a2b3', margin: '6px 0 0' }}>
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: '6px 0 0' }}>
                   {sharePermission === 'view' ? 'Recipients can view but cannot modify.' : 'Recipients can view and edit this resource.'}
                 </p>
               </div>
 
               <button onClick={() => {
-                const resType = showShareModal === 'project' ? 'project' as const : 'deliverable' as const;
-                createShareLink(activeProject.id, shareScope, shareScope === 'specific' ? shareSpecificUsers : undefined, resType, showShareModal === 'project' ? activeProject.id : showShareModal);
+                const externalEmails = shareAllowedUsers.split(',').map(s => s.trim()).filter(Boolean);
+                const allowedUsers = [...shareSpecificUsers, ...externalEmails];
+                createShareLink(activeProject.id, shareScope, shareScope === 'specific' ? allowedUsers : undefined, resType, resId);
+                setShareAllowedUsers('');
               }}
                 style={{ width: '100%', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '20px' }}>
                 Create Share Link
@@ -6260,20 +6369,23 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
 
               {(activeProject.shareLinks || []).length > 0 && (
                 <div>
-                  <h4 style={{ fontSize: '12px', fontWeight: 700, color: '#667085', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 10px' }}>Active Share Links</h4>
+                  <h4 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 10px' }}>Active Share Links</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {(activeProject.shareLinks || []).map(link => (
-                      <div key={link.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+                      <div key={link.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 12px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px' }}>
                         <div>
-                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#101828', textTransform: 'capitalize' }}>{link.scope === 'specific' ? `${(link.allowedUsers || []).length} people` : link.scope}</div>
-                          <div style={{ fontSize: '11px', color: '#98a2b3' }}>Created {new Date(link.createdAt).toLocaleDateString()} by {link.createdBy}</div>
-                          <div style={{ fontSize: '11px', color: link.permission === 'edit' ? '#008080' : '#98a2b3' }}>
-                            {link.permission === 'edit' ? 'Can Edit' : 'View Only'}
-                            {link.resourceType === 'deliverable' ? ' · Deliverable' : ' · Project'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', textTransform: 'capitalize' }}>{link.scope === 'specific' ? `${(link.allowedUsers || []).length} people` : link.scope}</span>
+                            <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: link.permission === 'edit' ? 'rgba(0,128,128,0.08)' : 'var(--card-bg, #f2f4f7)', color: link.permission === 'edit' ? '#008080' : 'var(--text-secondary)' }}>{link.permission === 'edit' ? 'Can Edit' : 'Can View'}</span>
                           </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Created {new Date(link.createdAt).toLocaleDateString()} by {link.createdBy} · {link.resourceType === 'deliverable' ? 'Deliverable' : 'Project'}</div>
                         </div>
-                        <button onClick={() => revokeShareLink(activeProject.id, link.id)}
-                          style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#d92d20', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>Revoke</button>
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          <button onClick={() => copyLink(link)}
+                            style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Copy Link</button>
+                          <button onClick={() => revokeShareLink(activeProject.id, link.id)}
+                            style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#d92d20', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Revoke</button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -6281,93 +6393,138 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               )}
 
               <button onClick={() => setShowShareModal(null)}
-                style={{ marginTop: '20px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: '#101828', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>
+                style={{ marginTop: '20px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>
                 Close
               </button>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* ===== Export Destinations Modal ===== */}
         {showExportModal && activeProject && (() => {
           const deliverable = (activeProject.pinnedOutputs || []).find(o => o.id === showExportModal);
           if (!deliverable) return null;
+          const closeModal = () => { setShowExportModal(null); setExportEmailTo(''); setExportCustomEmail(''); setExportError(null); };
+          const retry = () => {
+            if (!exportError) return;
+            if (exportError.action === 'email') { exportToEmail(deliverable, activeProject); return; }
+            if (exportError.action.startsWith('download:')) {
+              const ft = exportError.action.split(':')[1] as 'pdf' | 'docx' | 'md' | 'txt';
+              exportToDownload(deliverable, activeProject, ft);
+            }
+          };
           return (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={() => { setShowExportModal(null); setExportEmailTo(''); }}>
-              <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '520px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#101828', margin: '0 0 4px' }}>Export: {deliverable.title}</h3>
-                <p style={{ fontSize: '12px', color: '#667085', margin: '0 0 24px' }}>Choose a destination for this deliverable.</p>
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={closeModal}>
+              <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card-bg, #ffffff)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '520px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' }}>Export: {deliverable.title}</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>Choose a destination for this deliverable.</p>
+
+                {exportError && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '10px 14px', borderRadius: '4px', background: 'rgba(217,45,32,0.06)', border: '1px solid rgba(217,45,32,0.2)', marginBottom: '16px' }}>
+                    <span style={{ fontSize: '12px', color: '#d92d20', fontWeight: 600 }}>{exportError.message}</span>
+                    <button onClick={retry} style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, background: '#d92d20', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', flexShrink: 0 }}>Retry</button>
+                  </div>
+                )}
 
                 {/* Download Section */}
                 <div style={{ marginBottom: '20px' }}>
-                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#344054', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(0,128,128,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>↓</span>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(0,128,128,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#008080' }}>{ICONS.download()}</span>
                     Download
                   </h4>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                     <button onClick={() => { exportToDownload(deliverable, activeProject, 'pdf'); setShowExportModal(null); }}
-                      style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 600, background: '#fff', color: '#344054', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>
+                      style={{ padding: '10px', fontSize: '13px', fontWeight: 600, background: 'var(--card-bg, #fff)', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
                       Export PDF
                     </button>
                     <button onClick={() => { exportToDownload(deliverable, activeProject, 'docx'); setShowExportModal(null); }}
-                      style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 600, background: '#fff', color: '#344054', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>
+                      style={{ padding: '10px', fontSize: '13px', fontWeight: 600, background: 'var(--card-bg, #fff)', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
                       Export Word
+                    </button>
+                    <button onClick={() => { exportToDownload(deliverable, activeProject, 'md'); setShowExportModal(null); }}
+                      style={{ padding: '10px', fontSize: '13px', fontWeight: 600, background: 'var(--card-bg, #fff)', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
+                      Markdown
+                    </button>
+                    <button onClick={() => { exportToDownload(deliverable, activeProject, 'txt'); setShowExportModal(null); }}
+                      style={{ padding: '10px', fontSize: '13px', fontWeight: 600, background: 'var(--card-bg, #fff)', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
+                      Plain Text
                     </button>
                   </div>
                 </div>
 
                 {/* Email Section */}
                 {workspaceSettings.allowEmailExport && (
-                  <div style={{ marginBottom: '20px', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
-                    <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#344054', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ marginBottom: '20px', padding: '16px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px' }}>
+                    <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <span style={{ width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(0,128,128,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>✉</span>
                       Send via Email
                     </h4>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <select value={exportEmailTo} onChange={e => setExportEmailTo(e.target.value)}
-                        style={{ flex: 1, padding: '8px 12px', fontSize: '13px', border: '1px solid #e5e7eb', borderRadius: '4px', background: '#fff', color: '#101828' }}>
-                        <option value="">Select recipient...</option>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <select value={exportEmailTo} onChange={e => { setExportEmailTo(e.target.value); setExportCustomEmail(''); }}
+                        style={{ flex: 1, padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }}>
+                        <option value="">Select workspace member...</option>
                         {teamMembers.filter(m => m.status === 'active').map(m => (
                           <option key={m.id} value={m.email}>{m.displayName || m.email}</option>
                         ))}
                         {user && <option value={user.email || ''}>{user.displayName || user.email} (You)</option>}
                       </select>
-                      <button onClick={() => exportToEmail(deliverable, activeProject)} disabled={!exportEmailTo.trim() || exportSending}
-                        style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, background: exportEmailTo.trim() && !exportSending ? '#008080' : '#e5e7eb', color: exportEmailTo.trim() && !exportSending ? '#fff' : '#98a2b3', border: 'none', borderRadius: '4px', cursor: exportEmailTo.trim() && !exportSending ? 'pointer' : 'default' }}>
+                      <button onClick={() => exportToEmail(deliverable, activeProject)} disabled={!(exportCustomEmail.trim() || exportEmailTo.trim()) || exportSending}
+                        style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, background: (exportCustomEmail.trim() || exportEmailTo.trim()) && !exportSending ? '#008080' : 'var(--border-color, #e5e7eb)', color: (exportCustomEmail.trim() || exportEmailTo.trim()) && !exportSending ? '#fff' : 'var(--text-secondary)', border: 'none', borderRadius: '4px', cursor: (exportCustomEmail.trim() || exportEmailTo.trim()) && !exportSending ? 'pointer' : 'default' }}>
                         {exportSending ? 'Sending...' : 'Send'}
                       </button>
                     </div>
+                    <input type="email" value={exportCustomEmail} onChange={e => { setExportCustomEmail(e.target.value); if (e.target.value) setExportEmailTo(''); }} placeholder="Or enter any email address..."
+                      style={{ width: '100%', padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)', boxSizing: 'border-box' }} />
                   </div>
                 )}
 
                 {/* Cloud Drive Section — Coming Soon */}
-                <div style={{ marginBottom: '20px', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '4px', opacity: 0.5 }}>
-                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#344054', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(0,128,128,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>☁</span>
-                    Cloud Drive
-                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080' }}>Coming Soon</span>
-                  </h4>
-                  <p style={{ fontSize: '12px', color: '#98a2b3', margin: '4px 0 0' }}>Google Drive and OneDrive integration coming in a future update.</p>
+                <div style={{ marginBottom: '20px', padding: '16px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' }}>Cloud Drive</h4>
+                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 12px' }}>Connect your cloud storage to export deliverables directly.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div style={{ padding: '12px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', opacity: 0.6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#0F9D58" d="M8.5 2 1 15l3.6 6.2h6.9L18 9.3z" /><path fill="#4285F4" d="M15.4 21.2H22.5L16 10 9.1 10z" /><path fill="#FFCD40" d="M8.5 2 12 8.3 5.9 19 2.4 12.8z" /></svg>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>Google Drive</span>
+                      </div>
+                      <button disabled style={{ width: '100%', padding: '6px', fontSize: '11px', fontWeight: 700, background: 'var(--border-color, #e5e7eb)', color: 'var(--text-secondary)', border: 'none', borderRadius: '4px', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        Connect
+                        <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px', background: 'rgba(0,128,128,0.12)', color: '#008080' }}>Coming Soon</span>
+                      </button>
+                    </div>
+                    <div style={{ padding: '12px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', opacity: 0.6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24"><path fill="#0364B8" d="M10.5 15.5 4 12l6.5-3.5L18 12z" /><path fill="#0078D4" d="M18 12 10.5 8.5 15 3l7 4z" /><path fill="#28A8EA" d="M18 12l4-1v6l-4 2z" /><path fill="#14447D" d="M10.5 15.5 18 12l4 6-8 3z" /></svg>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>OneDrive</span>
+                      </div>
+                      <button disabled style={{ width: '100%', padding: '6px', fontSize: '11px', fontWeight: 700, background: 'var(--border-color, #e5e7eb)', color: 'var(--text-secondary)', border: 'none', borderRadius: '4px', cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                        Connect
+                        <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 6px', borderRadius: '999px', background: 'rgba(0,128,128,0.12)', color: '#008080' }}>Coming Soon</span>
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Export History */}
                 <div>
                   <button onClick={() => { if (showExportLedger === deliverable.id) { setShowExportLedger(null); } else { setShowExportLedger(deliverable.id); loadExportHistory(deliverable.id); } }}
-                    style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#667085', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer', marginBottom: showExportLedger === deliverable.id ? '12px' : '0' }}>
+                    style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', marginBottom: showExportLedger === deliverable.id ? '12px' : '0' }}>
                     {showExportLedger === deliverable.id ? 'Hide' : 'Show'} Export History
                   </button>
                   {showExportLedger === deliverable.id && (
                     <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                       {exportHistory.length === 0 ? (
-                        <p style={{ fontSize: '12px', color: '#98a2b3', textAlign: 'center', padding: '16px 0', margin: 0 }}>No exports yet.</p>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center', padding: '16px 0', margin: 0 }}>No exports yet.</p>
                       ) : exportHistory.map(rec => (
-                        <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f2f4f7', fontSize: '12px' }}>
+                        <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid var(--border-color, #f2f4f7)', fontSize: '12px' }}>
                           <div>
-                            <span style={{ fontWeight: 600, color: '#344054', textTransform: 'capitalize' }}>{rec.destination}</span>
-                            <span style={{ color: '#98a2b3' }}> · {rec.fileType.toUpperCase()}</span>
-                            {rec.recipientEmail && <span style={{ color: '#667085' }}> → {rec.recipientEmail}</span>}
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>{rec.destination}</span>
+                            <span style={{ color: 'var(--text-secondary)' }}> · {rec.fileType.toUpperCase()}</span>
+                            {rec.recipientEmail && <span style={{ color: 'var(--text-secondary)' }}> → {rec.recipientEmail}</span>}
                           </div>
-                          <div style={{ color: '#98a2b3', whiteSpace: 'nowrap' }}>
+                          <div style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                             {new Date(rec.exportedAt).toLocaleDateString()} · {rec.exportedBy.split(' ')[0]}
                           </div>
                         </div>
@@ -6376,8 +6533,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   )}
                 </div>
 
-                <button onClick={() => { setShowExportModal(null); setExportEmailTo(''); }}
-                  style={{ marginTop: '20px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: '#101828', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>
+                <button onClick={closeModal}
+                  style={{ marginTop: '20px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>
                   Close
                 </button>
               </div>
@@ -6605,22 +6762,134 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             </div>
 
+            {/* Export Ledger Section */}
+            <div style={{ background: 'var(--card-bg, #f8f9fa)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color, #e5e7eb)', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {ICONS.download(18)} Export Ledger
+                </h3>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {showFullExportLedger && (
+                    <button onClick={() => loadAllExportHistory()}
+                      style={{ padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border-color, #e5e7eb)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5" /></svg>
+                      Refresh
+                    </button>
+                  )}
+                  <button onClick={() => { const next = !showFullExportLedger; setShowFullExportLedger(next); if (next) loadAllExportHistory(); }}
+                    style={{ padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border-color, #e5e7eb)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer' }}>
+                    {showFullExportLedger ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+              </div>
+
+              {showFullExportLedger && (
+                <>
+                  {/* Filter bar */}
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select value={exportLedgerFilter.project} onChange={e => setExportLedgerFilter(prev => ({ ...prev, project: e.target.value }))}
+                      style={{ padding: '6px 10px', fontSize: '12px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }}>
+                      <option value="">All Projects</option>
+                      {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                    {(['', 'download', 'email', 'drive'] as const).map(d => (
+                      <button key={d || 'all'} onClick={() => setExportLedgerFilter(prev => ({ ...prev, destination: d }))}
+                        style={{ padding: '5px 14px', borderRadius: '999px', border: exportLedgerFilter.destination === d ? '1px solid #008080' : '1px solid var(--border-color, #e5e7eb)', background: exportLedgerFilter.destination === d ? 'rgba(0,128,128,0.08)' : 'transparent', color: exportLedgerFilter.destination === d ? '#008080' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>
+                        {d === '' ? 'All' : d === 'drive' ? 'Cloud' : d.charAt(0).toUpperCase() + d.slice(1)}
+                      </button>
+                    ))}
+                    <input type="date" value={exportLedgerFilter.dateFrom} onChange={e => setExportLedgerFilter(prev => ({ ...prev, dateFrom: e.target.value }))}
+                      style={{ padding: '6px 10px', fontSize: '12px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }} />
+                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>to</span>
+                    <input type="date" value={exportLedgerFilter.dateTo} onChange={e => setExportLedgerFilter(prev => ({ ...prev, dateTo: e.target.value }))}
+                      style={{ padding: '6px 10px', fontSize: '12px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }} />
+                  </div>
+
+                  {/* Table */}
+                  {exportLedgerLoading ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                      <div className="skeleton-shimmer" style={{ height: '18px', borderRadius: '6px' }} />
+                    </div>
+                  ) : (() => {
+                    const filtered = allExportHistory.filter(rec => {
+                      if (exportLedgerFilter.project && rec.projectId !== exportLedgerFilter.project) return false;
+                      if (exportLedgerFilter.destination && rec.destination !== exportLedgerFilter.destination) return false;
+                      if (exportLedgerFilter.dateFrom && rec.exportedAt < new Date(exportLedgerFilter.dateFrom).getTime()) return false;
+                      if (exportLedgerFilter.dateTo && rec.exportedAt > new Date(exportLedgerFilter.dateTo).getTime() + 86400000) return false;
+                      return true;
+                    });
+                    if (filtered.length === 0) {
+                      return <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px' }}>No exports match these filters.</div>;
+                    }
+                    return (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+                              {['Deliverable', 'Project', 'Destination', 'File Type', 'Recipient', 'Exported By', 'Date'].map(h => (
+                                <th key={h} style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', fontSize: '10px' }}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map(rec => {
+                              const proj = projects.find(p => p.id === rec.projectId);
+                              const del = proj?.pinnedOutputs?.find(o => o.id === rec.deliverableId);
+                              return (
+                                <tr key={rec.id} style={{ borderBottom: '1px solid var(--border-color, #f2f4f7)' }}>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-primary)', fontWeight: 600 }}>{del?.title || rec.deliverableId}</td>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{proj?.name || rec.projectId}</td>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>{rec.destination === 'drive' ? 'Cloud' : rec.destination}</td>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{rec.fileType.toUpperCase()}</td>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{rec.recipientEmail || '—'}</td>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-secondary)' }}>{rec.exportedBy}</td>
+                                  <td style={{ padding: '8px 10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{new Date(rec.exportedAt).toLocaleString()}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+
             {/* Audit Log Section */}
             <div style={{ background: 'var(--card-bg, #f8f9fa)', borderRadius: '12px', padding: '20px', border: '1px solid var(--border-color, #e5e7eb)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '10px' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>📋 Audit Log</h3>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {['all', 'user', 'generation', 'team', 'model', 'project', 'deliverable'].map(f => (
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" /><path d="M9 12h6M9 16h6" /></svg>
+                  Audit Log
+                </h3>
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="date" value={auditDateFrom} onChange={e => setAuditDateFrom(e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '6px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }} />
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>to</span>
+                  <input type="date" value={auditDateTo} onChange={e => setAuditDateTo(e.target.value)}
+                    style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '6px', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }} />
+                  <button onClick={loadAuditLogs}
+                    style={{ padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border-color, #e5e7eb)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5" /></svg>
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                {['all', 'project', 'deliverable', 'share', 'export', 'generation', 'team', 'user', 'model'].map(f => {
+                  const count = f === 'all' ? auditLogs.length : auditLogs.filter(l => l.action.startsWith(f)).length;
+                  return (
                     <button key={f} onClick={() => setAuditFilter(f)}
                       style={{ padding: '4px 12px', borderRadius: '6px', border: `1px solid ${auditFilter === f ? '#008080' : 'var(--border-color, #e5e7eb)'}`, background: auditFilter === f ? '#008080' : 'transparent', color: auditFilter === f ? '#fff' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' }}>
                       {f.charAt(0).toUpperCase() + f.slice(1)}
+                      {count > 0 && (
+                        <span style={{ marginLeft: '4px', fontSize: '10px', background: auditFilter === f ? 'rgba(255,255,255,0.2)' : 'rgba(0,128,128,0.1)', color: auditFilter === f ? '#fff' : '#008080', padding: '1px 6px', borderRadius: '999px' }}>{count}</span>
+                      )}
                     </button>
-                  ))}
-                  <button onClick={loadAuditLogs}
-                    style={{ padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border-color, #e5e7eb)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer' }}>
-                    🔄 Refresh
-                  </button>
-                </div>
+                  );
+                })}
               </div>
 
               {auditLoading ? (
@@ -6631,27 +6900,48 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 </div>
               ) : auditLogs.length === 0 ? (
                 <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M9 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3" /><path d="M9 12h6M9 16h6" /></svg>
+                  </div>
                   <div>No audit entries yet. Actions will appear here automatically.</div>
                 </div>
               ) : (
                 <div style={{ maxHeight: '500px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {auditLogs
                     .filter(log => {
-                      if (auditFilter === 'all') return true;
-                      return log.action.startsWith(auditFilter);
+                      if (auditFilter !== 'all' && !log.action.startsWith(auditFilter)) return false;
+                      const ts = log.timestamp?.toDate ? log.timestamp.toDate().getTime() : null;
+                      if (ts !== null) {
+                        if (auditDateFrom && ts < new Date(auditDateFrom).getTime()) return false;
+                        if (auditDateTo && ts > new Date(auditDateTo).getTime() + 86400000) return false;
+                      }
+                      return true;
                     })
                     .map(log => (
                     <div key={log.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', borderRadius: '8px', background: theme === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)', fontSize: '13px' }}>
-                      <div style={{ fontSize: '16px', flexShrink: 0 }}>
-                        {log.action.includes('login') ? '🔑' : log.action.includes('generation') ? '⚡' : log.action.includes('team') ? '👥' : log.action.includes('model') ? '🎛️' : log.action.includes('export') ? '📤' : '📌'}
+                      <div style={{ flexShrink: 0, color: '#008080', display: 'flex', alignItems: 'center', paddingTop: '2px' }}>
+                        {log.action.includes('login') || log.action.startsWith('user') ? ICONS.key(16)
+                          : log.action.startsWith('generation') ? ICONS.spark(16)
+                          : log.action.startsWith('team') ? ICONS.users(16)
+                          : log.action.startsWith('export') ? ICONS.download(16)
+                          : log.action.startsWith('share') ? ICONS.share(16)
+                          : log.action.startsWith('project') ? ICONS.folder(16)
+                          : log.action.startsWith('deliverable') ? ICONS.pin(16)
+                          : log.action.startsWith('settings') ? ICONS.admin(16)
+                          : log.action.startsWith('model') ? ICONS.layers(16)
+                          : ICONS.alert(16)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {log.action.replace(/\./g, ' → ').replace(/^./, (s: string) => s.toUpperCase())}
+                          {formatAuditAction(log.action)}
                         </div>
                         <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginTop: '2px' }}>
-                          {log.actor} • {log.object} {log.metadata && Object.keys(log.metadata).length > 0 ? `• ${JSON.stringify(log.metadata)}` : ''}
+                          {log.actor} • {log.object}
+                          {log.metadata && Object.keys(log.metadata).length > 0 && (
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                              {' '}· {Object.entries(log.metadata).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>
@@ -6661,8 +6951,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   ))}
                 </div>
               )}
-              <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', background: theme === 'dark' ? 'rgba(0,128,128,0.1)' : 'rgba(0,128,128,0.05)', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                🔒 Audit entries are immutable — they cannot be edited or deleted. Retention: indefinite.
+              <div style={{ marginTop: '12px', padding: '10px', borderRadius: '8px', background: theme === 'dark' ? 'rgba(0,128,128,0.1)' : 'rgba(0,128,128,0.05)', fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {ICONS.lock(14)} Audit entries are immutable — they cannot be edited or deleted. Retention: indefinite.
               </div>
             </div>
           </div>
