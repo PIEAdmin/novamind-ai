@@ -1414,6 +1414,12 @@ const App: React.FC = () => {
     try { return !localStorage.getItem('novamind_whats_new_jul2026'); } catch { return false; }
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth <= 768);
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
   const dismissWhatsNew = () => { setShowWhatsNew(false); try { localStorage.setItem('novamind_whats_new_jul2026', '1'); } catch {} };
   const [prompt, setPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
@@ -1680,6 +1686,8 @@ const App: React.FC = () => {
   const [studioSidePanel, setStudioSidePanel] = useState(false);
   const [sidePanelTab, setSidePanelTab] = useState<'deliverables' | 'versions' | 'distribute'>('deliverables');
   const [sidePanelSelectedDeliverableId, setSidePanelSelectedDeliverableId] = useState<string | null>(null);
+  const [bottomSheetDragStart, setBottomSheetDragStart] = useState<number | null>(null);
+  const bottomSheetRef = useRef<HTMLDivElement>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectBrief | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -1689,6 +1697,7 @@ const App: React.FC = () => {
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
   const [projectMenuOpenId, setProjectMenuOpenId] = useState<string | null>(null);
   const [pinMenuOpenFor, setPinMenuOpenFor] = useState<string | null>(null);
+  const [pinningInProgress, setPinningInProgress] = useState(false);
   const [brandVoiceMode, setBrandVoiceMode] = useState<'workspace' | 'custom'>('workspace');
 
   // ====== PIN FLOW MODAL (structured deliverable metadata) ======
@@ -3911,6 +3920,13 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
     close: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>),
     alert: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>),
     panel: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M15 3v18" /></svg>),
+    sun: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4" /></svg>),
+    moon: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" /></svg>),
+    globe: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>),
+    keyboard: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" /></svg>),
+    building: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4" /><path d="M9 9v.01M9 13v.01M9 17v.01" /></svg>),
+    key: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 0-7.8 7.8 5.5 5.5 0 0 0 7.8-7.8zM15 9l-3.4 3.4M18 6l-1.5 1.5" /></svg>),
+    logout: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>),
   };
 
   // ===== Reusable Page Header (App Shell Polish — Workflow Spine Sprint) =====
@@ -3944,6 +3960,138 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       </div>
     </div>
   );
+
+  // ===== One-Click Pin to Active Project =====
+  const quickPinToActiveProject = async (content: string, titleSeed: string, type: PinnedOutput['type']) => {
+    if (!activeProject || pinningInProgress) return;
+    setPinningInProgress(true);
+    try {
+      await pinOutput(activeProject.id, {
+        title: titleSeed.slice(0, 60),
+        content,
+        type,
+        agentMode,
+        tags: '',
+        clientName: '',
+        status: 'draft',
+      });
+      showToast(`Pinned to ${activeProject.name}`, 'success');
+    } catch (e) {
+      console.error('Quick pin err:', e);
+      showToast('Failed to pin output', 'error');
+    } finally {
+      setPinningInProgress(false);
+    }
+  };
+
+  // ===== Side Panel Content (shared between desktop panel and mobile bottom sheet) =====
+  const renderSidePanelContent = () => {
+    if (!activeProject) return (
+      <div style={{ textAlign: 'center', padding: '32px 12px' }}>
+        <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>{ICONS.folder(32)}</div>
+        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Select or create a project to see deliverables, versions, and distribution options.</p>
+      </div>
+    );
+    if (sidePanelTab === 'deliverables') {
+      if ((activeProject.pinnedOutputs || []).length === 0) return (
+        <div style={{ textAlign: 'center', padding: '32px 12px' }}>
+          <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>{ICONS.spark(32)}</div>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Generate your first deliverable in Studio, then pin it here.</p>
+        </div>
+      );
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {(activeProject.pinnedOutputs || []).slice().sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0)).map(o => {
+            const dsc: Record<string, { bg: string; fg: string }> = { draft: { bg: 'rgba(245,158,11,0.1)', fg: '#b45309' }, 'in-review': { bg: '#fff7ed', fg: '#c2410c' }, approved: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' }, archived: { bg: '#f1f5f9', fg: '#64748b' } };
+            const isSel = sidePanelSelectedDeliverableId === o.id;
+            return (
+              <button key={o.id} onClick={() => setSidePanelSelectedDeliverableId(o.id)}
+                style={{ textAlign: 'left', padding: '10px 12px', borderRadius: '4px', border: isSel ? '1px solid #008080' : '1px solid var(--border-color, #e5e7eb)', background: isSel ? 'rgba(0,128,128,0.06)' : 'var(--card-bg, #fff)', cursor: 'pointer' }}>
+                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.title}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                  <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 7px', borderRadius: '999px', background: (dsc[o.status] || dsc.draft).bg, color: (dsc[o.status] || dsc.draft).fg, textTransform: 'capitalize' }}>{o.status}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{o.pinnedAt ? new Date(o.pinnedAt).toLocaleDateString() : ''}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      );
+    }
+    if (sidePanelTab === 'versions') {
+      const selected = (activeProject.pinnedOutputs || []).find(o => o.id === sidePanelSelectedDeliverableId) || (activeProject.pinnedOutputs || [])[0];
+      if (!selected) return (
+        <div style={{ textAlign: 'center', padding: '32px 12px' }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Pin a deliverable to see its version history.</p>
+        </div>
+      );
+      const groupId = selected.versionGroup || selected.id;
+      const versions = (activeProject.pinnedOutputs || []).filter(o => (o.versionGroup || o.id) === groupId).sort((a, b) => (b.versionNumber || 1) - (a.versionNumber || 1));
+      return (
+        <div>
+          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.title}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+            {versions.map(v => (
+              <div key={v.id} style={{ padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-primary)', fontWeight: 600 }}>{v.versionLabel || `V${v.versionNumber || 1}`}</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{v.pinnedAt ? new Date(v.pinnedAt).toLocaleDateString() : ''}</span>
+              </div>
+            ))}
+          </div>
+          {!canViewOnly && canEditProject(activeProject) && (
+            <button onClick={() => {
+              const label = window.prompt('Label for this new version (e.g. "Client edits", "Final"):', `V${versions.length + 1}`);
+              if (label === null) return;
+              const nextNumber = Math.max(...versions.map(v => v.versionNumber || 1), 0) + 1;
+              pinOutput(activeProject.id, { title: selected.title, content: selected.content, type: selected.type, agentMode: selected.agentMode, tags: selected.tags, clientName: selected.clientName, status: 'draft', versionGroup: groupId, versionNumber: nextNumber, versionLabel: label || `V${nextNumber}` });
+            }} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save New Version</button>
+          )}
+        </div>
+      );
+    }
+    // distribute tab
+    return (
+      <div>
+        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>Share &amp; Export</div>
+        <button onClick={() => setShowShareModal('project')} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>{ICONS.share()} Create Share Link</button>
+        {sidePanelSelectedDeliverableId && (
+          <button onClick={() => setShowExportModal(sidePanelSelectedDeliverableId)} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>{ICONS.download()} Export Selected Deliverable</button>
+        )}
+        {(activeProject.shareLinks || []).length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>Active Links</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {(activeProject.shareLinks || []).map(l => (
+                <div key={l.id} style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ textTransform: 'capitalize' }}>{l.scope} · {l.resourceType}</span>
+                  <button onClick={() => revokeShareLink(activeProject.id, l.id)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', cursor: 'pointer', padding: 0 }}>Revoke</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {exportHistory.filter(e => e.projectId === activeProject.id).length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>Export History</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {exportHistory.filter(e => e.projectId === activeProject.id).slice(0, 5).map(e => (
+                <div key={e.id} style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', color: 'var(--text-secondary)' }}>
+                  {e.fileType.toUpperCase()} via {e.destination} · {new Date(e.exportedAt).toLocaleDateString()}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {isSoloPlan && (
+          <div style={{ background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.2)', borderRadius: '4px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#008080' }}>{ICONS.lock()}<span style={{ fontSize: '12px', fontWeight: 700 }}>Team Sharing Locked</span></div>
+            <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>Upgrade to Team Hub to share directly with specific teammates and manage workspace-wide access.</p>
+            <button onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '4px', padding: '7px', fontSize: '11px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Upgrade to Team Hub</button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="app-container" data-theme={theme}>
@@ -4036,16 +4184,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           <span className="logo-text">{isPersonalMode ? 'NovaMind Personal' : 'NovaMind AI'}</span>
         </div>
         <div className="nav-controls" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ display: 'flex', gap: '2px' }}>
+          <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+            {ICONS.globe(14)}
             {(['en','es','fr'] as LangCode[]).map(code => (
-              <button key={code} onClick={() => setLanguage(code)} style={{ background: language === code ? 'rgba(0,128,128,0.3)' : 'transparent', border: language === code ? '1px solid rgba(0,128,128,0.5)' : '1px solid transparent', borderRadius: '6px', padding: '4px 6px', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s', color: 'var(--text-primary, #fff)' }}>{{ en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷' }[code]}</button>
+              <button key={code} onClick={() => setLanguage(code)} style={{ background: language === code ? 'rgba(0,128,128,0.3)' : 'transparent', border: language === code ? '1px solid rgba(0,128,128,0.5)' : '1px solid transparent', borderRadius: '4px', padding: '4px 8px', fontSize: '11px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', color: language === code ? '#008080' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{code}</button>
             ))}
           </div>
-          <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '16px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#212529' }}>{theme === 'dark' ? '☀️' : '🌙'}</button>
-          <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068' }}>⌨️</button>
-          <button onClick={openProfileModal} title="Business Profile & Team" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068', position: 'relative' as const }}>{businessProfile?.businessName ? '🏢' : '🏢'}{!businessProfile?.businessName && <span style={{ position: 'absolute' as const, top: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />}</button>
-          <button className="nav-btn btn-outline" onClick={handleChangePassword} title="Change your password" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '8px', padding: '6px 10px', fontSize: '14px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068' }}>🔑</button>
-          <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(0,128,128,0.15)', padding: '8px 16px', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: theme === 'dark' ? '#fff' : '#1a1a2e' }}>🚪 {t.signOut}</button>
+          <button onClick={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')} title={theme === 'dark' ? t.lightMode : t.darkMode} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.12)', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#212529', display: 'flex', alignItems: 'center' }}>{theme === 'dark' ? ICONS.sun() : ICONS.moon()}</button>
+          <button onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (Ctrl+K)" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068', display: 'flex', alignItems: 'center' }}>{ICONS.keyboard()}</button>
+          <button onClick={openProfileModal} title="Business Profile & Team" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068', position: 'relative' as const, display: 'flex', alignItems: 'center' }}>{ICONS.building()}{!businessProfile?.businessName && <span style={{ position: 'absolute' as const, top: '-2px', right: '-2px', width: '8px', height: '8px', borderRadius: '50%', background: '#ef4444' }} />}</button>
+          <button className="nav-btn btn-outline" onClick={handleChangePassword} title="Change your password" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,128,128,0.12)', borderRadius: '4px', padding: '6px 10px', cursor: 'pointer', color: theme === 'dark' ? '#fff' : '#5a6068', display: 'flex', alignItems: 'center' }}>{ICONS.key()}</button>
+          <button className="nav-btn btn-outline" onClick={handleSignOut} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,128,128,0.06)', border: theme === 'dark' ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(0,128,128,0.15)', padding: '8px 16px', borderRadius: '4px', fontSize: '13px', fontWeight: '600', color: theme === 'dark' ? '#fff' : '#1a1a2e', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.logout()} {t.signOut}</button>
         </div>
       </nav>
       {isOffline && (
@@ -4780,11 +4929,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         {!msg.imageUrl && <button className="chat-action-btn" onClick={() => { const html = '<html><head><meta charset="utf-8"><title>NovaMind Export</title></head><body>' + renderMarkdown(msg.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'novamind-export.doc'; a.click(); URL.revokeObjectURL(url); }} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(59,130,246,0.1)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.2)', borderRadius: '8px', cursor: 'pointer' }}>📝 Word</button>}
                         <button className="chat-share-btn" onClick={() => setShowShareMenu(showShareMenu === `chat-${idx}` ? null : `chat-${idx}`)} style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.15)', color: 'var(--primary, #008080)', border: '1px solid rgba(0,128,128,0.3)', borderRadius: '8px', cursor: 'pointer' }}>🔗 Share</button>
                         {!canViewOnly && projects.filter(p => canEditProject(p)).length > 0 && (
-                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                          <div style={{ position: 'relative', display: 'inline-flex', gap: '2px' }}>
+                            {activeProject && (
+                              <button className="chat-action-btn" onClick={() => { const content = msg.imageUrl || msg.content; const titleSeed = (chatMessages.find(m => m.role === 'user')?.content || 'Output').slice(0, 60); quickPinToActiveProject(content, titleSeed, msg.imageUrl ? 'image' : 'other'); }}
+                                disabled={pinningInProgress}
+                                style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderRadius: '4px 0 0 4px', cursor: pinningInProgress ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px', opacity: pinningInProgress ? 0.6 : 1 }}>
+                                {ICONS.pin(12)} Pin
+                              </button>
+                            )}
                             <button className="chat-action-btn" onClick={() => setPinMenuOpenFor(pinMenuOpenFor === `chat-${idx}` ? null : `chat-${idx}`)}
-                              style={{ padding: '4px 12px', fontSize: '12px', background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 17v5M9 3h6l1 6-3 2v0l-3-2 1-6z" /><path d="M6 10h12" /></svg>
-                              Pin to Project
+                              style={{ padding: '4px 8px', fontSize: '12px', background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderLeft: activeProject ? 'none' : undefined, borderRadius: activeProject ? '0 4px 4px 0' : '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                              {activeProject ? ICONS.chevronDown() : <>{ICONS.pin(12)} Pin to...</>}
                             </button>
                             {pinMenuOpenFor === `chat-${idx}` && (
                               <div style={{ position: 'absolute', bottom: '100%', left: 0, marginBottom: '6px', background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', minWidth: '200px', zIndex: 30, overflow: 'hidden' }}>
@@ -4870,6 +5025,15 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <div ref={chatEndRef} />
               </div>
               </>
+            )}
+
+            {/* Active Project Indicator — always visible in Studio */}
+            {activeProject && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', marginBottom: '8px', background: 'rgba(0,128,128,0.04)', border: '1px solid rgba(0,128,128,0.15)', borderRadius: '4px' }}>
+                <span style={{ display: 'flex', color: '#008080' }}>{ICONS.folder(14)}</span>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#008080' }}>{activeProject.name}</span>
+                <button onClick={() => { setStudioSidePanel(true); setSidePanelTab('deliverables'); }} style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{(activeProject.pinnedOutputs || []).length} deliverable{(activeProject.pinnedOutputs || []).length !== 1 ? 's' : ''}</button>
+              </div>
             )}
 
             {/* 🎛️ Model Router Toggle — lets users control which AI engine powers their request */}
@@ -4971,11 +5135,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <button className="action-btn" onClick={() => setShowShareMenu(showShareMenu === 'result' ? null : 'result')} style={{ background: 'rgba(0,128,128,0.2)', color: 'var(--primary, #008080)' }}>🔗 Share</button>
                   <button className="action-btn" onClick={() => publishToCommunity(lastPrompt, result.content || result.text || '', result.imageUrl)} style={{ background: 'rgba(255,165,0,0.15)', color: '#ffa500' }}>🌟 Publish to Community</button>
                   {!canViewOnly && projects.filter(p => canEditProject(p)).length > 0 && (
-                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                    <div style={{ position: 'relative', display: 'inline-flex', gap: '2px' }}>
+                      {activeProject && (
+                        <button className="action-btn" onClick={() => { const content = result.imageUrl || result.content || result.text || ''; const titleSeed = (lastPrompt || 'Output').slice(0, 60); quickPinToActiveProject(content, titleSeed, result.imageUrl ? 'image' : 'other'); }}
+                          disabled={pinningInProgress}
+                          style={{ background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderRadius: '4px 0 0 4px', display: 'inline-flex', alignItems: 'center', gap: '5px', opacity: pinningInProgress ? 0.6 : 1, cursor: pinningInProgress ? 'not-allowed' : 'pointer' }}>
+                          {ICONS.pin(13)} Pin
+                        </button>
+                      )}
                       <button className="action-btn" onClick={() => setPinMenuOpenFor(pinMenuOpenFor === 'result' ? null : 'result')}
-                        style={{ background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 17v5M9 3h6l1 6-3 2v0l-3-2 1-6z" /><path d="M6 10h12" /></svg>
-                        Pin to Project
+                        style={{ background: 'rgba(0,128,128,0.1)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderLeft: activeProject ? 'none' : undefined, borderRadius: activeProject ? '0 4px 4px 0' : '4px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        {activeProject ? ICONS.chevronDown() : <>{ICONS.pin(13)} Pin to...</>}
                       </button>
                       {pinMenuOpenFor === 'result' && (
                         <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '6px', background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', minWidth: '200px', zIndex: 30, overflow: 'hidden' }}>
@@ -5088,8 +5258,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             )}
           </div>
-          {/* ===== Studio Side Panel: Deliverables | Versions | Distribute ===== */}
-          {studioSidePanel && (
+          {/* ===== Studio Side Panel / Mobile Bottom Sheet ===== */}
+          {studioSidePanel && !isMobile && (
             <div style={{ position: 'fixed', top: '64px', right: 0, bottom: 0, width: '320px', maxWidth: '90vw', background: 'var(--card-bg, #fff)', borderLeft: '1px solid var(--border-color, #e5e7eb)', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', zIndex: 40, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
                 <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Work Panel</span>
@@ -5104,108 +5274,47 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 ))}
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
-                {!activeProject ? (
-                  <div style={{ textAlign: 'center', padding: '32px 12px' }}>
-                    <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>{ICONS.folder(32)}</div>
-                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Select or create a project to see deliverables, versions, and distribution options.</p>
-                  </div>
-                ) : sidePanelTab === 'deliverables' ? (
-                  (activeProject.pinnedOutputs || []).length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '32px 12px' }}>
-                      <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>{ICONS.spark(32)}</div>
-                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Generate your first deliverable in Studio, then pin it here.</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {(activeProject.pinnedOutputs || []).slice().sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0)).map(o => {
-                        const dsc: Record<string, { bg: string; fg: string }> = { draft: { bg: 'rgba(245,158,11,0.1)', fg: '#b45309' }, 'in-review': { bg: '#fff7ed', fg: '#c2410c' }, approved: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' }, archived: { bg: '#f1f5f9', fg: '#64748b' } };
-                        const isSel = sidePanelSelectedDeliverableId === o.id;
-                        return (
-                          <button key={o.id} onClick={() => setSidePanelSelectedDeliverableId(o.id)}
-                            style={{ textAlign: 'left', padding: '10px 12px', borderRadius: '4px', border: isSel ? '1px solid #008080' : '1px solid var(--border-color, #e5e7eb)', background: isSel ? 'rgba(0,128,128,0.06)' : 'var(--card-bg, #fff)', cursor: 'pointer' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.title}</div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
-                              <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 7px', borderRadius: '999px', background: (dsc[o.status] || dsc.draft).bg, color: (dsc[o.status] || dsc.draft).fg, textTransform: 'capitalize' }}>{o.status}</span>
-                              <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{o.pinnedAt ? new Date(o.pinnedAt).toLocaleDateString() : ''}</span>
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )
-                ) : sidePanelTab === 'versions' ? (() => {
-                  const selected = (activeProject.pinnedOutputs || []).find(o => o.id === sidePanelSelectedDeliverableId) || (activeProject.pinnedOutputs || [])[0];
-                  if (!selected) return (
-                    <div style={{ textAlign: 'center', padding: '32px 12px' }}>
-                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Pin a deliverable to see its version history.</p>
-                    </div>
-                  );
-                  const groupId = selected.versionGroup || selected.id;
-                  const versions = (activeProject.pinnedOutputs || []).filter(o => (o.versionGroup || o.id) === groupId).sort((a, b) => (b.versionNumber || 1) - (a.versionNumber || 1));
-                  return (
-                    <div>
-                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.title}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-                        {versions.map(v => (
-                          <div key={v.id} style={{ padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', fontWeight: 600 }}>{v.versionLabel || `V${v.versionNumber || 1}`}</span>
-                            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{v.pinnedAt ? new Date(v.pinnedAt).toLocaleDateString() : ''}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {!canViewOnly && canEditProject(activeProject) && (
-                        <button onClick={() => {
-                          const label = window.prompt('Label for this new version (e.g. "Client edits", "Final"):', `V${versions.length + 1}`);
-                          if (label === null) return;
-                          const nextNumber = Math.max(...versions.map(v => v.versionNumber || 1), 0) + 1;
-                          pinOutput(activeProject.id, { title: selected.title, content: selected.content, type: selected.type, agentMode: selected.agentMode, tags: selected.tags, clientName: selected.clientName, status: 'draft', versionGroup: groupId, versionNumber: nextNumber, versionLabel: label || `V${nextNumber}` });
-                        }} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save New Version</button>
-                      )}
-                    </div>
-                  );
-                })() : (
-                  <div>
-                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>Share &amp; Export</div>
-                    <button onClick={() => setShowShareModal('project')} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>{ICONS.share()} Create Share Link</button>
-                    {sidePanelSelectedDeliverableId && (
-                      <button onClick={() => setShowExportModal(sidePanelSelectedDeliverableId)} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>{ICONS.download()} Export Selected Deliverable</button>
-                    )}
-                    {(activeProject.shareLinks || []).length > 0 && (
-                      <div style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>Active Links</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {(activeProject.shareLinks || []).map(l => (
-                            <div key={l.id} style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
-                              <span style={{ textTransform: 'capitalize' }}>{l.scope} · {l.resourceType}</span>
-                              <button onClick={() => revokeShareLink(activeProject.id, l.id)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', cursor: 'pointer', padding: 0 }}>Revoke</button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {exportHistory.filter(e => e.projectId === activeProject.id).length > 0 && (
-                      <div style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>Export History</div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          {exportHistory.filter(e => e.projectId === activeProject.id).slice(0, 5).map(e => (
-                            <div key={e.id} style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', color: 'var(--text-secondary)' }}>
-                              {e.fileType.toUpperCase()} via {e.destination} · {new Date(e.exportedAt).toLocaleDateString()}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {isSoloPlan && (
-                      <div style={{ background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.2)', borderRadius: '4px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#008080' }}>{ICONS.lock()}<span style={{ fontSize: '12px', fontWeight: 700 }}>Team Sharing Locked</span></div>
-                        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>Upgrade to Team Hub to share directly with specific teammates and manage workspace-wide access.</p>
-                        <button onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '4px', padding: '7px', fontSize: '11px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Upgrade to Team Hub</button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {renderSidePanelContent()}
               </div>
             </div>
+          )}
+          {/* Mobile Bottom Sheet */}
+          {isMobile && tab === 'create' && (
+            <>
+              {studioSidePanel && <div onClick={() => setStudioSidePanel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 49 }} />}
+              {studioSidePanel && (
+                <div ref={bottomSheetRef}
+                  onTouchStart={e => setBottomSheetDragStart(e.touches[0].clientY)}
+                  onTouchMove={e => { if (bottomSheetDragStart !== null && bottomSheetRef.current) { const dy = e.touches[0].clientY - bottomSheetDragStart; if (dy > 0) bottomSheetRef.current.style.transform = `translateY(${dy}px)`; } }}
+                  onTouchEnd={e => { if (bottomSheetDragStart !== null && bottomSheetRef.current) { const dy = e.changedTouches[0].clientY - bottomSheetDragStart; if (dy > 100) { setStudioSidePanel(false); } bottomSheetRef.current.style.transform = ''; setBottomSheetDragStart(null); } }}
+                  style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: '70vh', background: 'var(--card-bg, #fff)', borderTop: '1px solid var(--border-color, #e5e7eb)', borderRadius: '16px 16px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.12)', zIndex: 50, display: 'flex', flexDirection: 'column', overflow: 'hidden', transition: 'transform 0.2s ease' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 6px' }}>
+                    <div style={{ width: '40px', height: '4px', borderRadius: '2px', background: 'var(--border-color, #d1d5db)' }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 16px 10px' }}>
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>Project Tools</span>
+                    <button onClick={() => setStudioSidePanel(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', padding: '4px' }}>{ICONS.close()}</button>
+                  </div>
+                  <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+                    {(['deliverables', 'versions', 'distribute'] as const).map(spTab => (
+                      <button key={spTab} onClick={() => setSidePanelTab(spTab)}
+                        style={{ flex: 1, padding: '10px 6px', fontSize: '12px', fontWeight: 700, textTransform: 'capitalize', background: sidePanelTab === spTab ? 'rgba(0,128,128,0.08)' : 'transparent', color: sidePanelTab === spTab ? '#008080' : 'var(--text-secondary)', border: 'none', borderBottom: sidePanelTab === spTab ? '2px solid #008080' : '2px solid transparent', cursor: 'pointer' }}>
+                        {spTab}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', WebkitOverflowScrolling: 'touch' }}>
+                    {renderSidePanelContent()}
+                  </div>
+                </div>
+              )}
+              {!studioSidePanel && (
+                <button onClick={() => setStudioSidePanel(true)}
+                  style={{ position: 'fixed', bottom: '16px', left: '50%', transform: 'translateX(-50%)', padding: '10px 24px', fontSize: '13px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '999px', cursor: 'pointer', boxShadow: '0 4px 12px rgba(0,128,128,0.3)', zIndex: 40, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {ICONS.panel()} Project Tools
+                </button>
+              )}
+            </>
           )}
         </>)}
         {tab === 'gallery' && (<>
