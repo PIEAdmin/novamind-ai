@@ -7,7 +7,7 @@ import { Capacitor } from '@capacitor/core';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import './styles.css';
 
-type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects' | 'inbox' | 'templates' | 'analytics' | 'integrations' | 'admin';
+type Tab = 'home' | 'create' | 'gallery' | 'chats' | 'community' | 'crm' | 'projects' | 'inbox' | 'templates' | 'analytics' | 'integrations' | 'meetings' | 'admin';
 type AgentMode = 'general' | 'competitor-analysis' | 'ad-maker' | 'logo-maker' | 'email-assistant' | 'fact-checker' | 'idea-spark' | 'financial-advisor' | 'business-plan' | 'sales-proposal' | 'flyer-maker' | 'certificate-maker' | 'ai-receptionist' | 'doc-summarizer' | 'form-builder';
 type EmailMode = 'compose' | 'reply' | 'sequences' | 'polish';
 
@@ -101,7 +101,7 @@ interface PinnedOutput {
   id: string;
   title: string;
   content: string;
-  type: 'email' | 'proposal' | 'social-post' | 'brief' | 'report' | 'checklist' | 'image' | 'other';
+  type: 'email' | 'proposal' | 'social-post' | 'brief' | 'report' | 'checklist' | 'image' | 'meeting' | 'other';
   pinnedAt: number;
   agentMode: string;
   tags?: string[];
@@ -123,6 +123,7 @@ const DELIVERABLE_TYPES: { id: PinnedOutput['type']; label: string }[] = [
   { id: 'report', label: 'Report' },
   { id: 'checklist', label: 'Checklist' },
   { id: 'image', label: 'Image' },
+  { id: 'meeting', label: 'Meeting' },
   { id: 'other', label: 'Other' },
 ];
 
@@ -148,6 +149,49 @@ interface ExportRecord {
   exportedAt: number;
   recipientEmail?: string;
   versionLabel?: string;
+}
+
+interface MeetingNote {
+  id: string;
+  meetingType: 'client-call' | 'internal' | 'discovery' | 'check-in' | 'workshop' | 'strategy';
+  title: string;
+  date: string;
+  attendees: string;
+  rawNotes: string;
+  summary: string;
+  decisions: string[];
+  actionItems: { text: string; assignee?: string; deadline?: string; pinned: boolean }[];
+  followUpEmail: string;
+  status: 'draft' | 'approved';
+  createdAt: number;
+  projectId?: string;
+}
+
+interface CRMActivity {
+  id: string;
+  type: 'note' | 'call' | 'email' | 'meeting' | 'task';
+  description: string;
+  timestamp: number;
+  actor: string;
+}
+
+interface CRMContact {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string;
+  role: string;
+  stage: 'lead' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+  value: number;
+  notes: string;
+  tags: string[];
+  lastContactDate: number;
+  nextFollowUp: string;
+  createdAt: number;
+  updatedAt: number;
+  linkedMeetings: string[]; // meeting note IDs
+  activities: CRMActivity[];
 }
 
 interface WorkspaceSettings {
@@ -1728,7 +1772,29 @@ const App: React.FC = () => {
   const [projectMenuOpenId, setProjectMenuOpenId] = useState<string | null>(null);
   const [pinMenuOpenFor, setPinMenuOpenFor] = useState<string | null>(null);
   const [pinningInProgress, setPinningInProgress] = useState(false);
+  const [meetingNotes, setMeetingNotes] = useState<MeetingNote[]>([]);
+  const [meetingFormData, setMeetingFormData] = useState({ meetingType: 'client-call' as MeetingNote['meetingType'], title: '', date: new Date().toISOString().split('T')[0], attendees: '', rawNotes: '' });
+  const [meetingGenerating, setMeetingGenerating] = useState(false);
+  const [activeMeeting, setActiveMeeting] = useState<MeetingNote | null>(null);
+  const [meetingFollowUpEditing, setMeetingFollowUpEditing] = useState(false);
+  const [meetingFollowUpDraft, setMeetingFollowUpDraft] = useState('');
   const [brandVoiceMode, setBrandVoiceMode] = useState<'workspace' | 'custom'>('workspace');
+
+  // ====== CRM (Client Operations) ======
+  const [crmContacts, setCrmContacts] = useState<CRMContact[]>([]);
+  const [crmView, setCrmView] = useState<'list' | 'pipeline' | 'detail'>('list');
+  const [crmEditContact, setCrmEditContact] = useState<CRMContact | null>(null);
+  const [crmActiveContact, setCrmActiveContact] = useState<CRMContact | null>(null);
+  const [crmShowForm, setCrmShowForm] = useState(false);
+  const [crmFilter, setCrmFilter] = useState<string>('all');
+  const [crmSearchQuery, setCrmSearchQuery] = useState('');
+  const [crmFormData, setCrmFormData] = useState({
+    name: '', email: '', phone: '', company: '', role: '',
+    stage: 'lead' as CRMContact['stage'], value: '', notes: '', tags: '', nextFollowUp: '',
+  });
+  const [crmShowActivityForm, setCrmShowActivityForm] = useState(false);
+  const [crmActivityDraft, setCrmActivityDraft] = useState<{ type: CRMActivity['type']; description: string }>({ type: 'note', description: '' });
+  const [crmShowLinkMeeting, setCrmShowLinkMeeting] = useState(false);
 
   // ====== PIN FLOW MODAL (structured deliverable metadata) ======
   const [showPinModal, setShowPinModal] = useState(false);
@@ -3842,7 +3908,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
     setTab('create');
   };
 
-  const switchTab = (t: Tab) => { setTab(t); if (t === 'community' && communityPosts.length === 0) loadCommunityPosts(); if (t === 'admin') loadAuditLogs(); };
+  const switchTab = (t: Tab) => { setTab(t); if (t === 'community' && communityPosts.length === 0) loadCommunityPosts(); if (t === 'admin') loadAuditLogs(); if (t === 'meetings') loadMeetingNotes(); if (t === 'crm') loadCRMContacts(); };
   if (loading) return null;
 
   // AUTH GATE: Require login before accessing any part of the app
@@ -4013,6 +4079,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
     building: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4" /><path d="M9 9v.01M9 13v.01M9 17v.01" /></svg>),
     key: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 0-7.8 7.8 5.5 5.5 0 0 0 7.8-7.8zM15 9l-3.4 3.4M18 6l-1.5 1.5" /></svg>),
     logout: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" /></svg>),
+    meetings: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7V3M16 7V3M3 11h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /><path d="M8 15h.01M12 15h.01M16 15h.01" /></svg>),
+    clipboard: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /></svg>),
+    send: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>),
   };
 
   // ===== Reusable Page Header (App Shell Polish — Workflow Spine Sprint) =====
@@ -4068,6 +4137,188 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
     } finally {
       setPinningInProgress(false);
     }
+  };
+
+  // ===== Meeting Agent: Firestore load/save/update/delete =====
+  const loadMeetingNotes = async () => {
+    if (!user) return;
+    try {
+      const q = query(collection(db, 'meetingNotes'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      setMeetingNotes(snap.docs.map(d => ({ id: d.id, ...d.data() } as MeetingNote)));
+    } catch (e) { console.error('Load meeting notes:', e); }
+  };
+
+  const saveMeetingNote = async (note: Omit<MeetingNote, 'id'>) => {
+    if (!user) return null;
+    try {
+      const docRef = await addDoc(collection(db, 'meetingNotes'), { ...note, userId: user.uid });
+      const saved = { ...note, id: docRef.id } as MeetingNote;
+      setMeetingNotes(prev => [saved, ...prev]);
+      logAudit('meeting.created', note.title, { meetingId: docRef.id });
+      return saved;
+    } catch (e) { console.error('Save meeting note:', e); return null; }
+  };
+
+  const updateMeetingNote = async (id: string, updates: Partial<MeetingNote>) => {
+    try {
+      await updateDoc(doc(db, 'meetingNotes', id), { ...updates } as any);
+      setMeetingNotes(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+      if (updates.status === 'approved') logAudit('meeting.approved', id);
+    } catch (e) { console.error('Update meeting note:', e); }
+  };
+
+  const deleteMeetingNote = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'meetingNotes', id));
+      setMeetingNotes(prev => prev.filter(m => m.id !== id));
+      if (activeMeeting?.id === id) setActiveMeeting(null);
+      logAudit('meeting.deleted', id);
+      showToast('Meeting note deleted', 'info');
+    } catch (e) { console.error('Delete meeting note:', e); }
+  };
+
+  // ===== CRM: Firestore load/save/update/delete =====
+  const loadCRMContacts = async () => {
+    if (!user) return;
+    try {
+      const q = query(collection(db, 'crmContacts'), where('userId', '==', user.uid), orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      setCrmContacts(snap.docs.map(d => ({ id: d.id, ...d.data() } as CRMContact)));
+    } catch (e) { console.error('Load CRM contacts:', e); }
+  };
+
+  const saveCRMContact = async (contact: Omit<CRMContact, 'id'>) => {
+    if (!user) return null;
+    try {
+      const docRef = await addDoc(collection(db, 'crmContacts'), { ...contact, userId: user.uid });
+      const saved = { ...contact, id: docRef.id } as CRMContact;
+      setCrmContacts(prev => [saved, ...prev]);
+      logAudit('crm.contact_created', contact.name);
+      return saved;
+    } catch (e) { console.error('Save CRM contact:', e); return null; }
+  };
+
+  const updateCRMContact = async (id: string, updates: Partial<CRMContact>) => {
+    try {
+      await updateDoc(doc(db, 'crmContacts', id), { ...updates, updatedAt: Date.now() } as any);
+      setCrmContacts(prev => prev.map(c => c.id === id ? { ...c, ...updates, updatedAt: Date.now() } : c));
+      setCrmActiveContact(prev => prev && prev.id === id ? { ...prev, ...updates, updatedAt: Date.now() } : prev);
+      logAudit('crm.contact_updated', updates.name || id, { fields: Object.keys(updates) });
+    } catch (e) { console.error('Update CRM contact:', e); }
+  };
+
+  const deleteCRMContact = async (id: string) => {
+    try {
+      const target = crmContacts.find(c => c.id === id);
+      await deleteDoc(doc(db, 'crmContacts', id));
+      setCrmContacts(prev => prev.filter(c => c.id !== id));
+      if (crmActiveContact?.id === id) { setCrmActiveContact(null); setCrmView('list'); }
+      logAudit('crm.contact_deleted', target?.name || id);
+      showToast('Contact deleted', 'info');
+    } catch (e) { console.error('Delete CRM contact:', e); }
+  };
+
+  const addCRMActivity = async (contactId: string, activity: Omit<CRMActivity, 'id'>) => {
+    const contact = crmContacts.find(c => c.id === contactId);
+    if (!contact) return;
+    const newActivity: CRMActivity = { ...activity, id: `act_${Date.now()}_${Math.random().toString(36).slice(2, 8)}` };
+    const activities = [newActivity, ...(contact.activities || [])];
+    await updateCRMContact(contactId, { activities, lastContactDate: Date.now() });
+    logAudit('crm.activity_added', contact.name, { type: activity.type });
+  };
+
+  const linkMeetingToContact = async (contactId: string, meetingId: string) => {
+    const contact = crmContacts.find(c => c.id === contactId);
+    if (!contact) return;
+    if ((contact.linkedMeetings || []).includes(meetingId)) return;
+    const linkedMeetings = [...(contact.linkedMeetings || []), meetingId];
+    await updateCRMContact(contactId, { linkedMeetings });
+    logAudit('crm.meeting_linked', contact.name, { meetingId });
+    showToast('Meeting linked to contact', 'success');
+  };
+
+  // ===== Meeting Agent: AI generation =====
+  const generateMeetingNotes = async () => {
+    if (!meetingFormData.rawNotes.trim() || meetingGenerating) return;
+    setMeetingGenerating(true);
+    try {
+      const prompt = `You are a professional meeting notes assistant. Analyze the following meeting information and produce structured output.
+
+Meeting Type: ${meetingFormData.meetingType.replace('-', ' ')}
+Title: ${meetingFormData.title || 'Untitled Meeting'}
+Date: ${meetingFormData.date}
+Attendees: ${meetingFormData.attendees || 'Not specified'}
+
+Raw Notes / Transcript:
+${meetingFormData.rawNotes}
+
+Return ONLY valid JSON (no markdown, no code fences) in this exact format:
+{
+  "summary": "2-3 paragraph professional summary of the meeting",
+  "decisions": ["Decision 1", "Decision 2"],
+  "actionItems": [{"text": "Action item description", "assignee": "Person name or empty string", "deadline": "Date or empty string"}],
+  "followUpEmail": "Professional follow-up email to attendees summarizing the meeting, decisions, and action items. Include a greeting, body, and sign-off."
+}`;
+
+      const res = await generateContent(prompt, 'text', 'gpt-4o', 'You are a senior executive assistant specializing in meeting documentation. Return ONLY valid JSON.');
+      const parsed = JSON.parse(res.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+
+      const note: Omit<MeetingNote, 'id'> = {
+        meetingType: meetingFormData.meetingType,
+        title: meetingFormData.title || 'Untitled Meeting',
+        date: meetingFormData.date,
+        attendees: meetingFormData.attendees,
+        rawNotes: meetingFormData.rawNotes,
+        summary: parsed.summary || '',
+        decisions: parsed.decisions || [],
+        actionItems: (parsed.actionItems || []).map((a: any) => ({ ...a, pinned: false })),
+        followUpEmail: parsed.followUpEmail || '',
+        status: 'draft',
+        createdAt: Date.now(),
+        projectId: activeProject?.id,
+      };
+
+      const saved = await saveMeetingNote(note);
+      if (saved) {
+        setActiveMeeting(saved);
+        setMeetingFormData({ meetingType: 'client-call', title: '', date: new Date().toISOString().split('T')[0], attendees: '', rawNotes: '' });
+        showToast('Meeting notes generated', 'success');
+      }
+    } catch (e) {
+      console.error('Generate meeting notes:', e);
+      showToast('Failed to generate meeting notes. Please try again.', 'error');
+    } finally {
+      setMeetingGenerating(false);
+    }
+  };
+
+  const pinMeetingActionItem = async (meeting: MeetingNote, itemIndex: number) => {
+    const item = meeting.actionItems[itemIndex];
+    if (!item || !activeProject) {
+      showToast(activeProject ? 'Action item not found' : 'Select a project first', 'warning');
+      return;
+    }
+    await quickPinToActiveProject(
+      `ACTION ITEM: ${item.text}${item.assignee ? `\nAssigned to: ${item.assignee}` : ''}${item.deadline ? `\nDeadline: ${item.deadline}` : ''}`,
+      item.text.slice(0, 60),
+      'meeting'
+    );
+    const updatedItems = [...meeting.actionItems];
+    updatedItems[itemIndex] = { ...updatedItems[itemIndex], pinned: true };
+    await updateMeetingNote(meeting.id, { actionItems: updatedItems });
+    setActiveMeeting(prev => prev ? { ...prev, actionItems: updatedItems } : null);
+    showToast('Action item pinned to project', 'success');
+  };
+
+  const pinEntireMeetingSummary = async (meeting: MeetingNote) => {
+    if (!activeProject) {
+      showToast('Select a project first', 'warning');
+      return;
+    }
+    const fullContent = `# ${meeting.title}\n**Date:** ${meeting.date}\n**Attendees:** ${meeting.attendees}\n**Type:** ${meeting.meetingType.replace('-', ' ')}\n\n## Summary\n${meeting.summary}\n\n## Decisions\n${meeting.decisions.map((d, i) => `${i + 1}. ${d}`).join('\n')}\n\n## Action Items\n${meeting.actionItems.map((a, i) => `${i + 1}. ${a.text}${a.assignee ? ` (${a.assignee})` : ''}${a.deadline ? ` — Due: ${a.deadline}` : ''}`).join('\n')}`;
+    await quickPinToActiveProject(fullContent, meeting.title.slice(0, 60), 'meeting');
+    showToast('Full meeting summary pinned to project', 'success');
   };
 
   // ===== Side Panel Content (shared between desktop panel and mobile bottom sheet) =====
@@ -4344,7 +4595,8 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           {([
             { id: 'home' as Tab, icon: ICONS.home(), name: 'Dashboard', roi: null },
             { id: 'create' as Tab, icon: ICONS.studio(), name: 'AI Studio', roi: `${usage.used} outputs` },
-            { id: 'crm' as Tab, icon: ICONS.crm(), name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
+            { id: 'meetings' as Tab, icon: ICONS.meetings(), name: 'Meeting Agent', roi: meetingNotes.length > 0 ? `${meetingNotes.length} note${meetingNotes.length === 1 ? '' : 's'}` : null },
+            { id: 'crm' as Tab, icon: ICONS.crm(), name: 'CRM', roi: crmContacts.length > 0 ? `${crmContacts.length} contact${crmContacts.length === 1 ? '' : 's'}` : null },
             { id: 'projects' as Tab, icon: ICONS.projects(), name: 'Projects', roi: projects.length > 0 ? `${projects.length} project${projects.length === 1 ? '' : 's'}` : null },
             { id: 'inbox' as Tab, icon: ICONS.inbox(), name: 'Inbox', comingSoon: true, roi: null },
           ] as const).map(item => (
@@ -5643,23 +5895,464 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           )}
         </>)}
-        {/* Enterprise Coming Soon Views */}
-        {tab === 'crm' && (
-          <div className="ent-coming-soon-view">
-            <div className="ent-icon">📇</div>
-            <h2>CRM</h2>
-            <div className="ent-coming-soon-badge">🚀 Coming Soon</div>
-            <p className="ent-desc" style={{ marginTop: '16px' }}>Manage your relationships. Track your revenue. AI-powered contact management, deal pipeline, and revenue forecasting — all in one view.</p>
-            {!['solopreneur','team','business','business_pro'].includes(usage.plan) && (
-              <button className="nav-btn btn-primary" onClick={() => window.open('https://buy.stripe.com/5kQ3cufp5ayf1imftf6Na0b','_blank')} style={{ marginTop: '8px' }}>Upgrade to Unlock</button>
-            )}
-            <div className="ent-features-preview">
-              <div className="ent-feature-card"><div className="feat-icon">👤</div><h4>Contact Management</h4><p>Organize clients, leads & partners with AI-enriched profiles</p></div>
-              <div className="ent-feature-card"><div className="feat-icon">📊</div><h4>Deal Pipeline</h4><p>Visual pipeline tracking from lead to close</p></div>
-              <div className="ent-feature-card"><div className="feat-icon">🤖</div><h4>AI Insights</h4><p>Automated follow-ups, scoring & next-best-action recommendations</p></div>
+        {/* ===== CRM: Client Operations ===== */}
+        {tab === 'crm' && (() => {
+          const CI: Record<string, (size?: number) => JSX.Element> = {
+            crm: (size = 20) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M3 9h18M8 4v5" /></svg>),
+            list: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>),
+            kanban: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="6" height="18" rx="1" /><rect x="10.5" y="3" width="6" height="12" rx="1" /><rect x="18" y="3" width="3" height="8" rx="1" /></svg>),
+            search: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>),
+            addUser: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M19 8v6M22 11h-6" /></svg>),
+            mail: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2" /><path d="m2 6 10 7L22 6" /></svg>),
+            phone: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2z" /></svg>),
+            dollar: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>),
+            calendar: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>),
+            building: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4" /><path d="M9 9v.01M9 13v.01M9 17v.01" /></svg>),
+            eye: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" /></svg>),
+            edit: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>),
+            trash: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>),
+            back: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>),
+            plus: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>),
+            empty: (size = 48) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>),
+            note: (size = 12) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M9 13h6M9 17h6" /></svg>),
+            call: (size = 12) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.9a2 2 0 0 1-.5 2.1L8 10a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.9.6 2.9.7a2 2 0 0 1 1.7 2z" /></svg>),
+            meeting: (size = 12) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 7V3M16 7V3M3 11h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" /></svg>),
+            task: (size = 12) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 11 3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>),
+            link: (size = 12) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>),
+            close: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>),
+          };
+
+          const STAGES: { id: CRMContact['stage']; label: string; color: string }[] = [
+            { id: 'lead', label: 'Lead', color: '#6B7280' },
+            { id: 'qualified', label: 'Qualified', color: '#2563EB' },
+            { id: 'proposal', label: 'Proposal', color: '#D97706' },
+            { id: 'negotiation', label: 'Negotiation', color: '#7C3AED' },
+            { id: 'won', label: 'Won', color: '#059669' },
+            { id: 'lost', label: 'Lost', color: '#DC2626' },
+          ];
+          const stageColor = (s: string) => STAGES.find(x => x.id === s)?.color || '#6B7280';
+          const stageLabel = (s: string) => STAGES.find(x => x.id === s)?.label || s;
+          const activityIcon = (t: CRMActivity['type']) => t === 'call' ? CI.call(12) : t === 'email' ? CI.mail(12) : t === 'meeting' ? CI.meeting(12) : t === 'task' ? CI.task(12) : CI.note(12);
+          const formatCurrency = (v: number) => `$${Math.round(v || 0).toLocaleString('en-US')}`;
+          const formatRelative = (ts: number) => {
+            if (!ts) return '—';
+            const diff = Date.now() - ts;
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Just now';
+            if (mins < 60) return `${mins}m ago`;
+            const hours = Math.floor(mins / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            if (days === 1) return 'Yesterday';
+            if (days < 7) return `${days}d ago`;
+            return new Date(ts).toLocaleDateString();
+          };
+
+          const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border, var(--border-color, #e5e7eb))', background: 'var(--bg-secondary, #f8f9fa)', color: 'var(--text-primary)' };
+          const labelStyle: React.CSSProperties = { display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' };
+
+          const now = new Date();
+          const searchLower = crmSearchQuery.trim().toLowerCase();
+          const searched = crmContacts.filter(c => !searchLower || c.name.toLowerCase().includes(searchLower) || (c.company || '').toLowerCase().includes(searchLower) || (c.email || '').toLowerCase().includes(searchLower));
+          const filteredContacts = crmFilter === 'all' ? searched : searched.filter(c => c.stage === crmFilter);
+
+          const activeDeals = crmContacts.filter(c => c.stage !== 'won' && c.stage !== 'lost');
+          const pipelineValue = activeDeals.reduce((sum, c) => sum + (c.value || 0), 0);
+          const wonThisMonth = crmContacts.filter(c => {
+            if (c.stage !== 'won') return false;
+            const d = new Date(c.updatedAt || c.createdAt);
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+          });
+
+          const openNewForm = () => {
+            setCrmEditContact(null);
+            setCrmFormData({ name: '', email: '', phone: '', company: '', role: '', stage: 'lead', value: '', notes: '', tags: '', nextFollowUp: '' });
+            setCrmShowForm(true);
+          };
+          const openEditForm = (c: CRMContact) => {
+            setCrmEditContact(c);
+            setCrmFormData({ name: c.name, email: c.email, phone: c.phone, company: c.company, role: c.role, stage: c.stage, value: c.value ? String(c.value) : '', notes: c.notes || '', tags: (c.tags || []).join(', '), nextFollowUp: c.nextFollowUp || '' });
+            setCrmShowForm(true);
+          };
+
+          const submitContactForm = async () => {
+            if (!crmFormData.name.trim() || !crmFormData.company.trim()) { showToast('Name and Company are required', 'error'); return; }
+            const tagsArr = crmFormData.tags.split(',').map(t => t.trim()).filter(Boolean);
+            if (crmEditContact) {
+              await updateCRMContact(crmEditContact.id, {
+                name: crmFormData.name.trim(), email: crmFormData.email.trim(), phone: crmFormData.phone.trim(),
+                company: crmFormData.company.trim(), role: crmFormData.role.trim(), stage: crmFormData.stage,
+                value: Number(crmFormData.value) || 0, notes: crmFormData.notes, tags: tagsArr, nextFollowUp: crmFormData.nextFollowUp,
+              });
+              showToast('Contact updated', 'success');
+            } else {
+              const newContact: Omit<CRMContact, 'id'> = {
+                name: crmFormData.name.trim(), email: crmFormData.email.trim(), phone: crmFormData.phone.trim(),
+                company: crmFormData.company.trim(), role: crmFormData.role.trim(), stage: crmFormData.stage,
+                value: Number(crmFormData.value) || 0, notes: crmFormData.notes, tags: tagsArr,
+                lastContactDate: Date.now(), nextFollowUp: crmFormData.nextFollowUp, createdAt: Date.now(), updatedAt: Date.now(),
+                linkedMeetings: [], activities: [],
+              };
+              await saveCRMContact(newContact);
+              showToast('Contact added', 'success');
+            }
+            setCrmShowForm(false);
+          };
+
+          const submitActivity = async () => {
+            if (!crmActiveContact || !crmActivityDraft.description.trim()) return;
+            await addCRMActivity(crmActiveContact.id, { type: crmActivityDraft.type, description: crmActivityDraft.description.trim(), timestamp: Date.now(), actor: user?.displayName || user?.email || 'Unknown' });
+            setCrmActivityDraft({ type: 'note', description: '' });
+            setCrmShowActivityForm(false);
+            showToast('Activity logged', 'success');
+          };
+
+          const StageBadge = ({ stage }: { stage: string }) => (
+            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 10px', borderRadius: '999px', textTransform: 'capitalize', background: `${stageColor(stage)}1A`, color: stageColor(stage) }}>{stageLabel(stage)}</span>
+          );
+
+          return (
+            <div style={{ padding: '24px', maxWidth: '1100px', margin: '0 auto' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ color: 'var(--primary, #008080)', display: 'flex' }}>{CI.crm(22)}</span>
+                  <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Client Operations</h2>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', overflow: 'hidden' }}>
+                    <button onClick={() => setCrmView('list')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer', background: crmView === 'list' ? 'var(--primary, #008080)' : 'transparent', color: crmView === 'list' ? '#fff' : 'var(--text-secondary)' }}>{CI.list(13)} List</button>
+                    <button onClick={() => setCrmView('pipeline')} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '12px', fontWeight: 600, border: 'none', cursor: 'pointer', background: crmView === 'pipeline' ? 'var(--primary, #008080)' : 'transparent', color: crmView === 'pipeline' ? '#fff' : 'var(--text-secondary)' }}>{CI.kanban(13)} Pipeline</button>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', display: 'flex' }}>{CI.search(13)}</span>
+                    <input value={crmSearchQuery} onChange={e => setCrmSearchQuery(e.target.value)} placeholder="Search contacts…"
+                      style={{ padding: '8px 12px 8px 30px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border, var(--border-color, #e5e7eb))', background: 'var(--bg-secondary, #f8f9fa)', color: 'var(--text-primary)', width: '180px' }} />
+                  </div>
+                  <button onClick={openNewForm} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '12px', fontWeight: 700, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>{CI.plus(13)} Add Contact</button>
+                </div>
+              </div>
+
+              {/* Stats row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '22px' }}>
+                <div style={{ background: 'var(--bg-secondary, #fff)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '14px 16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Total Contacts</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>{crmContacts.length}</div>
+                </div>
+                <div style={{ background: 'var(--bg-secondary, #fff)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '14px 16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Active Deals</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>{activeDeals.length}</div>
+                </div>
+                <div style={{ background: 'var(--bg-secondary, #fff)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '14px 16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Pipeline Value</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--text-primary)' }}>{formatCurrency(pipelineValue)}</div>
+                </div>
+                <div style={{ background: 'var(--bg-secondary, #fff)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '14px 16px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Won This Month</div>
+                  <div style={{ fontSize: '22px', fontWeight: 700, color: '#059669' }}>{wonThisMonth.length}</div>
+                </div>
+              </div>
+
+              {/* ===== Detail View ===== */}
+              {crmView === 'detail' && crmActiveContact ? (() => {
+                const contact = crmContacts.find(c => c.id === crmActiveContact.id) || crmActiveContact;
+                const linkedNotes = meetingNotes.filter(m => (contact.linkedMeetings || []).includes(m.id));
+                const linkableNotes = meetingNotes.filter(m => !(contact.linkedMeetings || []).includes(m.id));
+                return (
+                  <div>
+                    <button onClick={() => { setCrmView('list'); setCrmActiveContact(null); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', cursor: 'pointer', marginBottom: '16px' }}>
+                      {CI.back(14)} Back to List
+                    </button>
+
+                    <div style={{ background: 'var(--bg-secondary, #fff)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                            <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{contact.name}</h2>
+                            <StageBadge stage={contact.stage} />
+                          </div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {CI.building(12)} {contact.company}{contact.role ? ` — ${contact.role}` : ''}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => openEditForm(contact)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', cursor: 'pointer' }}>{CI.edit(12)} Edit</button>
+                          <button onClick={() => { if (window.confirm(`Delete ${contact.name}? This cannot be undone.`)) deleteCRMContact(contact.id); }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#DC2626', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '4px', cursor: 'pointer' }}>{CI.trash(12)} Delete</button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px', marginTop: '18px', paddingTop: '16px', borderTop: '1px solid var(--border, var(--border-color, #e5e7eb))' }}>
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>{CI.mail(11)} Email</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>{contact.email || '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>{CI.phone(11)} Phone</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{contact.phone || '—'}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>{CI.dollar(11)} Deal Value</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{formatCurrency(contact.value)}</div>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>{CI.calendar(11)} Next Follow-up</div>
+                          <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{contact.nextFollowUp || 'Not scheduled'}</div>
+                        </div>
+                      </div>
+                      {contact.notes && (
+                        <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: '1px solid var(--border, var(--border-color, #e5e7eb))' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Notes</div>
+                          <p style={{ fontSize: '13px', color: 'var(--text-primary)', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{contact.notes}</p>
+                        </div>
+                      )}
+                      {(contact.tags || []).length > 0 && (
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '12px' }}>
+                          {contact.tags.map((t, i) => (
+                            <span key={i} style={{ fontSize: '10px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: 'var(--primary, #008080)' }}>{t}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Activity Feed */}
+                    <div style={{ background: 'var(--bg-secondary, #fff)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', marginBottom: '16px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                        <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Activity Feed</h3>
+                        <button onClick={() => setCrmShowActivityForm(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--primary, #008080)', border: '1px solid var(--primary, #008080)', borderRadius: '4px', cursor: 'pointer' }}>{CI.plus(11)} Add Activity</button>
+                      </div>
+
+                      {crmShowActivityForm && (
+                        <div style={{ padding: '14px', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', background: 'var(--bg-secondary, #f8f9fa)', marginBottom: '14px' }}>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                            {(['note', 'call', 'email', 'meeting', 'task'] as CRMActivity['type'][]).map(t => (
+                              <button key={t} onClick={() => setCrmActivityDraft(d => ({ ...d, type: t }))}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: 600, textTransform: 'capitalize', borderRadius: '4px', cursor: 'pointer', border: crmActivityDraft.type === t ? '1px solid var(--primary, #008080)' : '1px solid var(--border, var(--border-color, #e5e7eb))', background: crmActivityDraft.type === t ? 'rgba(0,128,128,0.08)' : 'transparent', color: crmActivityDraft.type === t ? 'var(--primary, #008080)' : 'var(--text-secondary)' }}>
+                                {activityIcon(t)} {t}
+                              </button>
+                            ))}
+                          </div>
+                          <textarea value={crmActivityDraft.description} onChange={e => setCrmActivityDraft(d => ({ ...d, description: e.target.value }))}
+                            placeholder="Describe this activity…" style={{ ...inputStyle, minHeight: '70px', resize: 'vertical', fontFamily: 'inherit', marginBottom: '10px' }} />
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={submitActivity} disabled={!crmActivityDraft.description.trim()} style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 700, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '4px', cursor: crmActivityDraft.description.trim() ? 'pointer' : 'not-allowed', opacity: crmActivityDraft.description.trim() ? 1 : 0.5 }}>Save</button>
+                            <button onClick={() => setCrmShowActivityForm(false)} style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+
+                      {(contact.activities || []).length === 0 ? (
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>No activity logged yet.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {contact.activities.map(a => (
+                            <div key={a.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: 'var(--primary, #008080)', flexShrink: 0 }}>{activityIcon(a.type)}</span>
+                              <div style={{ minWidth: 0, flex: 1 }}>
+                                <div style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{a.description}</div>
+                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{a.actor} · {formatRelative(a.timestamp)}</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Linked Meetings */}
+                    <div style={{ background: 'var(--bg-secondary, #fff)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', position: 'relative' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                        <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Linked Meetings</h3>
+                        <button onClick={() => setCrmShowLinkMeeting(v => !v)} disabled={linkableNotes.length === 0}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: linkableNotes.length ? 'var(--primary, #008080)' : 'var(--text-secondary)', border: `1px solid ${linkableNotes.length ? 'var(--primary, #008080)' : 'var(--border, var(--border-color, #e5e7eb))'}`, borderRadius: '4px', cursor: linkableNotes.length ? 'pointer' : 'not-allowed' }}>{CI.link(11)} Link Meeting</button>
+                      </div>
+
+                      {crmShowLinkMeeting && (
+                        <div style={{ border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', background: 'var(--bg-secondary, #f8f9fa)', marginBottom: '14px', maxHeight: '220px', overflowY: 'auto' }}>
+                          {linkableNotes.length === 0 ? (
+                            <div style={{ padding: '12px', fontSize: '12px', color: 'var(--text-secondary)' }}>No more meetings to link.</div>
+                          ) : linkableNotes.map(m => (
+                            <button key={m.id} onClick={() => { linkMeetingToContact(contact.id, m.id); setCrmShowLinkMeeting(false); }}
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', textAlign: 'left', padding: '10px 12px', fontSize: '12px', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border, var(--border-color, #e5e7eb))', cursor: 'pointer', color: 'var(--text-primary)' }}>
+                              <span>{m.title}</span>
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>{m.date}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {linkedNotes.length === 0 ? (
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>No meetings linked to this contact yet.</p>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {linkedNotes.map(m => (
+                            <div key={m.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '10px 12px', borderRadius: '4px', border: '1px solid var(--border, var(--border-color, #e5e7eb))' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                <span style={{ color: 'var(--primary, #008080)', display: 'flex', flexShrink: 0 }}>{CI.meeting(12)}</span>
+                                <span style={{ fontSize: '13px', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.title}</span>
+                              </div>
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flexShrink: 0 }}>{m.date}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })() : crmView === 'pipeline' ? (
+                /* ===== Pipeline (Kanban) View ===== */
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                  {STAGES.map(stage => {
+                    const stageContacts = filteredContacts.filter(c => c.stage === stage.id);
+                    const stageValue = stageContacts.reduce((s, c) => s + (c.value || 0), 0);
+                    return (
+                      <div key={stage.id} style={{ background: 'var(--bg-secondary, #f8f9fa)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', padding: '10px', minHeight: '120px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', paddingBottom: '8px', borderBottom: `2px solid ${stage.color}` }}>
+                          <span style={{ fontSize: '12px', fontWeight: 700, color: stage.color, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{stage.label}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>{stageContacts.length} · {formatCurrency(stageValue)}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {stageContacts.map(c => (
+                            <button key={c.id} onClick={() => { setCrmActiveContact(c); setCrmView('detail'); }}
+                              style={{ textAlign: 'left', display: 'block', width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1px solid var(--border, var(--border-color, #e5e7eb))', background: 'var(--bg-primary, #fff)', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', cursor: 'pointer' }}>
+                              <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.company}</div>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary, #008080)' }}>{formatCurrency(c.value)}</span>
+                                <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{formatRelative(c.lastContactDate)}</span>
+                              </div>
+                            </button>
+                          ))}
+                          {stageContacts.length === 0 && <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center', padding: '10px 0' }}>No contacts</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* ===== List View ===== */
+                <div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                    {[{ id: 'all', label: 'All' }, ...STAGES].map(f => (
+                      <button key={f.id} onClick={() => setCrmFilter(f.id)}
+                        style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '999px', cursor: 'pointer',
+                          border: crmFilter === f.id ? `1px solid ${'color' in f ? f.color : 'var(--primary, #008080)'}` : '1px solid var(--border, var(--border-color, #e5e7eb))',
+                          background: crmFilter === f.id ? `${'color' in f ? f.color : '#008080'}1A` : 'transparent',
+                          color: crmFilter === f.id ? ('color' in f ? f.color : 'var(--primary, #008080)') : 'var(--text-secondary)' }}>{f.label}</button>
+                    ))}
+                  </div>
+
+                  {filteredContacts.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '48px 12px', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', background: 'var(--bg-secondary, #f8f9fa)' }}>
+                      <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>{CI.empty(44)}</div>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>{crmContacts.length === 0 ? 'No contacts yet. Add your first contact to start managing relationships.' : 'No contacts match your filters.'}</p>
+                      {crmContacts.length === 0 && (
+                        <button onClick={openNewForm} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 18px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{CI.plus(13)} Add Contact</button>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {/* Column headings (hidden on narrow screens via flex wrap of row) */}
+                      <div style={{ display: 'flex', gap: '12px', padding: '0 14px', fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.02em' }}>
+                        <span style={{ flex: '2 1 160px' }}>Name</span>
+                        <span style={{ flex: '1.5 1 120px' }}>Company</span>
+                        <span style={{ flex: '1 1 90px' }}>Stage</span>
+                        <span style={{ flex: '1 1 80px' }}>Value</span>
+                        <span style={{ flex: '1 1 100px' }}>Last Contact</span>
+                        <span style={{ flex: '1 1 100px' }}>Follow-up</span>
+                        <span style={{ flex: '0 0 96px' }} />
+                      </div>
+                      {filteredContacts.map(c => (
+                        <div key={c.id} onClick={() => { setCrmActiveContact(c); setCrmView('detail'); }}
+                          style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', padding: '14px', borderRadius: '4px', border: '1px solid var(--border, var(--border-color, #e5e7eb))', background: 'var(--bg-secondary, #fff)', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', cursor: 'pointer' }}>
+                          <span style={{ flex: '2 1 160px', minWidth: 0, fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+                          <span style={{ flex: '1.5 1 120px', minWidth: 0, fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.company}</span>
+                          <span style={{ flex: '1 1 90px' }}><StageBadge stage={c.stage} /></span>
+                          <span style={{ flex: '1 1 80px', fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>{formatCurrency(c.value)}</span>
+                          <span style={{ flex: '1 1 100px', fontSize: '12px', color: 'var(--text-secondary)' }}>{formatRelative(c.lastContactDate)}</span>
+                          <span style={{ flex: '1 1 100px', fontSize: '12px', color: 'var(--text-secondary)' }}>{c.nextFollowUp || '—'}</span>
+                          <span style={{ flex: '0 0 96px', display: 'flex', gap: '6px', justifyContent: 'flex-end' }} onClick={e => e.stopPropagation()}>
+                            <button title="View" onClick={() => { setCrmActiveContact(c); setCrmView('detail'); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', background: 'transparent', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>{CI.eye(13)}</button>
+                            <button title="Edit" onClick={() => openEditForm(c)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', background: 'transparent', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>{CI.edit(13)}</button>
+                            <button title="Delete" onClick={() => { if (window.confirm(`Delete ${c.name}? This cannot be undone.`)) deleteCRMContact(c.id); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', background: 'transparent', border: '1px solid rgba(220,38,38,0.3)', borderRadius: '4px', color: '#DC2626', cursor: 'pointer' }}>{CI.trash(13)}</button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ===== Add/Edit Contact Modal ===== */}
+              {crmShowForm && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={() => setCrmShowForm(false)}>
+                  <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-secondary, #fff)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '520px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{crmEditContact ? 'Edit Contact' : 'Add Contact'}</h3>
+                      <button onClick={() => setCrmShowForm(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}>{CI.close(16)}</button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Name *</label>
+                          <input value={crmFormData.name} onChange={e => setCrmFormData(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Jordan Reyes" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Company *</label>
+                          <input value={crmFormData.company} onChange={e => setCrmFormData(f => ({ ...f, company: e.target.value }))} placeholder="e.g. Acme Corp" style={inputStyle} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Email</label>
+                          <input value={crmFormData.email} onChange={e => setCrmFormData(f => ({ ...f, email: e.target.value }))} placeholder="name@company.com" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Phone</label>
+                          <input value={crmFormData.phone} onChange={e => setCrmFormData(f => ({ ...f, phone: e.target.value }))} placeholder="(555) 555-5555" style={inputStyle} />
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Role / Title</label>
+                          <input value={crmFormData.role} onChange={e => setCrmFormData(f => ({ ...f, role: e.target.value }))} placeholder="e.g. Director of Ops" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Stage</label>
+                          <select value={crmFormData.stage} onChange={e => setCrmFormData(f => ({ ...f, stage: e.target.value as CRMContact['stage'] }))} style={inputStyle}>
+                            {STAGES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Deal Value ($)</label>
+                          <input type="number" min="0" value={crmFormData.value} onChange={e => setCrmFormData(f => ({ ...f, value: e.target.value }))} placeholder="0" style={inputStyle} />
+                        </div>
+                        <div style={{ flex: '1 1 220px' }}>
+                          <label style={labelStyle}>Next Follow-up</label>
+                          <input type="date" value={crmFormData.nextFollowUp} onChange={e => setCrmFormData(f => ({ ...f, nextFollowUp: e.target.value }))} style={inputStyle} />
+                        </div>
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Tags (comma-separated)</label>
+                        <input value={crmFormData.tags} onChange={e => setCrmFormData(f => ({ ...f, tags: e.target.value }))} placeholder="e.g. priority, referral, renewal" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Notes</label>
+                        <textarea value={crmFormData.notes} onChange={e => setCrmFormData(f => ({ ...f, notes: e.target.value }))} placeholder="Context, preferences, background…" style={{ ...inputStyle, minHeight: '90px', resize: 'vertical', fontFamily: 'inherit' }} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '4px' }}>
+                        <button onClick={submitContactForm} style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 700, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>{crmEditContact ? 'Save Changes' : 'Add Contact'}</button>
+                        <button onClick={() => setCrmShowForm(false)} style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border, var(--border-color, #e5e7eb))', borderRadius: '4px', cursor: 'pointer' }}>Cancel</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
         {tab === 'projects' && (() => {
           const ICONS = {
             folder: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>,
@@ -6643,6 +7336,229 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           </div>
         )}
+        {tab === 'meetings' && (
+          <div style={{ padding: '24px', maxWidth: '900px', margin: '0 auto' }}>
+            <PageHeader
+              title="Meeting Agent"
+              breadcrumbs={[{ label: 'Home', onClick: () => switchTab('home') }, { label: 'Meeting Agent' }]}
+            />
+
+            {!activeMeeting ? (
+              <>
+                {/* ===== Meeting Input Form ===== */}
+                <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ color: 'var(--primary, #008080)', display: 'flex' }}>{ICONS.meetings()}</span> New Meeting Notes
+                  </h3>
+
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Meeting Type</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '16px' }}>
+                    {([
+                      { id: 'client-call', label: 'Client Call' },
+                      { id: 'internal', label: 'Internal' },
+                      { id: 'discovery', label: 'Discovery' },
+                      { id: 'check-in', label: 'Check-in' },
+                      { id: 'workshop', label: 'Workshop' },
+                      { id: 'strategy', label: 'Strategy' },
+                    ] as { id: MeetingNote['meetingType']; label: string }[]).map(mt => (
+                      <button key={mt.id} onClick={() => setMeetingFormData(f => ({ ...f, meetingType: mt.id }))}
+                        style={{
+                          padding: '6px 14px', fontSize: '12px', fontWeight: 600, borderRadius: '4px', cursor: 'pointer',
+                          border: meetingFormData.meetingType === mt.id ? '1px solid var(--primary, #008080)' : '1px solid var(--border-color, #e5e7eb)',
+                          background: meetingFormData.meetingType === mt.id ? 'rgba(0,128,128,0.08)' : 'var(--bg-surface, #f8f9fa)',
+                          color: meetingFormData.meetingType === mt.id ? 'var(--primary, #008080)' : 'var(--text-secondary)',
+                        }}>{mt.label}</button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '2 1 220px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Title</label>
+                      <input value={meetingFormData.title} onChange={e => setMeetingFormData(f => ({ ...f, title: e.target.value }))} placeholder="e.g. Q3 Kickoff Call with Acme Corp"
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--bg-surface, #f8f9fa)', color: 'var(--text-primary)' }} />
+                    </div>
+                    <div style={{ flex: '1 1 140px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Date</label>
+                      <input type="date" value={meetingFormData.date} onChange={e => setMeetingFormData(f => ({ ...f, date: e.target.value }))}
+                        style={{ width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--bg-surface, #f8f9fa)', color: 'var(--text-primary)' }} />
+                    </div>
+                  </div>
+
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Attendees</label>
+                  <input value={meetingFormData.attendees} onChange={e => setMeetingFormData(f => ({ ...f, attendees: e.target.value }))} placeholder="e.g. Sandra Brooks, John Smith, Maria Lee (comma-separated)"
+                    style={{ width: '100%', padding: '10px 12px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--bg-surface, #f8f9fa)', color: 'var(--text-primary)', marginBottom: '16px' }} />
+
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px' }}>Raw Notes / Transcript</label>
+                  <textarea value={meetingFormData.rawNotes} onChange={e => setMeetingFormData(f => ({ ...f, rawNotes: e.target.value }))}
+                    placeholder="Paste your raw meeting notes or transcript here. The AI will structure it into a summary, key decisions, action items, and a follow-up email."
+                    style={{ width: '100%', minHeight: '200px', padding: '12px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--bg-surface, #f8f9fa)', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit', marginBottom: '16px' }} />
+
+                  {activeProject && (
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: 'var(--primary, #008080)', fontSize: '11px', fontWeight: 600, marginBottom: '16px' }}>
+                      {ICONS.folder(12)} Linking to {activeProject.name}
+                    </div>
+                  )}
+
+                  {meetingGenerating ? (
+                    <div style={{ padding: '16px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--bg-surface, #f8f9fa)' }}>
+                      <div className="skeleton-shimmer" style={{ height: '14px', width: '40%', borderRadius: '4px', marginBottom: '10px' }} />
+                      <div className="skeleton-shimmer" style={{ height: '12px', width: '100%', borderRadius: '4px', marginBottom: '8px' }} />
+                      <div className="skeleton-shimmer" style={{ height: '12px', width: '85%', borderRadius: '4px' }} />
+                    </div>
+                  ) : (
+                    <button onClick={generateMeetingNotes} disabled={!meetingFormData.rawNotes.trim()}
+                      style={{
+                        width: '100%', padding: '12px', fontSize: '14px', fontWeight: 700, borderRadius: '4px', border: 'none', cursor: meetingFormData.rawNotes.trim() ? 'pointer' : 'not-allowed',
+                        background: 'var(--primary, #008080)', color: '#fff', opacity: meetingFormData.rawNotes.trim() ? 1 : 0.5,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                      }}>
+                      {ICONS.spark(16)} Generate Meeting Notes
+                    </button>
+                  )}
+                </div>
+
+                {/* ===== Meeting History ===== */}
+                <div>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' }}>Meeting History</h3>
+                  {meetingNotes.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px 12px', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', background: 'var(--bg-surface, #f8f9fa)' }}>
+                      <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>{ICONS.empty(40)}</div>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>No meeting notes yet. Fill out the form above to generate your first structured meeting summary.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {meetingNotes.map(m => (
+                        <button key={m.id} onClick={() => setActiveMeeting(m)}
+                          style={{ textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '14px 16px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--bg-card, #fff)', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', cursor: 'pointer' }}>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.title}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                              <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: 'var(--primary, #008080)', textTransform: 'capitalize' }}>{m.meetingType.replace('-', ' ')}</span>
+                              <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 8px', borderRadius: '999px', background: m.status === 'approved' ? 'rgba(52,199,89,0.1)' : 'rgba(245,158,11,0.1)', color: m.status === 'approved' ? '#2f9e44' : '#b45309', textTransform: 'capitalize' }}>{m.status}</span>
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{m.date}</span>
+                            </div>
+                          </div>
+                          <span style={{ color: 'var(--text-secondary)', display: 'flex', flexShrink: 0 }}>{ICONS.chevronRight(16)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* ===== Structured Meeting Output ===== */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
+                  <button onClick={() => { setActiveMeeting(null); setMeetingFollowUpEditing(false); }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
+                    {ICONS.back(14)} Back
+                  </button>
+                  <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{activeMeeting.title}</h2>
+                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 10px', borderRadius: '999px', background: activeMeeting.status === 'approved' ? 'rgba(52,199,89,0.1)' : 'rgba(245,158,11,0.1)', color: activeMeeting.status === 'approved' ? '#2f9e44' : '#b45309', textTransform: 'capitalize' }}>{activeMeeting.status === 'approved' ? 'Approved' : 'Draft'}</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{activeMeeting.date}</span>
+                </div>
+
+                {/* Summary */}
+                <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '18px', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 10px' }}>Summary</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{activeMeeting.summary}</p>
+                </div>
+
+                {/* Decisions */}
+                <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '18px', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 10px' }}>Key Decisions</h3>
+                  {activeMeeting.decisions.length === 0 ? (
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>No decisions recorded.</p>
+                  ) : (
+                    <ol style={{ margin: 0, paddingLeft: '20px' }}>
+                      {activeMeeting.decisions.map((d, i) => (
+                        <li key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px', lineHeight: 1.5 }}>{d}</li>
+                      ))}
+                    </ol>
+                  )}
+                </div>
+
+                {/* Action Items */}
+                <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '18px', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 10px' }}>Action Items</h3>
+                  {activeMeeting.actionItems.length === 0 ? (
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>No action items recorded.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {activeMeeting.actionItems.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', padding: '12px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--bg-surface, #f8f9fa)' }}>
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: '13px', color: 'var(--text-primary)', marginBottom: '6px' }}>{item.text}</div>
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {item.assignee && <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: 'var(--primary, #008080)' }}>{item.assignee}</span>}
+                              {item.deadline && <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '999px', background: '#f1f5f9', color: '#475569' }}>Due: {item.deadline}</span>}
+                            </div>
+                          </div>
+                          <button onClick={() => pinMeetingActionItem(activeMeeting, i)} disabled={item.pinned || pinningInProgress}
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: 600, borderRadius: '4px', flexShrink: 0, cursor: item.pinned ? 'default' : 'pointer', border: item.pinned ? '1px solid rgba(52,199,89,0.3)' : '1px solid var(--primary, #008080)', background: item.pinned ? 'rgba(52,199,89,0.1)' : 'transparent', color: item.pinned ? '#2f9e44' : 'var(--primary, #008080)' }}>
+                            {item.pinned ? <>{ICONS.check(12)} Pinned</> : <>{ICONS.pin(12)} Pin to Project</>}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Follow-up Email */}
+                <div style={{ background: 'var(--bg-card, #fff)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '18px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                    <h3 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Follow-up Email</h3>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      {meetingFollowUpEditing ? (
+                        <button onClick={async () => {
+                          await updateMeetingNote(activeMeeting.id, { followUpEmail: meetingFollowUpDraft });
+                          setActiveMeeting(prev => prev ? { ...prev, followUpEmail: meetingFollowUpDraft } : null);
+                          setMeetingFollowUpEditing(false);
+                          showToast('Follow-up email saved', 'success');
+                        }} style={{ padding: '6px 12px', fontSize: '11px', fontWeight: 600, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save</button>
+                      ) : (
+                        <button onClick={() => { setMeetingFollowUpDraft(activeMeeting.followUpEmail); setMeetingFollowUpEditing(true); }}
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>{ICONS.edit(12)} Edit</button>
+                      )}
+                      <button onClick={() => { navigator.clipboard.writeText(activeMeeting.followUpEmail); showToast('Copied to clipboard', 'success'); }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>{ICONS.clipboard(12)} Copy to Clipboard</button>
+                      <button disabled title="Coming Soon"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '11px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'not-allowed', opacity: 0.5 }}>{ICONS.send(12)} Send via Client Ops</button>
+                    </div>
+                  </div>
+                  {meetingFollowUpEditing ? (
+                    <textarea value={meetingFollowUpDraft} onChange={e => setMeetingFollowUpDraft(e.target.value)}
+                      style={{ width: '100%', minHeight: '180px', padding: '12px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--bg-surface, #f8f9fa)', color: 'var(--text-primary)', resize: 'vertical', fontFamily: 'inherit' }} />
+                  ) : (
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap' }}>{activeMeeting.followUpEmail}</p>
+                  )}
+                </div>
+
+                {/* Action Bar */}
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', paddingTop: '4px' }}>
+                  <button onClick={() => pinEntireMeetingSummary(activeMeeting)} disabled={pinningInProgress}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--primary, #008080)', border: '1px solid var(--primary, #008080)', borderRadius: '4px', cursor: 'pointer' }}>
+                    {ICONS.pin(14)} Pin Full Summary
+                  </button>
+                  {activeMeeting.status !== 'approved' && (
+                    <button onClick={async () => {
+                      await updateMeetingNote(activeMeeting.id, { status: 'approved' });
+                      setActiveMeeting(prev => prev ? { ...prev, status: 'approved' } : null);
+                      showToast('Meeting notes approved', 'success');
+                    }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontSize: '13px', fontWeight: 700, background: 'var(--primary, #008080)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                      {ICONS.check(14)} Approve
+                    </button>
+                  )}
+                  <button onClick={() => {
+                    if (window.confirm('Delete this meeting note? This cannot be undone.')) deleteMeetingNote(activeMeeting.id);
+                  }} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', cursor: 'pointer', marginLeft: 'auto' }}>
+                    {ICONS.trash(14)} Delete
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {tab === 'inbox' && (
           <div className="ent-coming-soon-view">
             <div className="ent-icon">✉️</div>
@@ -6967,11 +7883,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       <nav className="bottom-nav">
         {(isPersonalMode 
             ? (['home','create','gallery','chats'] as Tab[])
-            : (['home','create','crm','projects','chats'] as Tab[])
+            : (['home','create','meetings','projects','chats'] as Tab[])
           ).map(id => (
           <button key={id} className={`bottom-nav-item ${tab === id ? 'active' : ''}`} onClick={() => switchTab(id)}>
-            <span className="bottom-nav-icon">{{ home: '▦', create: '◎', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋', inbox: '✉', templates: '▧', analytics: '📈', integrations: '⛓', admin: '🔐' }[id]}</span>
-            {{ home: 'Dashboard', create: 'AI Studio', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects', inbox: 'Inbox', templates: 'Templates', analytics: 'Analytics', integrations: 'Integrations', admin: 'Admin' }[id]}
+            <span className="bottom-nav-icon">{{ home: '▦', create: '◎', gallery: '🖼️', chats: '💬', community: '🌟', crm: '📇', projects: '📋', inbox: '✉', templates: '▧', analytics: '📈', integrations: '⛓', meetings: '📅', admin: '🔐' }[id]}</span>
+            {{ home: 'Dashboard', create: 'AI Studio', gallery: 'Gallery', chats: 'Chats', community: 'Community', crm: 'CRM', projects: 'Projects', inbox: 'Inbox', templates: 'Templates', analytics: 'Analytics', integrations: 'Integrations', meetings: 'Meetings', admin: 'Admin' }[id]}
           </button>
         ))}
       </nav>
