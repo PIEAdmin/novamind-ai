@@ -91,6 +91,12 @@ interface TeamMember {
   joinedAt?: Timestamp;
 }
 
+interface ReviewNote {
+  text: string;
+  author: string;
+  timestamp: number;
+}
+
 interface PinnedOutput {
   id: string;
   title: string;
@@ -100,10 +106,13 @@ interface PinnedOutput {
   agentMode: string;
   tags?: string[];
   clientName?: string;
-  status: 'draft' | 'approved';
+  status: 'draft' | 'in-review' | 'approved' | 'archived';
   versionGroup?: string; // groups versions together
   versionLabel?: string; // e.g. "V1", "Client edits", "Final"
   versionNumber?: number;
+  approvedBy?: string;
+  approvedAt?: number;
+  reviewNotes?: ReviewNote[];
 }
 
 const DELIVERABLE_TYPES: { id: PinnedOutput['type']; label: string }[] = [
@@ -117,6 +126,36 @@ const DELIVERABLE_TYPES: { id: PinnedOutput['type']; label: string }[] = [
   { id: 'other', label: 'Other' },
 ];
 
+interface ShareLink {
+  id: string;
+  scope: 'workspace' | 'specific' | 'public';
+  permission: 'view' | 'edit';
+  resourceType: 'project' | 'deliverable';
+  resourceId: string;
+  createdAt: number;
+  createdBy: string;
+  allowedUsers?: string[];
+  expiresAt?: number;
+}
+
+interface ExportRecord {
+  id: string;
+  deliverableId: string;
+  projectId: string;
+  destination: 'download' | 'email' | 'drive';
+  fileType: 'pdf' | 'docx' | 'html';
+  exportedBy: string;
+  exportedAt: number;
+  recipientEmail?: string;
+  versionLabel?: string;
+}
+
+interface WorkspaceSettings {
+  allowExternalExport: boolean;
+  allowEmailExport: boolean;
+  allowCloudExport: boolean;
+}
+
 interface ProjectBrief {
   id: string;
   name: string;
@@ -129,6 +168,13 @@ interface ProjectBrief {
   updatedAt: number;
   createdBy: string;
   pinnedOutputs: PinnedOutput[];
+  assignedTo?: string;
+  teamOwned?: boolean;
+  sharedWith?: string[];
+  shareLinks?: ShareLink[];
+  exportCount?: number;
+  memoryNotes?: string;
+  memoryNotesEnabled?: boolean;
 }
 
 const DEFAULT_PROFILE: BusinessProfile = {
@@ -1523,6 +1569,48 @@ const App: React.FC = () => {
   const canViewOnly = userRole === 'viewer';
   const canEditProject = (p: ProjectBrief) => canAdmin || (canCreate && p.createdBy === user?.uid);
 
+  // 🏷️ Subscription-gated team features
+  const isSoloPlan = ['free', 'solopreneur'].includes(usage.plan);
+  const isTeamPlan = ['team', 'business', 'business_pro'].includes(usage.plan);
+
+  // Proxy workspace identifier — this app has no dedicated workspace doc, so the owner's UID scopes workspace-level data
+  const workspaceId = user?.uid || '';
+
+  // ========== ARTIFACT ACCESS LAYER (Centralized Permission Policy) ==========
+  type PermAction = 'view' | 'edit' | 'pin' | 'export' | 'share' | 'manage_access' | 'approve' | 'delete';
+  type PermResource = 'workspace' | 'project' | 'deliverable' | 'share-token';
+
+  const checkPermission = (role: typeof userRole, action: PermAction, resource: PermResource, context?: { isOwner?: boolean; isTeam?: boolean }): boolean => {
+    const isOwnerOrAdmin = role === 'owner' || role === 'admin';
+    const isCreator = context?.isOwner ?? false;
+    const teamPlan = context?.isTeam ?? isTeamPlan;
+
+    const matrix: Record<PermAction, () => boolean> = {
+      view: () => true,
+      edit: () => {
+        if (role === 'viewer') return false;
+        if (resource === 'project') return isOwnerOrAdmin || isCreator;
+        return role !== 'viewer';
+      },
+      pin: () => role !== 'viewer',
+      export: () => {
+        if (role === 'viewer') return false;
+        if (!workspaceSettings.allowExternalExport && resource === 'deliverable') return false;
+        return true;
+      },
+      share: () => {
+        if (role === 'viewer') return false;
+        if (!teamPlan && resource !== 'project') return false;
+        return true;
+      },
+      manage_access: () => isOwnerOrAdmin,
+      approve: () => isOwnerOrAdmin,
+      delete: () => isOwnerOrAdmin || isCreator,
+    };
+
+    return matrix[action]();
+  };
+
   // 📋 Audit Log helper — write-only, immutable entries
   const logAudit = async (action: string, object: string, metadata?: Record<string, unknown>) => {
     if (!user) return;
@@ -1588,11 +1676,15 @@ const App: React.FC = () => {
   // ====== PROJECTS (Workspace/Project system) ======
   const [projects, setProjects] = useState<ProjectBrief[]>([]);
   const [activeProject, setActiveProject] = useState<ProjectBrief | null>(null);
+  // ====== STUDIO SIDE PANEL (Workflow Spine Sprint) ======
+  const [studioSidePanel, setStudioSidePanel] = useState(false);
+  const [sidePanelTab, setSidePanelTab] = useState<'deliverables' | 'versions' | 'distribute'>('deliverables');
+  const [sidePanelSelectedDeliverableId, setSidePanelSelectedDeliverableId] = useState<string | null>(null);
   const [showProjectForm, setShowProjectForm] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectBrief | null>(null);
   const [projectsLoading, setProjectsLoading] = useState(false);
   const [projectFormData, setProjectFormData] = useState({
-    name: '', objective: '', targetAudience: '', constraints: '', brandVoice: ''
+    name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '', assignedTo: '', initialNotes: ''
   });
   const [projectFilter, setProjectFilter] = useState<'all' | 'active' | 'completed' | 'archived'>('all');
   const [projectMenuOpenId, setProjectMenuOpenId] = useState<string | null>(null);
@@ -1608,14 +1700,119 @@ const App: React.FC = () => {
 
   // ====== DELIVERABLE FILTERS (project detail view) ======
   const [deliverableTypeFilter, setDeliverableTypeFilter] = useState<'all' | PinnedOutput['type']>('all');
-  const [deliverableStatusFilter, setDeliverableStatusFilter] = useState<'all' | 'draft' | 'approved'>('all');
+  const [deliverableStatusFilter, setDeliverableStatusFilter] = useState<'all' | 'draft' | 'in-review' | 'approved' | 'archived'>('all');
   const [expandedVersionGroups, setExpandedVersionGroups] = useState<Record<string, boolean>>({});
   const [versioningOutputId, setVersioningOutputId] = useState<string | null>(null);
   const [versionLabelInput, setVersionLabelInput] = useState('');
+  const [reviewNoteDrafts, setReviewNoteDrafts] = useState<Record<string, string>>({});
+  const [expandedReviewNotesFor, setExpandedReviewNotesFor] = useState<string | null>(null);
 
   // ====== PROJECT CONTEXT INJECTION ======
   const [contextSettings, setContextSettings] = useState({ objective: true, audience: true, constraints: true, brandVoice: true, deliverables: false });
   const [contextPanelOpen, setContextPanelOpen] = useState(false);
+
+  // ====== SHARE LINKS (Projects) ======
+  const [showShareModal, setShowShareModal] = useState<string | null>(null);
+  const [shareScope, setShareScope] = useState<'workspace' | 'specific' | 'public'>('workspace');
+  const [shareSpecificUsers, setShareSpecificUsers] = useState<string[]>([]);
+
+  // ====== WORKSPACE SETTINGS (Egress Controls) ======
+  const [workspaceSettings, setWorkspaceSettings] = useState<WorkspaceSettings>({
+    allowExternalExport: true,
+    allowEmailExport: true,
+    allowCloudExport: true,
+  });
+  const [showWorkspaceSettingsModal, setShowWorkspaceSettingsModal] = useState(false);
+
+  // ====== EXPORT HISTORY LEDGER ======
+  const [exportHistory, setExportHistory] = useState<ExportRecord[]>([]);
+  const [showExportLedger, setShowExportLedger] = useState<string | null>(null); // deliverable ID
+
+  // ====== EXPORT DESTINATIONS ======
+  const [showExportModal, setShowExportModal] = useState<string | null>(null); // deliverable ID
+  const [exportEmailTo, setExportEmailTo] = useState('');
+  const [exportFileType, setExportFileType] = useState<'pdf' | 'docx' | 'html'>('pdf');
+  const [exportSending, setExportSending] = useState(false);
+
+  // ====== SHARE PERMISSION (View/Edit) ======
+  const [sharePermission, setSharePermission] = useState<'view' | 'edit'>('view');
+
+  // ====== SHARE LANDING VIEW ======
+  const [shareViewToken, setShareViewToken] = useState<string | null>(null);
+  const [shareViewData, setShareViewData] = useState<{ project?: ProjectBrief; deliverable?: PinnedOutput; link?: ShareLink; error?: string } | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareToken = params.get('share');
+    if (shareToken) {
+      setShareViewToken(shareToken);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!shareViewToken || !user) return;
+    const resolveShare = async () => {
+      try {
+        // Search all projects for a matching share link
+        const projSnap = await getDocs(collection(db, 'projects'));
+        let found = false;
+        for (const projDoc of projSnap.docs) {
+          const proj = { id: projDoc.id, ...projDoc.data() } as ProjectBrief;
+          const link = (proj.shareLinks || []).find(l => l.id === shareViewToken);
+          if (link) {
+            // Check access
+            if (link.scope === 'specific' && link.allowedUsers && !link.allowedUsers.includes(user.uid) && proj.createdBy !== user.uid) {
+              setShareViewData({ error: 'You do not have access to this shared resource. Contact the owner to request access.' });
+              found = true;
+              break;
+            }
+            if (link.resourceType === 'deliverable') {
+              const del = (proj.pinnedOutputs || []).find(o => o.id === link.resourceId);
+              setShareViewData({ project: proj, deliverable: del, link });
+            } else {
+              setShareViewData({ project: proj, link });
+            }
+            logAudit('share.accessed', proj.name, { linkId: shareViewToken, resourceType: link.resourceType });
+            found = true;
+            break;
+          }
+        }
+        if (!found) setShareViewData({ error: 'This share link has expired or been revoked.' });
+      } catch (e) {
+        console.error('Resolve share err:', e);
+        setShareViewData({ error: 'Unable to load shared content.' });
+      }
+    };
+    resolveShare();
+  }, [shareViewToken, user]);
+
+  // Load workspace settings
+  useEffect(() => {
+    if (!user || !workspaceId) return;
+    const loadSettings = async () => {
+      try {
+        const settingsDoc = await getDoc(doc(db, 'workspaces', workspaceId, 'settings', 'general'));
+        if (settingsDoc.exists()) {
+          const data = settingsDoc.data();
+          setWorkspaceSettings({
+            allowExternalExport: data.allowExternalExport ?? true,
+            allowEmailExport: data.allowEmailExport ?? true,
+            allowCloudExport: data.allowCloudExport ?? true,
+          });
+        }
+      } catch (e) { console.error('Load workspace settings err:', e); }
+    };
+    loadSettings();
+  }, [user, workspaceId]);
+
+  // ====== PROJECT MEMORY / NOTES ======
+  const [memoryNotesDraft, setMemoryNotesDraft] = useState('');
+  const [memoryNotesEnabledDraft, setMemoryNotesEnabledDraft] = useState(false);
+  const [memoryPanelOpen, setMemoryPanelOpen] = useState(false);
+  const [savingMemoryNotes, setSavingMemoryNotes] = useState(false);
+
+  // ====== PROJECT ROI PANEL ======
+  const [roiPanelOpen, setRoiPanelOpen] = useState(true);
 
 
   // Scroll to bottom of chat when messages change
@@ -1624,6 +1821,12 @@ const App: React.FC = () => {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatMessages]);
+
+  // Sync Project Memory Notes draft state when the active project changes
+  useEffect(() => {
+    setMemoryNotesDraft(activeProject?.memoryNotes || '');
+    setMemoryNotesEnabledDraft(!!activeProject?.memoryNotesEnabled);
+  }, [activeProject?.id]);
 
   const loadTemplates = async (uid: string) => {
     try {
@@ -1681,12 +1884,19 @@ const App: React.FC = () => {
         updatedAt: now,
         createdBy: user.uid,
         pinnedOutputs: [] as PinnedOutput[],
+        assignedTo: isTeamPlan ? (projectFormData.assignedTo || undefined) : undefined,
+        teamOwned: isTeamPlan && !!projectFormData.assignedTo,
+        sharedWith: [] as string[],
+        shareLinks: [] as ShareLink[],
+        exportCount: 0,
+        memoryNotes: projectFormData.initialNotes.trim() || '',
+        memoryNotesEnabled: !!projectFormData.initialNotes.trim(),
       };
       const docRef = await addDoc(collection(db, 'projects'), newProjectData);
       const created: ProjectBrief = { id: docRef.id, ...newProjectData };
       setProjects(prev => [created, ...prev]);
       setShowProjectForm(false);
-      setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' });
+      setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '', assignedTo: '', initialNotes: '' });
       logAudit('project.created', newProjectData.name, { projectId: docRef.id });
       showToast('Project created', 'success');
     } catch (e) {
@@ -1769,6 +1979,7 @@ const App: React.FC = () => {
 
   const exportProjectBrief = (project: ProjectBrief) => {
     logAudit('project.exported', project.name, { projectId: project.id, deliverableCount: (project.pinnedOutputs || []).length });
+    incrementExportCount(project.id);
     const pw = window.open('', '_blank');
     if (!pw) return;
     const statusLabel = project.status.charAt(0).toUpperCase() + project.status.slice(1);
@@ -1818,6 +2029,242 @@ const App: React.FC = () => {
     pw.document.write(html);
     pw.document.close();
     setTimeout(() => pw.print(), 400);
+  };
+
+  // ====== WORKSPACE SETTINGS (Egress Controls) ======
+  const saveWorkspaceSettings = async (newSettings: WorkspaceSettings) => {
+    if (!user) return;
+    const wsId = workspaceId || user.uid;
+    try {
+      await setDoc(doc(db, 'workspaces', wsId, 'settings', 'general'), { ...newSettings, updatedAt: Date.now(), updatedBy: user.uid }, { merge: true });
+      setWorkspaceSettings(newSettings);
+      logAudit('settings.updated', 'Workspace Settings', { changes: newSettings });
+      showToast('Workspace settings saved', 'success');
+    } catch (e) {
+      console.error('Save workspace settings err:', e);
+      showToast('Failed to save settings', 'error');
+    }
+  };
+
+  // ========== EXPORT DESTINATIONS ==========
+  const recordExport = async (deliverableId: string, projectId: string, destination: ExportRecord['destination'], fileType: ExportRecord['fileType'], recipientEmail?: string, versionLabel?: string) => {
+    if (!user) return;
+    const record: ExportRecord = {
+      id: `exp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      deliverableId,
+      projectId,
+      destination,
+      fileType,
+      exportedBy: user.displayName || user.email || user.uid,
+      exportedAt: Date.now(),
+      recipientEmail,
+      versionLabel,
+    };
+    // Save to Firestore
+    try {
+      const wsId = workspaceId || user.uid;
+      await addDoc(collection(db, 'workspaces', wsId, 'export_history'), record);
+      setExportHistory(prev => [record, ...prev]);
+      logAudit(`export.${destination}`, `Export ${fileType.toUpperCase()}`, { deliverableId, projectId, destination, recipientEmail });
+    } catch (e) { console.error('Record export err:', e); }
+    return record;
+  };
+
+  const loadExportHistory = async (deliverableId: string) => {
+    if (!user) return;
+    try {
+      const wsId = workspaceId || user.uid;
+      const q = query(collection(db, 'workspaces', wsId, 'export_history'), where('deliverableId', '==', deliverableId), orderBy('exportedAt', 'desc'));
+      const snap = await getDocs(q);
+      setExportHistory(snap.docs.map(d => d.data() as ExportRecord));
+    } catch (e) { console.error('Load export history err:', e); }
+  };
+
+  const exportToEmail = async (deliverable: PinnedOutput, project: ProjectBrief) => {
+    if (!user || !exportEmailTo.trim()) return;
+    if (!workspaceSettings.allowEmailExport) {
+      showToast('Email exports are disabled by workspace admin', 'error');
+      return;
+    }
+    setExportSending(true);
+    try {
+      // Generate HTML content for the email
+      const htmlContent = deliverable.type === 'image'
+        ? `<img src="${deliverable.content}" style="max-width:100%"/>`
+        : renderMarkdown(deliverable.content);
+
+      // Record the export
+      await recordExport(deliverable.id, project.id, 'email', 'html', exportEmailTo.trim(), deliverable.versionLabel);
+
+      // In a real implementation, this would call a Netlify function to send email
+      // For now, we create a mailto link with the content
+      const subject = encodeURIComponent(`[NovaMind] ${deliverable.title} — ${project.name}`);
+      const body = encodeURIComponent(`${deliverable.title}\n\nProject: ${project.name}\nType: ${deliverable.type}\nStatus: ${deliverable.status}\n\n---\n\n${deliverable.content.slice(0, 2000)}`);
+      window.open(`mailto:${exportEmailTo.trim()}?subject=${subject}&body=${body}`, '_self');
+
+      showToast(`Export sent to ${exportEmailTo.trim()}`, 'success');
+      setShowExportModal(null);
+      setExportEmailTo('');
+    } catch (e) {
+      console.error('Export to email err:', e);
+      showToast('Failed to send export', 'error');
+    } finally {
+      setExportSending(false);
+    }
+  };
+
+  const exportToDownload = async (deliverable: PinnedOutput, project: ProjectBrief, fileType: 'pdf' | 'docx') => {
+    if (!workspaceSettings.allowExternalExport) {
+      showToast('External exports are disabled by workspace admin', 'error');
+      return;
+    }
+    await recordExport(deliverable.id, project.id, 'download', fileType, undefined, deliverable.versionLabel);
+
+    if (fileType === 'pdf') {
+      const pw = window.open('', '_blank');
+      if (pw) {
+        pw.document.write('<html><head><title>' + deliverable.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + (deliverable.type === 'image' ? '<img src="' + deliverable.content + '" style="max-width:100%"/>' : renderMarkdown(deliverable.content)) + '</body></html>');
+        pw.document.close();
+        pw.print();
+      }
+    } else {
+      const html = '<html><head><meta charset="utf-8"><title>' + deliverable.title + '</title></head><body>' + renderMarkdown(deliverable.content) + '</body></html>';
+      const blob = new Blob([html], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = deliverable.title.replace(/[^a-z0-9]+/gi, '-') + '.doc';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    showToast(`${fileType.toUpperCase()} exported`, 'success');
+  };
+
+  // ====== SHARE LINKS ======
+  const createShareLink = async (projectId: string, scope: 'workspace' | 'specific' | 'public', allowedUsers?: string[], resourceType: 'project' | 'deliverable' = 'project', resourceId?: string) => {
+    if (!user) return;
+    if (!checkPermission(userRole, 'share', resourceType === 'project' ? 'project' : 'deliverable', { isTeam: isTeamPlan })) {
+      showToast('You do not have permission to share', 'error');
+      return;
+    }
+    try {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const newLink: ShareLink = {
+        id: `sl_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        scope,
+        permission: sharePermission,
+        resourceType,
+        resourceId: resourceId || projectId,
+        createdAt: Date.now(),
+        createdBy: user.displayName || user.email || user.uid,
+        allowedUsers: scope === 'specific' ? (allowedUsers || []) : undefined,
+      };
+      const updatedLinks = [...(project.shareLinks || []), newLink];
+      await updateDoc(doc(db, 'projects', projectId), { shareLinks: updatedLinks, updatedAt: Date.now() });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, shareLinks: updatedLinks, updatedAt: Date.now() } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, shareLinks: updatedLinks, updatedAt: Date.now() } : prev));
+      logAudit('share.created', project.name, { projectId, scope, permission: sharePermission, resourceType, linkId: newLink.id });
+
+      // Copy shareable URL to clipboard
+      const shareUrl = `${window.location.origin}/share/${resourceType}/${newLink.id}`;
+      try { await navigator.clipboard.writeText(shareUrl); showToast('Share link created and copied to clipboard', 'success'); }
+      catch { showToast('Share link created', 'success'); }
+    } catch (e) {
+      console.error('Create share link err:', e);
+      showToast('Failed to create share link', 'error');
+    }
+  };
+
+  const revokeShareLink = async (projectId: string, linkId: string) => {
+    try {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const updatedLinks = (project.shareLinks || []).filter(l => l.id !== linkId);
+      await updateDoc(doc(db, 'projects', projectId), { shareLinks: updatedLinks, updatedAt: Date.now() });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, shareLinks: updatedLinks, updatedAt: Date.now() } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, shareLinks: updatedLinks, updatedAt: Date.now() } : prev));
+      logAudit('share.revoked', project.name, { projectId, linkId });
+      showToast('Share link revoked', 'info');
+    } catch (e) {
+      console.error('Revoke share link err:', e);
+      showToast('Failed to revoke share link', 'error');
+    }
+  };
+
+  // ====== APPROVALS WORKFLOW ======
+  const updateDeliverableStatus = async (projectId: string, outputId: string, newStatus: PinnedOutput['status'], reviewNote?: string) => {
+    if (!user) return;
+    try {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const target = (project.pinnedOutputs || []).find(o => o.id === outputId);
+      if (!target) return;
+      const fromStatus = target.status || 'draft';
+      const updatedOutputs = (project.pinnedOutputs || []).map(o => {
+        if (o.id !== outputId) return o;
+        const next: PinnedOutput = { ...o, status: newStatus };
+        if (newStatus === 'approved') {
+          next.approvedBy = user.displayName || user.email || 'Unknown';
+          next.approvedAt = Date.now();
+        }
+        if (reviewNote && reviewNote.trim()) {
+          next.reviewNotes = [...(o.reviewNotes || []), { text: reviewNote.trim(), author: user.displayName || user.email || 'Unknown', timestamp: Date.now() }];
+        }
+        return next;
+      });
+      await updateDoc(doc(db, 'projects', projectId), { pinnedOutputs: updatedOutputs, updatedAt: Date.now() });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : prev));
+      logAudit('deliverable.status_changed', target.title, { from: fromStatus, to: newStatus, reviewNote: reviewNote || undefined });
+      showToast('Status updated', 'success');
+    } catch (e) {
+      console.error('Update deliverable status err:', e);
+      showToast('Failed to update status', 'error');
+    }
+  };
+
+  const addReviewNote = async (projectId: string, outputId: string, text: string) => {
+    if (!user || !text.trim()) return;
+    try {
+      const project = projects.find(p => p.id === projectId);
+      if (!project) return;
+      const updatedOutputs = (project.pinnedOutputs || []).map(o => {
+        if (o.id !== outputId) return o;
+        return { ...o, reviewNotes: [...(o.reviewNotes || []), { text: text.trim(), author: user.displayName || user.email || 'Unknown', timestamp: Date.now() }] };
+      });
+      await updateDoc(doc(db, 'projects', projectId), { pinnedOutputs: updatedOutputs, updatedAt: Date.now() });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, pinnedOutputs: updatedOutputs, updatedAt: Date.now() } : prev));
+      showToast('Note added', 'success');
+    } catch (e) {
+      console.error('Add review note err:', e);
+      showToast('Failed to add note', 'error');
+    }
+  };
+
+  // ====== PROJECT MEMORY / NOTES ======
+  const saveMemoryNotes = async (projectId: string, notes: string, enabled: boolean) => {
+    try {
+      await updateDoc(doc(db, 'projects', projectId), { memoryNotes: notes, memoryNotesEnabled: enabled, updatedAt: Date.now() });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, memoryNotes: notes, memoryNotesEnabled: enabled, updatedAt: Date.now() } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, memoryNotes: notes, memoryNotesEnabled: enabled, updatedAt: Date.now() } : prev));
+      logAudit('project.memory_updated', projectId, { enabled, length: notes.length });
+      showToast('Project memory saved', 'success');
+    } catch (e) {
+      console.error('Save memory notes err:', e);
+      showToast('Failed to save project memory', 'error');
+    }
+  };
+
+  const incrementExportCount = async (projectId: string) => {
+    try {
+      await updateDoc(doc(db, 'projects', projectId), { exportCount: increment(1) });
+      setProjects(prev => prev.map(p => (p.id === projectId ? { ...p, exportCount: (p.exportCount || 0) + 1 } : p)));
+      setActiveProject(prev => (prev && prev.id === projectId ? { ...prev, exportCount: (prev.exportCount || 0) + 1 } : prev));
+    } catch (e) {
+      console.error('Increment export count err:', e);
+    }
   };
 
   const saveTemplate = async () => {
@@ -2144,6 +2591,32 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKbd);
   }, []);
 
+  // ===== Smart Post-Login Routing (Workflow Spine Sprint) =====
+  // Runs once per session after auth + projects have loaded. Sends returning users with
+  // an active project and prior usage straight into Studio; everyone else lands on the
+  // Dashboard work launcher. Deep-link share views always take priority.
+  const smartRoutedRef = useRef(false);
+  useEffect(() => {
+    if (!user || loading || projectsLoading) return;
+    if (smartRoutedRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (shareViewToken || params.get('share')) return; // preserve deep-link handling
+    smartRoutedRef.current = true;
+    if (projects.length === 0) return; // no projects yet — stay on Dashboard
+    const lastActiveId = localStorage.getItem('novamind-last-active-project');
+    const remembered = lastActiveId ? projects.find(p => p.id === lastActiveId && p.status === 'active') : null;
+    const candidate = remembered || (activeProject && activeProject.status === 'active' ? activeProject : null);
+    if (!candidate) return; // projects exist but nothing recently active — stay on Dashboard
+    if (usage.used > 0) {
+      if (!activeProject || activeProject.id !== candidate.id) setActiveProject(candidate);
+      switchTab('create');
+    }
+  }, [user, loading, projectsLoading, projects, activeProject, usage.used, shareViewToken]);
+
+  // Remember the active project across sessions/reloads
+  useEffect(() => {
+    if (activeProject?.id) localStorage.setItem('novamind-last-active-project', activeProject.id);
+  }, [activeProject?.id]);
 
   const ONBOARDING_USES = [
     { id: 'content', label: '✍️ Content Writing', desc: 'Blog posts, articles, copy' },
@@ -3401,8 +3874,161 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
     return date.toLocaleDateString();
   };
 
+  // ===== Shared Enterprise Icon Set (SVG, no emoji) — Workflow Spine Sprint =====
+  const ICONS: Record<string, (size?: number) => JSX.Element> = {
+    home: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" /></svg>),
+    studio: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8" /></svg>),
+    crm: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="14" rx="2" /><path d="M3 9h18M8 4v5" /></svg>),
+    projects: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>),
+    inbox: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h4l2 3h6l2-3h4" /><path d="M5 5h14l2 7v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6l2-7z" /></svg>),
+    gallery: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5L5 21" /></svg>),
+    chats: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>),
+    templates: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>),
+    analytics: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" /></svg>),
+    integrations: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>),
+    admin: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>),
+    profile: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18" /></svg>),
+    team: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>),
+    agents: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="7" width="16" height="12" rx="2" /><path d="M9 7V5a3 3 0 0 1 6 0v2M9 13h.01M15 13h.01" /></svg>),
+    folder: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>),
+    plus: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M12 5v14M5 12h14" /></svg>),
+    edit: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>),
+    archive: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="4" rx="1" /><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8M10 13h4" /></svg>),
+    trash: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2m2 0-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /></svg>),
+    download: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 19h16" /></svg>),
+    spark: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M17.5 17.5 15 15M6 18l2.5-2.5M17.5 6.5 15 9" /></svg>),
+    empty: (size = 48) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>),
+    chevronDown: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>),
+    chevronRight: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6l6 6-6 6" /></svg>),
+    layers: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2 3 7l9 5 9-5-9-5z" /><path d="M3 12l9 5 9-5" /><path d="M3 17l9 5 9-5" /></svg>),
+    share: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 10.6l6.8-3.9M8.6 13.4l6.8 3.9" /></svg>),
+    check: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M20 6 9 17l-5-5" /></svg>),
+    users: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>),
+    lock: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>),
+    back: (size = 18) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>),
+    pin: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 17v5M9 3h6l1 6-3 2v0l-3-2 1-6z" /><path d="M6 10h12" /></svg>),
+    unpin: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>),
+    close: (size = 14) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>),
+    alert: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v4M12 17h.01" /><path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>),
+    panel: (size = 16) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M15 3v18" /></svg>),
+  };
+
+  // ===== Reusable Page Header (App Shell Polish — Workflow Spine Sprint) =====
+  const PageHeader = ({ title, breadcrumbs, primaryAction, secondaryActions }: {
+    title: string;
+    breadcrumbs?: { label: string; onClick?: () => void }[];
+    primaryAction?: { label: string; onClick: () => void };
+    secondaryActions?: { label: string; onClick: () => void }[];
+  }) => (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-color, #e5e7eb)', flexWrap: 'wrap', gap: '12px' }}>
+      <div>
+        {breadcrumbs && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            {breadcrumbs.map((bc, i) => (
+              <React.Fragment key={i}>
+                {i > 0 && <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>/</span>}
+                <button onClick={bc.onClick} style={{ background: 'none', border: 'none', padding: 0, fontSize: '12px', color: bc.onClick ? '#008080' : 'var(--text-secondary)', cursor: bc.onClick ? 'pointer' : 'default', fontWeight: 500 }}>{bc.label}</button>
+              </React.Fragment>
+            ))}
+          </div>
+        )}
+        <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{title}</h2>
+      </div>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        {secondaryActions?.map((sa, i) => (
+          <button key={i} onClick={sa.onClick} style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>{sa.label}</button>
+        ))}
+        {primaryAction && (
+          <button onClick={primaryAction.onClick} style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{primaryAction.label}</button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="app-container" data-theme={theme}>
+      {/* ===== SHARE LANDING VIEW ===== */}
+      {shareViewToken && shareViewData && (
+        <div style={{ position: 'fixed', inset: 0, background: '#f9fafb', zIndex: 300, overflowY: 'auto' }}>
+          <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <img src="/novamind-logo.png" alt="NovaMind" style={{ height: '32px' }} onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <span style={{ fontSize: '16px', fontWeight: 700, color: '#101828' }}>NovaMind</span>
+              </div>
+              <button onClick={() => { setShareViewToken(null); setShareViewData(null); window.history.replaceState({}, '', window.location.pathname); }}
+                style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                Go to App
+              </button>
+            </div>
+
+            {shareViewData.error ? (
+              <div style={{ textAlign: 'center', padding: '64px 24px' }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔒</div>
+                <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#101828', margin: '0 0 8px' }}>Access Denied</h2>
+                <p style={{ fontSize: '14px', color: '#667085', maxWidth: '400px', margin: '0 auto' }}>{shareViewData.error}</p>
+              </div>
+            ) : shareViewData.deliverable ? (
+              <div>
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.06)', color: '#008080', textTransform: 'capitalize' }}>{shareViewData.deliverable.type}</span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: shareViewData.deliverable.status === 'approved' ? 'rgba(18,183,106,0.08)' : 'rgba(102,112,133,0.08)', color: shareViewData.deliverable.status === 'approved' ? '#12b76a' : '#667085', textTransform: 'capitalize' }}>{shareViewData.deliverable.status}</span>
+                    {shareViewData.deliverable.versionLabel && <span style={{ fontSize: '10px', color: '#98a2b3' }}>{shareViewData.deliverable.versionLabel}</span>}
+                  </div>
+                  <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#101828', margin: '0 0 4px' }}>{shareViewData.deliverable.title}</h1>
+                  <p style={{ fontSize: '13px', color: '#667085', margin: 0 }}>From project: {shareViewData.project?.name}</p>
+                </div>
+                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '32px', lineHeight: 1.7, fontSize: '14px', color: '#344054' }}>
+                  {shareViewData.deliverable.type === 'image' ? (
+                    <img src={shareViewData.deliverable.content} alt={shareViewData.deliverable.title} style={{ maxWidth: '100%', borderRadius: '4px' }} />
+                  ) : (
+                    <div dangerouslySetInnerHTML={{ __html: renderMarkdown(shareViewData.deliverable.content) }} />
+                  )}
+                </div>
+                {shareViewData.link?.permission !== 'edit' && (
+                  <p style={{ fontSize: '11px', color: '#98a2b3', textAlign: 'center', marginTop: '16px' }}>This is a view-only share. Contact the project owner to request edit access.</p>
+                )}
+              </div>
+            ) : shareViewData.project ? (
+              <div>
+                <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#101828', margin: '0 0 8px' }}>{shareViewData.project.name}</h1>
+                <p style={{ fontSize: '14px', color: '#667085', margin: '0 0 24px' }}>{shareViewData.project.objective}</p>
+                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '24px', marginBottom: '24px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#101828', margin: '0 0 16px' }}>Project Brief</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                    {shareViewData.project.targetAudience && <div><div style={{ fontSize: '11px', fontWeight: 600, color: '#667085', textTransform: 'uppercase', marginBottom: '4px' }}>Target Audience</div><div style={{ fontSize: '13px', color: '#344054' }}>{shareViewData.project.targetAudience}</div></div>}
+                    {shareViewData.project.constraints && <div><div style={{ fontSize: '11px', fontWeight: 600, color: '#667085', textTransform: 'uppercase', marginBottom: '4px' }}>Constraints</div><div style={{ fontSize: '13px', color: '#344054' }}>{shareViewData.project.constraints}</div></div>}
+                    {shareViewData.project.brandVoice && <div><div style={{ fontSize: '11px', fontWeight: 600, color: '#667085', textTransform: 'uppercase', marginBottom: '4px' }}>Brand Voice</div><div style={{ fontSize: '13px', color: '#344054' }}>{shareViewData.project.brandVoice}</div></div>}
+                  </div>
+                </div>
+                {(shareViewData.project.pinnedOutputs || []).length > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: '14px', fontWeight: 700, color: '#101828', margin: '0 0 16px' }}>Deliverables ({(shareViewData.project.pinnedOutputs || []).length})</h3>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {(shareViewData.project.pinnedOutputs || []).map(o => (
+                        <div key={o.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 600, color: '#101828' }}>{o.title}</span>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.06)', color: '#008080', textTransform: 'capitalize' }}>{o.type}</span>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: o.status === 'approved' ? 'rgba(18,183,106,0.08)' : 'rgba(102,112,133,0.08)', color: o.status === 'approved' ? '#12b76a' : '#667085', textTransform: 'capitalize' }}>{o.status}</span>
+                          </div>
+                          {o.type !== 'image' && <p style={{ fontSize: '13px', color: '#667085', margin: 0 }}>{o.content.slice(0, 200)}{o.content.length > 200 ? '...' : ''}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            <div style={{ textAlign: 'center', marginTop: '48px', paddingTop: '24px', borderTop: '1px solid #e5e7eb' }}>
+              <p style={{ fontSize: '12px', color: '#98a2b3', margin: 0 }}>Shared via NovaMind AI Hub · A Product of The PIE Group</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Enterprise styles extracted to enterprise.css */}
       <nav className="navbar">
         <div className="logo-section">
@@ -3481,11 +4107,11 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
         <aside className={`left-sidebar ${sidebarOpen ? 'open' : ''}`}>
           <p className="sidebar-section-label">Primary</p>
           {([
-            { id: 'home' as Tab, icon: '▦', name: 'Dashboard', roi: null },
-            { id: 'create' as Tab, icon: '◎', name: 'AI Studio', roi: `${usage.used} outputs` },
-            { id: 'crm' as Tab, icon: '📇', name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
-            { id: 'projects' as Tab, icon: '📋', name: 'Projects', roi: projects.length > 0 ? `${projects.length} project${projects.length === 1 ? '' : 's'}` : null },
-            { id: 'inbox' as Tab, icon: '✉', name: 'Inbox', comingSoon: true, roi: null },
+            { id: 'home' as Tab, icon: ICONS.home(), name: 'Dashboard', roi: null },
+            { id: 'create' as Tab, icon: ICONS.studio(), name: 'AI Studio', roi: `${usage.used} outputs` },
+            { id: 'crm' as Tab, icon: ICONS.crm(), name: 'CRM', comingSoon: !['solopreneur','team','business','business_pro'].includes(usage.plan), roi: null },
+            { id: 'projects' as Tab, icon: ICONS.projects(), name: 'Projects', roi: projects.length > 0 ? `${projects.length} project${projects.length === 1 ? '' : 's'}` : null },
+            { id: 'inbox' as Tab, icon: ICONS.inbox(), name: 'Inbox', comingSoon: true, roi: null },
           ] as const).map(item => (
             <button key={item.id} className={`sidebar-item ${tab === item.id ? 'active' : ''} ${'comingSoon' in item && item.comingSoon ? 'coming-soon' : ''}`}
               onClick={() => { if (!('comingSoon' in item && item.comingSoon)) { switchTab(item.id as Tab); setSidebarOpen(false); } }}>
@@ -3500,7 +4126,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           <p className="sidebar-section-label">Tools & Content</p>
           {/* Expandable AI Agents */}
           <button className="sidebar-agents-toggle" onClick={() => setSidebarOpen(prev => prev)}>
-            <span className="sidebar-item-icon">🤖</span>
+            <span className="sidebar-item-icon">{ICONS.agents()}</span>
             <span className="sidebar-item-name">AI Agents</span>
             <span className="sidebar-item-badge" style={{ background: 'var(--primary)' }}>{AGENTS.length}</span>
           </button>
@@ -3516,16 +4142,16 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           </div>
           <button className={`sidebar-item ${tab === 'gallery' ? 'active' : ''}`}
             onClick={() => { switchTab('gallery'); setSidebarOpen(false); }}>
-            <span className="sidebar-item-icon">🖼️</span>
+            <span className="sidebar-item-icon">{ICONS.gallery()}</span>
             <span className="sidebar-item-name">Gallery</span>
           </button>
           <button className={`sidebar-item ${tab === 'chats' ? 'active' : ''}`}
             onClick={() => { switchTab('chats'); setSidebarOpen(false); }}>
-            <span className="sidebar-item-icon">💬</span>
+            <span className="sidebar-item-icon">{ICONS.chats()}</span>
             <span className="sidebar-item-name">Chat History</span>
           </button>
           <button className={`sidebar-item ${tab === 'templates' ? 'active' : ''} coming-soon`}>
-            <span className="sidebar-item-icon">▧</span>
+            <span className="sidebar-item-icon">{ICONS.templates()}</span>
             <span className="sidebar-item-name">Templates</span>
             <span className="sidebar-item-badge">SOON</span>
           </button>
@@ -3533,12 +4159,12 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           <div className="sidebar-divider" />
           <p className="sidebar-section-label">Insights</p>
           <button className={`sidebar-item ${tab === 'analytics' ? 'active' : ''} coming-soon`}>
-            <span className="sidebar-item-icon">📈</span>
+            <span className="sidebar-item-icon">{ICONS.analytics()}</span>
             <span className="sidebar-item-name">Analytics</span>
             <span className="sidebar-item-badge">SOON</span>
           </button>
           <button className={`sidebar-item ${tab === 'integrations' ? 'active' : ''} coming-soon`}>
-            <span className="sidebar-item-icon">⛓</span>
+            <span className="sidebar-item-icon">{ICONS.integrations()}</span>
             <span className="sidebar-item-name">Integrations</span>
             <span className="sidebar-item-badge">SOON</span>
           </button>
@@ -3546,19 +4172,19 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           <div className="sidebar-divider" />
           <p className="sidebar-section-label">Account</p>
           <button className="sidebar-item" onClick={() => { openProfileModal(); setSidebarOpen(false); }}>
-            <span className="sidebar-item-icon">🏢</span>
+            <span className="sidebar-item-icon">{ICONS.profile()}</span>
             <span className="sidebar-item-name">Business Profile</span>
             {!businessProfile?.businessName && <span className="sidebar-item-badge" style={{ background: '#ef4444' }}>SET UP</span>}
           </button>
           <button className="sidebar-item" onClick={() => { setProfileTab('team'); setShowProfileModal(true); setSidebarOpen(false); }}>
-            <span className="sidebar-item-icon">👥</span>
+            <span className="sidebar-item-icon">{ICONS.team()}</span>
             <span className="sidebar-item-name">Team</span>
             {teamMembers.length > 0 && <span className="sidebar-item-badge" style={{ background: '#22c55e' }}>{teamMembers.length}</span>}
           </button>
           {canAdmin && (
             <button className={`sidebar-item ${tab === 'admin' ? 'active' : ''}`}
               onClick={() => { switchTab('admin' as Tab); setSidebarOpen(false); loadAuditLogs(); }}>
-              <span className="sidebar-item-icon">🔐</span>
+              <span className="sidebar-item-icon">{ICONS.admin()}</span>
               <span className="sidebar-item-name">Admin</span>
             </button>
           )}
@@ -3661,563 +4287,213 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           </>
         )}
-        {tab === 'home' && !isPersonalMode && (<>
-          <div className="hero-section">
-            <h1 className="hero-title">{user?.displayName ? `Welcome back, ${user.displayName.split(' ')[0]}! ✨` : 'Create Amazing Content with AI'}</h1>
-            <p className="hero-subtitle">{user?.displayName ? `What can I help you with today?` : 'Content, emails, images and more — powered by premium AI at a fraction of the cost.'}</p>
-            <button className="nav-btn btn-primary btn-lg" onClick={() => switchTab('create')}>Start Creating</button>
-          </div>
+        {tab === 'home' && !isPersonalMode && (() => {
+          const allDeliverables = projects.flatMap(p => (p.pinnedOutputs || []).map(o => ({ ...o, projectId: p.id, projectName: p.name })));
+          const recentDeliverables = [...allDeliverables].sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0)).slice(0, 5);
+          const anyShared = projects.some(p => (p.shareLinks || []).length > 0);
+          const hasProjects = projects.length > 0;
+          const hasOutputs = usage.used > 0;
+          const hasPinned = allDeliverables.length > 0;
+          const dashStatusColors: Record<string, { bg: string; fg: string }> = {
+            active: { bg: 'rgba(0,128,128,0.08)', fg: '#008080' },
+            completed: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' },
+            archived: { bg: 'rgba(102,112,133,0.1)', fg: '#667085' },
+          };
+          const dashDeliverableStatusColors: Record<string, { bg: string; fg: string }> = {
+            draft: { bg: 'rgba(245,158,11,0.1)', fg: '#b45309' },
+            'in-review': { bg: '#fff7ed', fg: '#c2410c' },
+            approved: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' },
+            archived: { bg: '#f1f5f9', fg: '#64748b' },
+          };
+          const openStudioForProject = (p: ProjectBrief) => { setActiveProject(p); switchTab('create'); };
+          const createFirstProject = () => {
+            setBrandVoiceMode('workspace');
+            setEditingProject(null);
+            setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '', assignedTo: '', initialNotes: '' });
+            setShowProjectForm(true);
+            switchTab('projects');
+          };
+          const nextBestAction: { label: string; onClick: () => void } = (() => {
+            if (!businessProfile?.businessName) return { label: 'Set Up Business Profile', onClick: () => openProfileModal() };
+            if (!hasProjects) return { label: 'Create Your First Project', onClick: createFirstProject };
+            if (!hasOutputs) return { label: 'Generate Your First Output', onClick: () => switchTab('create') };
+            if (!hasPinned) return { label: 'Pin Your Best Work', onClick: () => switchTab('create') };
+            if (!anyShared) return { label: 'Share with Your Team', onClick: () => { if (activeProject) { setShowShareModal('project'); } else { switchTab('create'); setStudioSidePanel(true); setSidePanelTab('distribute'); } } };
+            return { label: 'Open Studio', onClick: () => switchTab('create') };
+          })();
 
-          {/* 🎯 First Value CTA */}
-          {!hasFirstValue && !dashboardLoading && (
-            <div className="first-value-banner">
-              <div className="first-value-icon">🚀</div>
-              <div className="first-value-content">
-                <h3 className="first-value-title">Create Your First Output</h3>
-                <p className="first-value-desc">Try any AI tool — draft an email, generate a logo, write a proposal. Your first creation is just one click away.</p>
-              </div>
-              <button className="nav-btn btn-primary" onClick={() => switchTab('create')} style={{ whiteSpace: 'nowrap' as const }}>✨ Let's Go</button>
-            </div>
-          )}
+          return (
+            <>
+              <PageHeader
+                title="Dashboard"
+                breadcrumbs={[{ label: 'Home' }]}
+                primaryAction={{ label: 'Open Studio', onClick: () => switchTab('create') }}
+              />
 
-          {/* 📊 ROI COCKPIT — skeleton loader */}
-          {dashboardLoading ? (
-            <div className="skeleton-cockpit">
-              <div className="skeleton-cockpit-header">
-                <div className="skeleton-block" style={{ width: '44px', height: '44px', borderRadius: '14px' }}></div>
-                <div style={{ flex: 1 }}>
-                  <div className="skeleton-block" style={{ width: '160px', height: '18px', marginBottom: '6px' }}></div>
-                  <div className="skeleton-block" style={{ width: '240px', height: '12px' }}></div>
+              {/* ===== A) Continue Working ===== */}
+              {dashboardLoading ? (
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', marginBottom: '24px' }}>
+                  <div className="skeleton-block" style={{ width: '180px', height: '18px', marginBottom: '10px' }}></div>
+                  <div className="skeleton-block" style={{ width: '260px', height: '13px', marginBottom: '16px' }}></div>
+                  <div className="skeleton-block" style={{ width: '140px', height: '36px' }}></div>
                 </div>
-              </div>
-              <div className="skeleton-kpi-grid">
-                {[0,1,2,3].map(i => (
-                  <div key={i} className="skeleton-kpi-card">
-                    <div className="skeleton-block" style={{ width: '28px', height: '28px', borderRadius: '8px', marginBottom: '8px' }}></div>
-                    <div className="skeleton-block" style={{ width: '80px', height: '24px', marginBottom: '6px' }}></div>
-                    <div className="skeleton-block" style={{ width: '120px', height: '11px' }}></div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: '16px' }}>
-                <div className="skeleton-block" style={{ width: '100%', height: '10px', borderRadius: '999px' }}></div>
-              </div>
-              {/* Skeleton agents */}
-              <div style={{ padding: '16px', paddingTop: '0' }}>
-                <div className="skeleton-block" style={{ width: '140px', height: '18px', marginBottom: '14px' }}></div>
-                <div className="agent-grid">
-                  {[0,1,2,3,4,5].map(i => (
-                    <div key={i} className="skeleton-agent-card">
-                      <div className="skeleton-block" style={{ width: '36px', height: '36px', borderRadius: '12px', margin: '0 auto 8px' }}></div>
-                      <div className="skeleton-block" style={{ width: '70px', height: '13px', margin: '0 auto 4px' }}></div>
-                      <div className="skeleton-block" style={{ width: '100px', height: '11px', margin: '0 auto' }}></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : null}
-
-          {!dashboardLoading && (<>
-
-          {/* 📊 AI ROI COCKPIT */}
-          <div style={{
-            borderRadius: '20px', overflow: 'hidden', marginBottom: '28px',
-            background: 'rgba(0,128,128,0.06)',
-            border: '1px solid rgba(0,128,128,0.15)',
-          }}>
-            {/* Cockpit Header */}
-            <div style={{
-              padding: '20px 20px 16px',
-              background: 'rgba(0,128,128,0.1)',
-              borderBottom: '1px solid rgba(0,128,128,0.1)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{
-                    width: '44px', height: '44px', borderRadius: '14px',
-                    background: '#008080',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '22px', flexShrink: 0,
-                    boxShadow: '0 4px 16px rgba(0,128,128,0.35)',
-                  }}>📊</div>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, background: '#008080', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                      AI ROI Cockpit
+              ) : (
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '20px', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px', flexWrap: 'wrap', gap: '12px' }}>
+                    <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ color: '#008080', display: 'flex' }}>{ICONS.studio()}</span> Continue Working
                     </h3>
-                    <p style={{ margin: '2px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
-                      Your business intelligence dashboard — powered by AI
-                    </p>
-                  </div>
-                </div>
-                {/* AI Impact Score Ring */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    position: 'relative' as const, width: '56px', height: '56px',
-                  }}>
-                    <svg viewBox="0 0 36 36" style={{ width: '56px', height: '56px', transform: 'rotate(-90deg)' }}>
-                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(0,128,128,0.15)" strokeWidth="3" />
-                      <circle cx="18" cy="18" r="15.5" fill="none" stroke="url(#scoreGrad)" strokeWidth="3" strokeDasharray={`${growthScore * 0.975} 100`} strokeLinecap="round" />
-                      <defs><linearGradient id="scoreGrad"><stop offset="0%" stopColor="#008080"/><stop offset="100%" stopColor="#06b6d4"/></linearGradient></defs>
-                    </svg>
-                    <div style={{ position: 'absolute' as const, top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: '15px', fontWeight: 800, color: 'var(--primary, #008080)' }}>{growthScore}</div>
-                  </div>
-                  <div style={{ textAlign: 'left' as const }}>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>AI Impact Score</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{completedMissions.length} of {MISSIONS.length} milestones</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* KPI Cards — 2x2 Grid */}
-            <div style={{ padding: '16px 16px 0', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
-              {/* Hours Saved */}
-              <div style={{
-                borderRadius: '14px', padding: '16px',
-                background: 'rgba(0,128,128,0.06)',
-                border: '1px solid rgba(0,128,128,0.18)',
-                transition: 'all 0.3s ease', cursor: 'default',
-              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
-                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>⏱️</div>
-                <div style={{ fontSize: '24px', fontWeight: 800, color: '#008080', lineHeight: 1.1 }}>{hoursEstSaved} hrs</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Time back in your day</div>
-              </div>
-              {/* Value Created */}
-              <div style={{
-                borderRadius: '14px', padding: '16px',
-                background: 'rgba(34,197,94,0.06)',
-                border: '1px solid rgba(34,197,94,0.18)',
-                transition: 'all 0.3s ease', cursor: 'default',
-              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
-                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>💰</div>
-                <div style={{ fontSize: '24px', fontWeight: 800, color: '#22c55e', lineHeight: 1.1 }}>${dollarValueCreated.toLocaleString()}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Equivalent freelancer cost</div>
-              </div>
-              {/* Tools Replaced */}
-              <div style={{
-                borderRadius: '14px', padding: '16px',
-                background: 'rgba(6,182,212,0.06)',
-                border: '1px solid rgba(6,182,212,0.18)',
-                transition: 'all 0.3s ease', cursor: 'default',
-              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
-                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>🔧</div>
-                <div style={{ fontSize: '24px', fontWeight: 800, color: '#06b6d4', lineHeight: 1.1 }}>{toolsReplacedCount} <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>of 11</span></div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>vs. paying for each separately</div>
-              </div>
-              {/* ROI Score */}
-              <div style={{
-                borderRadius: '14px', padding: '16px',
-                background: 'rgba(245,158,11,0.06)',
-                border: '1px solid rgba(245,158,11,0.18)',
-                transition: 'all 0.3s ease', cursor: 'default',
-              }} onMouseEnter={(e: any) => e.currentTarget.style.transform = 'scale(1.03)'}
-                 onMouseLeave={(e: any) => e.currentTarget.style.transform = 'scale(1)'}>
-                <div style={{ fontSize: '20px', marginBottom: '4px' }}>📈</div>
-                <div style={{ fontSize: '24px', fontWeight: 800, color: '#f59e0b', lineHeight: 1.1 }}>{usage.plan !== 'free' ? `${Math.round((dollarValueCreated / (usage.plan === 'solopreneur' ? 49 : 149)) * 100) / 100}x` : '∞'}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>Return on your investment</div>
-              </div>
-            </div>
-
-            {/* Usage Bar + Stats */}
-            <div style={{ padding: '16px' }}>
-              {/* Usage Bar */}
-              <div style={{ marginBottom: '14px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Monthly Usage</span>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{usage.used}/{usage.plan === 'business' || usage.plan === 'solopreneur' || usage.plan === 'team' || usage.plan === 'business_pro' ? '∞' : usage.limit}</span>
-                </div>
-                <div style={{ width: '100%', height: '10px', borderRadius: '999px', background: 'rgba(0,128,128,0.10)', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${pct}%`, height: '100%', borderRadius: '999px',
-                    background: pct >= 100 ? '#ef4444' : pct > 80 ? '#f59e0b' : '#008080',
-                    transition: 'width 0.5s ease',
-                  }} />
-                </div>
-              </div>
-              {/* Upgrade nudges for free users */}
-              {usage.plan === 'free' && pct >= 80 && pct < 100 && (
-                <div style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(251,191,36,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
-                  <span style={{ fontSize: '20px' }}>⚡</span>
-                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>Only <strong>{usage.limit - usage.used}</strong> generations left this month! <span style={{ color: 'var(--primary, #008080)', fontWeight: 700, textDecoration: 'underline' }}>Upgrade for unlimited →</span></span>
-                </div>
-              )}
-              {usage.plan === 'free' && pct >= 100 && (
-                <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '12px 16px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => setShowUpgradeModal(true)}>
-                  <span style={{ fontSize: '20px' }}>🚀</span>
-                  <span style={{ fontSize: '13px', color: 'var(--text-primary)', fontWeight: 500 }}>You&apos;ve used all free generations! <span style={{ color: 'var(--primary, #008080)', fontWeight: 700, textDecoration: 'underline' }}>Unlock unlimited access →</span></span>
-                </div>
-              )}
-              {/* Stats Breakdown */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '14px' }}>
-                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.12)' }}>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary, #008080)' }}>{usage.used}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.totalGenerations}</div>
-                </div>
-                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(34,197,94,0.06)', border: '1px solid rgba(34,197,94,0.12)' }}>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#22c55e' }}>{history.filter(h => h.contentType === 'text').length}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.textGens}</div>
-                </div>
-                <div style={{ textAlign: 'center' as const, padding: '12px 8px', borderRadius: '12px', background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.12)' }}>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#006666' }}>{history.filter(h => h.contentType === 'image' || h.model === 'gpt-image-1').length}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>{t.imageGens}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* ROI Milestones — collapsible */}
-            <div style={{ padding: '0 16px 16px' }}>
-              <div style={{
-                borderRadius: '14px', overflow: 'hidden',
-                background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,128,128,0.12)',
-              }}>
-                <div style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '14px 16px', cursor: 'pointer',
-                  background: 'rgba(0,128,128,0.04)',
-                }} onClick={() => setShowMilestones(!showMilestones)}>
-                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    🏁 ROI Milestones
-                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>({completedMissions.length}/{MISSIONS.length})</span>
-                  </h4>
-                  <span style={{
-                    fontSize: '12px', color: 'var(--primary, #008080)', fontWeight: 700,
-                    transition: 'transform 0.3s ease',
-                    display: 'inline-block',
-                    transform: showMilestones ? 'rotate(180deg)' : 'rotate(0deg)',
-                  }}>▼</span>
-                </div>
-                {showMilestones && (
-                  <div style={{ padding: '8px 12px 12px' }}>
-                    {MISSIONS.map((mission, idx) => {
-                      const isComplete = completedMissions.includes(mission.id);
-                      const isPrevComplete = idx === 0 || completedMissions.includes(MISSIONS[idx - 1].id);
-                      const isActive = !isComplete && isPrevComplete;
-                      const isLocked = !isComplete && !isPrevComplete;
-                      const isCelebrating = showMissionCelebration === mission.id;
-                      return (
-                        <div key={mission.id} style={{
-                          display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', marginBottom: '8px',
-                          borderRadius: '14px', cursor: isActive ? 'pointer' : isComplete ? 'default' : 'not-allowed',
-                          background: isCelebrating ? 'rgba(34,197,94,0.1)' : isActive ? 'rgba(0,128,128,0.08)' : isComplete ? 'rgba(34,197,94,0.06)' : 'rgba(128,128,128,0.04)',
-                          border: isCelebrating ? '2px solid rgba(34,197,94,0.4)' : isActive ? '2px solid rgba(0,128,128,0.3)' : '1px solid rgba(128,128,128,0.1)',
-                          opacity: isLocked ? 0.45 : 1,
-                          transition: 'all 0.3s ease',
-                          transform: isCelebrating ? 'scale(1.02)' : 'scale(1)',
-                        }} onClick={() => {
-                          if (isLocked) return;
-                          if (isComplete) {
-                            if (mission.action === 'profile') { setShowProfileModal(true); }
-                            else {
-                              setGalleryAgentFilter(mission.agentMode || (mission.action === 'action-plan' ? 'general' : null));
-                              switchTab('gallery');
-                            }
-                            return;
-                          }
-                          if (mission.action === 'profile') { setShowProfileModal(true); }
-                          else if (mission.action === 'action-plan') {
-                            setAgentMode('general');
-                            setPrompt(`Create my personalized 90-Day Action Plan based on my business profile. Include specific weekly milestones, revenue targets, and marketing tactics.`);
-                            switchTab('create');
-                          }
-                          else if (mission.agentMode) { setAgentMode(mission.agentMode as AgentMode); setPrompt(''); switchTab('create'); }
-                        }}>
-                          <div style={{
-                            width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                            fontSize: isComplete ? '18px' : '14px', fontWeight: 800,
-                            background: isComplete ? '#22c55e' : isActive ? '#008080' : 'rgba(128,128,128,0.15)',
-                            color: isComplete || isActive ? '#fff' : 'var(--text-secondary)',
-                            boxShadow: isActive ? '0 0 12px rgba(0,128,128,0.3)' : 'none',
-                          }}>
-                            {isComplete ? '✓' : isLocked ? '🔒' : mission.step}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '14px', fontWeight: isActive ? 700 : 600, color: isComplete ? '#22c55e' : 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <span>{mission.icon}</span>
-                              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mission.title}</span>
-                              {isCelebrating && <span style={{ fontSize: '16px', animation: 'pulse 0.5s ease-in-out' }}>🎉</span>}
-                            </div>
-                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {isComplete ? 'Completed! Tap to view →' : mission.subtitle}
-                            </div>
-                          </div>
-                          <div style={{ flexShrink: 0, fontSize: '16px', color: isComplete ? '#22c55e' : isActive ? 'var(--primary, #008080)' : 'var(--text-secondary)' }}>
-                            {isComplete ? '👁️' : isActive ? '→' : ''}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    {completedMissions.length === MISSIONS.length && (
-                      <div style={{ padding: '16px 20px', textAlign: 'center' as const }}>
-                        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🏆</div>
-                        <div style={{ fontSize: '16px', fontWeight: 800, color: '#22c55e' }}>All Milestones Complete!</div>
-                        <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>You've mastered NovaMind. Keep creating amazing things!</div>
-                      </div>
+                    {hasProjects && (
+                      <select value={activeProject?.id || ''} onChange={e => { const p = projects.find(pr => pr.id === e.target.value); setActiveProject(p || null); }}
+                        style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }}>
+                        <option value="">Select a project…</option>
+                        {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
                     )}
                   </div>
+                  {activeProject ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginTop: '12px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>{activeProject.name}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: (dashStatusColors[activeProject.status] || dashStatusColors.active).bg, color: (dashStatusColors[activeProject.status] || dashStatusColors.active).fg, textTransform: 'capitalize' }}>{activeProject.status}</span>
+                        </div>
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>{(activeProject.pinnedOutputs || []).length} deliverable{(activeProject.pinnedOutputs || []).length === 1 ? '' : 's'} pinned · Updated {new Date(activeProject.updatedAt).toLocaleDateString()}</p>
+                      </div>
+                      <button onClick={() => openStudioForProject(activeProject)} style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>Open Studio</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginTop: '12px' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: 0 }}>{hasProjects ? 'Select a project above to pick up where you left off.' : 'Create a project to organize your work and track deliverables.'}</p>
+                      <button onClick={createFirstProject} style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>{ICONS.plus()} Create Your First Project</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ===== C) Next Best Action ===== */}
+              {!dashboardLoading && (
+                <div style={{ background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.2)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '18px 20px', marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ display: 'flex', color: '#008080' }}>{ICONS.spark(20)}</span>
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: 700, color: '#008080', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Next Best Action</div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{nextBestAction.label}</div>
+                    </div>
+                  </div>
+                  <button onClick={nextBestAction.onClick} style={{ padding: '9px 18px', fontSize: '13px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>{nextBestAction.label} →</button>
+                </div>
+              )}
+
+              {/* ===== B) Recent Deliverables ===== */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Recent Deliverables</h3>
+                </div>
+                {dashboardLoading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '14px 16px' }}>
+                        <div className="skeleton-block" style={{ width: '220px', height: '14px', marginBottom: '8px' }}></div>
+                        <div className="skeleton-block" style={{ width: '140px', height: '11px' }}></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : recentDeliverables.length === 0 ? (
+                  <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '40px 24px', textAlign: 'center' }}>
+                    <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>{ICONS.empty()}</div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>No deliverables yet</h4>
+                    <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 16px' }}>Generate your first deliverable in Studio</p>
+                    <button onClick={() => switchTab('create')} style={{ padding: '9px 18px', fontSize: '13px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Open Studio</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {recentDeliverables.map(d => (
+                      <div key={d.id} style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '320px' }}>{d.title}</span>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: (dashDeliverableStatusColors[d.status] || dashDeliverableStatusColors.draft).bg, color: (dashDeliverableStatusColors[d.status] || dashDeliverableStatusColors.draft).fg, textTransform: 'capitalize' }}>{d.status}</span>
+                          </div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '4px' }}>{d.projectName} · {d.pinnedAt ? new Date(d.pinnedAt).toLocaleDateString() : ''}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                          <button onClick={() => { const p = projects.find(pr => pr.id === d.projectId); if (p) setActiveProject(p); setShowShareModal(d.id); }} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>{ICONS.share()} Share</button>
+                          <button onClick={() => { const p = projects.find(pr => pr.id === d.projectId); if (p) setActiveProject(p); setShowExportModal(d.id); }} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>{ICONS.download()} Export</button>
+                          <button onClick={() => { const p = projects.find(pr => pr.id === d.projectId); if (p) { setActiveProject(p); } switchTab('create'); setStudioSidePanel(true); setSidePanelTab('deliverables'); setSidePanelSelectedDeliverableId(d.id); }} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 700, background: 'rgba(0,128,128,0.08)', color: '#008080', border: '1px solid rgba(0,128,128,0.25)', borderRadius: '4px', cursor: 'pointer' }}>Open in Studio</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* Growth & Acquisition Panel */}
-            <div style={{ padding: '0 16px 16px' }}>
-              <div style={{
-                borderRadius: '16px',
-                border: '1px solid rgba(0,128,128,0.15)',
-                background: 'var(--bg-card, #fff)',
-                overflow: 'hidden',
-              }}>
-                <div style={{
-                  padding: '14px 16px',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  borderBottom: showGrowthPanel ? '1px solid rgba(0,128,128,0.1)' : 'none',
-                }} onClick={() => setShowGrowthPanel(!showGrowthPanel)}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '18px' }}>📈</span>
-                    <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Growth & Acquisition</h4>
-                  </div>
-                  <span style={{
-                    fontSize: '14px', transition: 'transform 0.2s',
-                    transform: showGrowthPanel ? 'rotate(180deg)' : 'rotate(0deg)',
-                  }}>▾</span>
+              {/* ===== D) Enterprise Empty States ===== */}
+              {!dashboardLoading && !hasProjects && (
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '48px 24px', textAlign: 'center', marginBottom: '24px' }}>
+                  <div style={{ color: '#008080', display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>{ICONS.folder(48)}</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>Create Your First Project</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 auto 16px', maxWidth: '420px' }}>Projects keep your briefs, deliverables, and approvals organized in one place — the foundation of your workflow.</p>
+                  <button onClick={createFirstProject} style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Create Your First Project</button>
                 </div>
-                {showGrowthPanel && (
-                  <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
-                    {/* Trial Signups */}
-                    <div style={{
-                      borderRadius: '12px', padding: '14px',
-                      background: 'rgba(0,128,128,0.06)',
-                      border: '1px solid rgba(0,128,128,0.15)',
-                      textAlign: 'center' as const,
-                    }}>
-                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>🚀</div>
-                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#008080' }}>12</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Trial Signups</div>
-                    </div>
-                    {/* Trial → Paid */}
-                    <div style={{
-                      borderRadius: '12px', padding: '14px',
-                      background: 'rgba(34,197,94,0.06)',
-                      border: '1px solid rgba(34,197,94,0.15)',
-                      textAlign: 'center' as const,
-                    }}>
-                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>💳</div>
-                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#22c55e' }}>0%</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Trial → Paid</div>
-                    </div>
-                    {/* Audit Bookings */}
-                    <div style={{
-                      borderRadius: '12px', padding: '14px',
-                      background: 'rgba(6,182,212,0.06)',
-                      border: '1px solid rgba(6,182,212,0.15)',
-                      textAlign: 'center' as const,
-                    }}>
-                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>📋</div>
-                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#06b6d4' }}>0</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Audit Bookings</div>
-                    </div>
-                    {/* Enterprise Calls */}
-                    <div style={{
-                      borderRadius: '12px', padding: '14px',
-                      background: 'rgba(139,92,246,0.06)',
-                      border: '1px solid rgba(139,92,246,0.15)',
-                      textAlign: 'center' as const,
-                    }}>
-                      <div style={{ fontSize: '18px', marginBottom: '4px' }}>🏢</div>
-                      <div style={{ fontSize: '22px', fontWeight: 800, color: '#8b5cf6' }}>0</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Enterprise Calls</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Tools Replaced Comparison */}
-            <div style={{ padding: '0 16px 20px' }}>
-              <div style={{
-                borderRadius: '14px', padding: '16px',
-                background: 'rgba(0,128,128,0.06)',
-                border: '1px solid rgba(0,128,128,0.15)',
-                position: 'relative' as const, overflow: 'hidden',
-              }}>
-                <div style={{ position: 'absolute' as const, top: '-20px', right: '-20px', fontSize: '80px', opacity: 0.06 }}>💰</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                  <span style={{ fontSize: '18px' }}>🧩</span>
-                  <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>Tools You're Replacing</h4>
+              )}
+              {!dashboardLoading && hasProjects && !hasPinned && (
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '48px 24px', textAlign: 'center', marginBottom: '24px' }}>
+                  <div style={{ color: '#008080', display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>{ICONS.spark(48)}</div>
+                  <h4 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>No Deliverables Yet</h4>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 auto 16px', maxWidth: '420px' }}>Generate content in Studio, then pin your best work here to track versions and share it.</p>
+                  <button onClick={() => switchTab('create')} style={{ padding: '10px 20px', fontSize: '13px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Generate in Studio</button>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', marginBottom: '14px' }}>
-                  {[
-                    { tool: 'ChatGPT Pro', cost: '$20/mo', icon: '🤖' },
-                    { tool: 'Canva Pro', cost: '$13/mo', icon: '🎨' },
-                    { tool: 'Mailchimp', cost: '$20/mo', icon: '📧' },
-                    { tool: 'Hootsuite', cost: '$99/mo', icon: '📱' },
-                    { tool: 'Grammarly Biz', cost: '$25/mo', icon: '✍️' },
-                    { tool: 'Logo Maker', cost: '$10/mo', icon: '💎' },
-                    { tool: 'Ad Tools', cost: '$50/mo', icon: '🎯' },
-                    { tool: 'Freelancer', cost: '$100+/mo', icon: '👤' },
-                  ].map((item, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', fontSize: '12px', borderRadius: '6px', background: 'rgba(255,255,255,0.04)' }}>
-                      <span style={{ color: 'var(--text-secondary)' }}>{item.icon} {item.tool}</span>
-                      <span style={{ color: '#ef4444', fontWeight: 600, textDecoration: 'line-through', opacity: 0.7 }}>{item.cost}</span>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '12px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}>
-                  <div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>NovaMind — All of this for</div>
-                    <div style={{ fontSize: '28px', fontWeight: 800, color: '#22c55e', lineHeight: 1 }}>$49<span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>/mo</span></div>
-                  </div>
-                  <div style={{ textAlign: 'right' as const }}>
-                    <div style={{ fontSize: '12px', color: '#22c55e', fontWeight: 700 }}>SAVE $296+/mo</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>That's $3,500+/year</div>
-                  </div>
+              )}
+              <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '20px 24px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '14px', opacity: 0.7 }}>
+                <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>{ICONS.integrations(28)}</span>
+                <div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Integrations</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Coming Soon — connect NovaMind to the tools you already use.</div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <h3 className="section-title">{t.aiAgents}</h3>
-          <div className="agent-grid">
-            {AGENTS.map((agent) => (
-              <div key={agent.id} className={`agent-card ${agentMode === agent.id ? 'active' : ''}`} onClick={() => selectAgent(agent.id)}>
-                {agent.badge && <span className="agent-badge">{agent.badge}</span>}
-                <div className="agent-icon">{agent.icon}</div>
-                <div className="agent-name">{agent.name}</div>
-                <div className="agent-desc">{agent.desc}</div>
+              <div className="powered-footer">
+                <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
               </div>
-            ))}
-          </div>
-
-          {/* 🚀 Coming Soon Section */}
-          <div style={{ marginTop: '32px' }}>
-            <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              🚀 Coming Soon
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary, #888)', marginTop: '-8px', marginBottom: '16px' }}>
-              Phase II features launching soon — stay tuned!
-            </p>
-            <div className="agent-grid">
-              {COMING_SOON_FEATURES.map((feature) => (
-                <div key={feature.name} className="agent-card" style={{
-                  opacity: 0.55,
-                  cursor: 'default',
-                  pointerEvents: 'none' as const,
-                  border: '2px dashed rgba(255,255,255,0.15)',
-                  background: 'rgba(255,255,255,0.02)',
-                  position: 'relative' as const,
-                }}>
-                  <span style={{
-                    position: 'absolute' as const,
-                    top: '8px',
-                    right: '8px',
-                    fontSize: '9px',
-                    fontWeight: 700,
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    background: '#008080',
-                    color: '#fff',
-                    letterSpacing: '0.5px',
-                  }}>COMING SOON</span>
-                  <div className="agent-icon">{feature.icon}</div>
-                  <div className="agent-name">{feature.name}</div>
-                  <div className="agent-desc">{feature.desc}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <h3 className="section-title">Quick Tools</h3>
-          <div className="tool-grid">
-            {[{ icon: '✍️', name: 'Write', desc: 'Articles & copy', type: 'text' },{ icon: '🎨', name: 'Image', desc: 'AI artwork', type: 'image' },{ icon: '📧', name: 'Email', desc: 'Pro emails', type: 'text' },{ icon: '📋', name: 'Plans', desc: 'Business plans', type: 'text' },{ icon: '📄', name: 'Summary', desc: 'Summarize', type: 'text' },{ icon: '💡', name: 'Ideas', desc: 'Brainstorm', type: 'text' }].map((t, i) => (
-              <div key={i} className="tool-card" onClick={() => { setContentType(t.type); setModel(t.type === 'image' ? 'gpt-image-1' : 'deepseek'); setAgentMode('general'); switchTab('create'); }}>
-                <div className="tool-icon">{t.icon}</div><div className="tool-name">{t.name}</div><div className="tool-desc">{t.desc}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* 5.2 GUIDED WORKFLOW ACTIONS */}
-          <div style={{ marginTop: '32px' }}>
-            <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              ⚡ Start a Workflow
-            </h3>
-            <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '-8px', marginBottom: '16px' }}>
-              Skip the blank page — jump straight into action.
-            </p>
-            <div className="guided-actions">
-              {[
-                { icon: '📧', label: 'Draft a Client Email', agent: 'email-assistant' as AgentMode, prompt: 'Write a professional email to a potential client introducing my services and requesting a meeting.' },
-                { icon: '📝', label: 'Create a Proposal', agent: 'sales-proposal' as AgentMode, prompt: 'Create a detailed sales proposal for my services to a prospective client.' },
-                { icon: '🔍', label: 'Analyze a Competitor', agent: 'competitor-analysis' as AgentMode, prompt: 'Analyze my top competitor in my industry — identify their strengths, weaknesses, and gaps I can exploit.' },
-                { icon: '📱', label: 'Plan a Social Campaign', agent: 'social-media' as AgentMode, prompt: 'Create a 7-day social media content plan for my business across LinkedIn, Instagram, and Facebook.' },
-                { icon: '📊', label: 'Build a Business Plan', agent: 'business-plan' as AgentMode, prompt: 'Write a comprehensive business plan for my company including market analysis, financial projections, and growth strategy.' },
-                { icon: '🎯', label: 'Launch an Ad', agent: 'ad-maker' as AgentMode, prompt: 'Create a high-converting Facebook ad campaign for my business with headline, body copy, and call-to-action.' },
-              ].map((action, i) => (
-                <button key={i} className="guided-action-btn" onClick={() => {
-                  setAgentMode(action.agent);
-                  setPrompt(action.prompt);
-                  setResult(null);
-                  switchTab('create');
-                }}>
-                  <span className="action-icon">{action.icon}</span>
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 4.1 TRUST BADGES */}
-          <div className="trust-badges">
-            {[
-              { icon: '🔒', text: 'Enterprise-Grade Security' },
-              { icon: '🛡️', text: 'Data Encrypted in Transit & at Rest' },
-              { icon: '⚡', text: '99.9% Uptime SLA' },
-              { icon: '🌍', text: 'GDPR-Ready Infrastructure' },
-              { icon: '🤝', text: 'SOC 2 Type II Roadmap' },
-            ].map((badge, i) => (
-              <div key={i} className="trust-badge">
-                <span className="badge-icon">{badge.icon}</span>
-                {badge.text}
-              </div>
-            ))}
-          </div>
-
-          {/* 4.2 TESTIMONIALS */}
-          <div className="testimonials-section">
-            <h3 className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              💬 What Our Clients Say
-            </h3>
-            <div className="testimonials-grid">
-              {[
-                { quote: 'NovaMind replaced 5 different tools for my agency. The ROI was obvious within the first week — we saved 15+ hours on content creation alone.', name: 'Marcus T.', role: 'Marketing Agency Owner', initial: 'M', stars: 5 },
-                { quote: 'The AI-powered email assistant and proposal writer have completely transformed how we close deals. Our response time went from days to minutes.', name: 'Jennifer R.', role: 'Business Consultant', initial: 'J', stars: 5 },
-                { quote: 'I was skeptical about AI tools, but NovaMind made it intuitive. The onboarding walked me through everything, and now my team uses it daily.', name: 'David K.', role: 'Small Business Owner', initial: 'D', stars: 5 },
-              ].map((t, i) => (
-                <div key={i} className="testimonial-card">
-                  <div className="testimonial-stars">{'★'.repeat(t.stars)}</div>
-                  <p className="testimonial-quote">"{t.quote}"</p>
-                  <div className="testimonial-author">
-                    <div className="testimonial-avatar">{t.initial}</div>
-                    <div className="testimonial-info">
-                      <h4>{t.name}</h4>
-                      <p>{t.role}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          </>)}
-          <div className="powered-footer">
-            <span>© 2026 A Product of The PIE Group</span> · <a href="mailto:admin@piegroup.org">admin@piegroup.org</a>
-          </div>
-        </>)}
-        {tab === 'create' && (
+            </>
+          );
+        })()}
+        {tab === 'create' && (<>
           <div className="create-area">
+            {/* ===== Studio Top Bar (Workflow Spine Sprint) ===== */}
+            <PageHeader
+              title="Studio"
+              breadcrumbs={[
+                { label: 'Dashboard', onClick: () => switchTab('home') },
+                ...(activeProject ? [{ label: 'Studio', onClick: () => {} }, { label: activeProject.name }] : [{ label: 'Studio' }]),
+              ]}
+              secondaryActions={[{ label: studioSidePanel ? 'Hide Panel' : 'Show Panel', onClick: () => setStudioSidePanel(p => !p) }]}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '16px' }}>
+              {activeProject ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
+                  <span style={{ color: '#008080', display: 'flex' }}>{ICONS.folder(16)}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>{activeProject.name}</span>
+                  <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', textTransform: 'capitalize' }}>{activeProject.status}</span>
+                  <button onClick={() => switchTab('projects')} style={{ background: 'none', border: 'none', color: '#008080', fontSize: '12px', fontWeight: 600, cursor: 'pointer', padding: 0, marginLeft: '4px' }}>Change</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', flex: 1 }}>
+                  <span style={{ color: '#b45309', display: 'flex' }}>{ICONS.alert(16)}</span>
+                  <span style={{ fontSize: '12px', color: '#92400e', fontWeight: 500, flex: 1 }}>Select or create a project to save your work.</span>
+                  <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '', assignedTo: '', initialNotes: '' }); setShowProjectForm(true); switchTab('projects'); }}
+                    style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' }}>Create Project</button>
+                </div>
+              )}
+              {projects.length > 0 && (
+                <select value={activeProject?.id || ''} onChange={e => { const p = projects.find(pr => pr.id === e.target.value); setActiveProject(p || null); }}
+                  style={{ padding: '8px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--card-bg, #fff)', color: 'var(--text-primary)' }}>
+                  <option value="">No active project</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
+            </div>
             {!isPersonalMode && (<div className="agent-selector-bar">
               {AGENTS.map(agent => (
                 <button key={agent.id} className={`agent-tab ${agentMode === agent.id ? 'active' : ''}`} onClick={() => { setAgentMode(agent.id); setPrompt(''); setResult(null); if (agent.id === 'logo-maker') { setModel('gpt-image-1'); setContentType('image'); } else if (model === 'gpt-image-1') { setModel('deepseek'); setContentType('text'); } if (agent.id !== 'email-assistant') { setEmailMode('compose'); setEmailTone('Formal'); } }}>
@@ -4812,7 +5088,126 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               </div>
             )}
           </div>
-        )}
+          {/* ===== Studio Side Panel: Deliverables | Versions | Distribute ===== */}
+          {studioSidePanel && (
+            <div style={{ position: 'fixed', top: '64px', right: 0, bottom: 0, width: '320px', maxWidth: '90vw', background: 'var(--card-bg, #fff)', borderLeft: '1px solid var(--border-color, #e5e7eb)', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', zIndex: 40, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>Work Panel</span>
+                <button onClick={() => setStudioSidePanel(false)} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', padding: '4px' }}>{ICONS.close()}</button>
+              </div>
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color, #e5e7eb)' }}>
+                {(['deliverables', 'versions', 'distribute'] as const).map(spTab => (
+                  <button key={spTab} onClick={() => setSidePanelTab(spTab)}
+                    style={{ flex: 1, padding: '10px 6px', fontSize: '12px', fontWeight: 700, textTransform: 'capitalize', background: sidePanelTab === spTab ? 'rgba(0,128,128,0.08)' : 'transparent', color: sidePanelTab === spTab ? '#008080' : 'var(--text-secondary)', border: 'none', borderBottom: sidePanelTab === spTab ? '2px solid #008080' : '2px solid transparent', cursor: 'pointer' }}>
+                    {spTab}
+                  </button>
+                ))}
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px' }}>
+                {!activeProject ? (
+                  <div style={{ textAlign: 'center', padding: '32px 12px' }}>
+                    <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>{ICONS.folder(32)}</div>
+                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Select or create a project to see deliverables, versions, and distribution options.</p>
+                  </div>
+                ) : sidePanelTab === 'deliverables' ? (
+                  (activeProject.pinnedOutputs || []).length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '32px 12px' }}>
+                      <div style={{ color: 'var(--text-secondary)', display: 'flex', justifyContent: 'center', marginBottom: '10px' }}>{ICONS.spark(32)}</div>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Generate your first deliverable in Studio, then pin it here.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {(activeProject.pinnedOutputs || []).slice().sort((a, b) => (b.pinnedAt || 0) - (a.pinnedAt || 0)).map(o => {
+                        const dsc: Record<string, { bg: string; fg: string }> = { draft: { bg: 'rgba(245,158,11,0.1)', fg: '#b45309' }, 'in-review': { bg: '#fff7ed', fg: '#c2410c' }, approved: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' }, archived: { bg: '#f1f5f9', fg: '#64748b' } };
+                        const isSel = sidePanelSelectedDeliverableId === o.id;
+                        return (
+                          <button key={o.id} onClick={() => setSidePanelSelectedDeliverableId(o.id)}
+                            style={{ textAlign: 'left', padding: '10px 12px', borderRadius: '4px', border: isSel ? '1px solid #008080' : '1px solid var(--border-color, #e5e7eb)', background: isSel ? 'rgba(0,128,128,0.06)' : 'var(--card-bg, #fff)', cursor: 'pointer' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.title}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                              <span style={{ fontSize: '9px', fontWeight: 700, padding: '1px 7px', borderRadius: '999px', background: (dsc[o.status] || dsc.draft).bg, color: (dsc[o.status] || dsc.draft).fg, textTransform: 'capitalize' }}>{o.status}</span>
+                              <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{o.pinnedAt ? new Date(o.pinnedAt).toLocaleDateString() : ''}</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )
+                ) : sidePanelTab === 'versions' ? (() => {
+                  const selected = (activeProject.pinnedOutputs || []).find(o => o.id === sidePanelSelectedDeliverableId) || (activeProject.pinnedOutputs || [])[0];
+                  if (!selected) return (
+                    <div style={{ textAlign: 'center', padding: '32px 12px' }}>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>Pin a deliverable to see its version history.</p>
+                    </div>
+                  );
+                  const groupId = selected.versionGroup || selected.id;
+                  const versions = (activeProject.pinnedOutputs || []).filter(o => (o.versionGroup || o.id) === groupId).sort((a, b) => (b.versionNumber || 1) - (a.versionNumber || 1));
+                  return (
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.title}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                        {versions.map(v => (
+                          <div key={v.id} style={{ padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-primary)', fontWeight: 600 }}>{v.versionLabel || `V${v.versionNumber || 1}`}</span>
+                            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>{v.pinnedAt ? new Date(v.pinnedAt).toLocaleDateString() : ''}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {!canViewOnly && canEditProject(activeProject) && (
+                        <button onClick={() => {
+                          const label = window.prompt('Label for this new version (e.g. "Client edits", "Final"):', `V${versions.length + 1}`);
+                          if (label === null) return;
+                          const nextNumber = Math.max(...versions.map(v => v.versionNumber || 1), 0) + 1;
+                          pinOutput(activeProject.id, { title: selected.title, content: selected.content, type: selected.type, agentMode: selected.agentMode, tags: selected.tags, clientName: selected.clientName, status: 'draft', versionGroup: groupId, versionNumber: nextNumber, versionLabel: label || `V${nextNumber}` });
+                        }} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Save New Version</button>
+                      )}
+                    </div>
+                  );
+                })() : (
+                  <div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>Share &amp; Export</div>
+                    <button onClick={() => setShowShareModal('project')} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>{ICONS.share()} Create Share Link</button>
+                    {sidePanelSelectedDeliverableId && (
+                      <button onClick={() => setShowExportModal(sidePanelSelectedDeliverableId)} style={{ width: '100%', padding: '9px', fontSize: '12px', fontWeight: 700, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>{ICONS.download()} Export Selected Deliverable</button>
+                    )}
+                    {(activeProject.shareLinks || []).length > 0 && (
+                      <div style={{ marginBottom: '12px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>Active Links</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {(activeProject.shareLinks || []).map(l => (
+                            <div key={l.id} style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ textTransform: 'capitalize' }}>{l.scope} · {l.resourceType}</span>
+                              <button onClick={() => revokeShareLink(activeProject.id, l.id)} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '11px', cursor: 'pointer', padding: 0 }}>Revoke</button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {exportHistory.filter(e => e.projectId === activeProject.id).length > 0 && (
+                      <div style={{ marginBottom: '12px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '6px' }}>Export History</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {exportHistory.filter(e => e.projectId === activeProject.id).slice(0, 5).map(e => (
+                            <div key={e.id} style={{ fontSize: '11px', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', color: 'var(--text-secondary)' }}>
+                              {e.fileType.toUpperCase()} via {e.destination} · {new Date(e.exportedAt).toLocaleDateString()}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {isSoloPlan && (
+                      <div style={{ background: 'rgba(0,128,128,0.06)', border: '1px solid rgba(0,128,128,0.2)', borderRadius: '4px', padding: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#008080' }}>{ICONS.lock()}<span style={{ fontSize: '12px', fontWeight: 700 }}>Team Sharing Locked</span></div>
+                        <p style={{ fontSize: '11px', color: 'var(--text-secondary)', margin: 0 }}>Upgrade to Team Hub to share directly with specific teammates and manage workspace-wide access.</p>
+                        <button onClick={() => setShowUpgradeModal(true)} style={{ marginTop: '4px', padding: '7px', fontSize: '11px', fontWeight: 700, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Upgrade to Team Hub</button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>)}
         {tab === 'gallery' && (<>
           <h3 className="section-title">{t.myCreations}</h3>
           {galleryAgentFilter && (
@@ -5087,6 +5482,10 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             chevronDown: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>,
             chevronRight: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 6l6 6-6 6" /></svg>,
             layers: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2 3 7l9 5 9-5-9-5z" /><path d="M3 12l9 5 9-5" /><path d="M3 17l9 5 9-5" /></svg>,
+            share: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 10.6l6.8-3.9M8.6 13.4l6.8 3.9" /></svg>,
+            check: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"><path d="M20 6 9 17l-5-5" /></svg>,
+            users: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>,
+            lock: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>,
           };
           const statusColors: Record<string, { bg: string; fg: string }> = {
             active: { bg: 'rgba(0,128,128,0.08)', fg: '#008080' },
@@ -5095,7 +5494,17 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
           };
           const deliverableStatusColors: Record<string, { bg: string; fg: string }> = {
             draft: { bg: 'rgba(245,158,11,0.1)', fg: '#b45309' },
+            'in-review': { bg: '#fff7ed', fg: '#c2410c' },
             approved: { bg: 'rgba(52,199,89,0.1)', fg: '#2f9e44' },
+            archived: { bg: '#f1f5f9', fg: '#64748b' },
+          };
+          // Approval workflow status transitions permitted per role
+          const allowedNextStatuses = (current: PinnedOutput['status']): PinnedOutput['status'][] => {
+            if (canViewOnly) return [];
+            if (canAdmin) return ['draft', 'in-review', 'approved', 'archived'];
+            // members: draft -> in-review only
+            if ((current || 'draft') === 'draft') return ['draft', 'in-review'];
+            return [current || 'draft'];
           };
           const filteredProjects = projects.filter(p => projectFilter === 'all' || p.status === projectFilter);
           const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: 'var(--card-bg, #f9fafb)', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' };
@@ -5152,15 +5561,38 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       </select>
                     )}
                   </div>
+                  {isTeamPlan ? (
+                    <div>
+                      <label style={labelStyle}>Assign To</label>
+                      <select style={inputStyle} value={projectFormData.assignedTo} onChange={e => setProjectFormData(f => ({ ...f, assignedTo: e.target.value }))}>
+                        <option value="">Unassigned</option>
+                        {teamMembers.map(m => (
+                          <option key={m.id} value={m.displayName || m.email}>{m.displayName || m.email}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '10px 12px', borderRadius: '4px', border: '1px dashed var(--border-color, #e5e7eb)', fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                      <span>Assign to team members is a Team Hub feature.</span>
+                      <button onClick={() => setShowUpgradeModal(true)} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>Upgrade to Team Hub</button>
+                    </div>
+                  )}
+                  {!editingProject && (
+                    <div>
+                      <label style={labelStyle}>Initial Notes (optional)</label>
+                      <textarea style={{ ...inputStyle, minHeight: '70px', resize: 'vertical' }} value={projectFormData.initialNotes} onChange={e => setProjectFormData(f => ({ ...f, initialNotes: e.target.value }))} placeholder="Anything the AI should always remember for this project — client preferences, forbidden phrases, compliance rules…" />
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
                     <button
                       onClick={() => {
                         if (!projectFormData.name.trim()) return;
                         if (editingProject) {
-                          updateProject(editingProject.id, { ...projectFormData });
+                          const { initialNotes, ...updatable } = projectFormData;
+                          updateProject(editingProject.id, { ...updatable, teamOwned: isTeamPlan && !!updatable.assignedTo });
                           setShowProjectForm(false);
                           setEditingProject(null);
-                          setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' });
+                          setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '', assignedTo: '', initialNotes: '' });
                         } else {
                           createProject();
                         }
@@ -5170,7 +5602,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                       {editingProject ? 'Save Changes' : 'Create Project'}
                     </button>
                     <button
-                      onClick={() => { setShowProjectForm(false); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '' }); }}
+                      onClick={() => { setShowProjectForm(false); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: '', assignedTo: '', initialNotes: '' }); }}
                       style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
                       Cancel
                     </button>
@@ -5189,8 +5621,23 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
               (deliverableStatusFilter === 'all' || (o.status || 'draft') === deliverableStatusFilter)
             );
             const canEditThis = canEditProject(activeProject);
-            const activeFieldCount = Object.values(contextSettings).filter(Boolean).length;
-            const totalFieldCount = Object.keys(contextSettings).length;
+            const memoryFieldActive = !!(activeProject.memoryNotesEnabled && (activeProject.memoryNotes || '').trim());
+            const activeFieldCount = Object.values(contextSettings).filter(Boolean).length + (memoryFieldActive ? 1 : 0);
+            const totalFieldCount = Object.keys(contextSettings).length + 1;
+            // ===== Project ROI panel computed values =====
+            const projectHoursSaved = Math.round(allDeliverables.length * 0.25 * 100) / 100;
+            const projectValueCreated = allDeliverables.length * 47;
+            const projectExportCount = activeProject.exportCount || 0;
+            const relativeTime = (ms: number): string => {
+              const diffMs = Date.now() - ms;
+              const mins = Math.round(diffMs / 60000);
+              if (mins < 1) return 'just now';
+              if (mins < 60) return `${mins}m ago`;
+              const hrs = Math.round(mins / 60);
+              if (hrs < 24) return `${hrs}h ago`;
+              const days = Math.round(hrs / 24);
+              return `${days}d ago`;
+            };
             // group deliverables by versionGroup for versioning display
             const groups: Record<string, PinnedOutput[]> = {};
             deliverables.forEach(o => {
@@ -5211,16 +5658,70 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 12px', borderRadius: '999px', background: sc.bg, color: sc.fg, textTransform: 'capitalize' }}>{activeProject.status}</span>
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
                     {canEditThis && (
-                      <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(activeProject); setProjectFormData({ name: activeProject.name, objective: activeProject.objective, targetAudience: activeProject.targetAudience, constraints: activeProject.constraints, brandVoice: activeProject.brandVoice }); setShowProjectForm(true); }}
+                      <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(activeProject); setProjectFormData({ name: activeProject.name, objective: activeProject.objective, targetAudience: activeProject.targetAudience, constraints: activeProject.constraints, brandVoice: activeProject.brandVoice, assignedTo: activeProject.assignedTo || '', initialNotes: '' }); setShowProjectForm(true); }}
                         style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.edit} Edit</button>
                     )}
                     {canExport && !canViewOnly && (canAdmin || activeProject.createdBy === user?.uid) && (
                       <button onClick={() => exportProjectBrief(activeProject)}
                         style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#008080', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.download} Export</button>
                     )}
+                    {isTeamPlan ? (
+                      canEditThis && (
+                        <button onClick={() => { setShowShareModal('project'); setShareScope('workspace'); setShareSpecificUsers([]); }}
+                          style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{ICONS.share} Share</button>
+                      )
+                    ) : (
+                      canEditThis && (
+                        <button title="Share links are available on Team Hub and above" onClick={() => setShowUpgradeModal(true)}
+                          style={{ padding: '8px 14px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', opacity: 0.7 }}>{ICONS.lock} Share</button>
+                      )
+                    )}
                   </div>
                 </div>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 24px' }}>Updated {new Date(activeProject.updatedAt).toLocaleDateString()}</p>
+                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 8px' }}>Updated {new Date(activeProject.updatedAt).toLocaleDateString()}</p>
+                {isTeamPlan && (activeProject.assignedTo || (activeProject.sharedWith && activeProject.sharedWith.length > 0)) && (
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                    {activeProject.assignedTo && (
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.users} Assigned to {activeProject.assignedTo}</span>
+                    )}
+                    {activeProject.shareLinks && activeProject.shareLinks.length > 0 && (
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '3px 10px', borderRadius: '999px', background: 'rgba(102,112,133,0.1)', color: '#667085', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.share} {activeProject.shareLinks.length} active share {activeProject.shareLinks.length === 1 ? 'link' : 'links'}</span>
+                    )}
+                  </div>
+                )}
+
+                {/* ===== Project ROI Panel ===== */}
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', marginBottom: '24px', overflow: 'hidden' }}>
+                  <button onClick={() => setRoiPanelOpen(!roiPanelOpen)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '18px 24px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                    <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>{roiPanelOpen ? ICONS.chevronDown : ICONS.chevronRight}</span>
+                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Project ROI</h3>
+                    <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', marginLeft: 'auto' }}>${projectValueCreated.toLocaleString()} value created</span>
+                  </button>
+                  {roiPanelOpen && (
+                    <div style={{ padding: '0 24px 20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+                      <div style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '12px 14px' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#008080' }}>{allDeliverables.length}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Outputs Generated</div>
+                      </div>
+                      <div style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '12px 14px' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#008080' }}>{projectExportCount}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Exports</div>
+                      </div>
+                      <div style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '12px 14px' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#008080' }}>{projectHoursSaved} hrs</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Est. Hours Saved</div>
+                      </div>
+                      <div style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '12px 14px' }}>
+                        <div style={{ fontSize: '20px', fontWeight: 800, color: '#22c55e' }}>${projectValueCreated.toLocaleString()}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Value Created</div>
+                      </div>
+                      <div style={{ border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', padding: '12px 14px' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-primary)' }}>{relativeTime(activeProject.updatedAt)}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>Last Activity</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '24px', marginBottom: '24px' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' }}>Brief Summary</h3>
@@ -5274,6 +5775,39 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   )}
                 </div>
 
+                {/* ===== Project Memory / Notes Panel ===== */}
+                <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', marginBottom: '24px', overflow: 'hidden' }}>
+                  <button onClick={() => setMemoryPanelOpen(!memoryPanelOpen)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '18px 24px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                    <span style={{ color: 'var(--text-secondary)', display: 'flex' }}>{memoryPanelOpen ? ICONS.chevronDown : ICONS.chevronRight}</span>
+                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Project Memory / Notes</h3>
+                    {memoryFieldActive && (
+                      <span style={{ fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080', marginLeft: 'auto' }}>In AI Context</span>
+                    )}
+                  </button>
+                  {memoryPanelOpen && (
+                    <div style={{ padding: '0 24px 20px' }}>
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '0 0 10px' }}>Freeform notes for this project — client preferences, forbidden phrases, compliance requirements. Optionally include in AI context.</p>
+                      <textarea
+                        style={{ width: '100%', minHeight: '110px', resize: 'vertical', padding: '10px 12px', fontSize: '14px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: '#ffffff', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}
+                        value={memoryNotesDraft}
+                        disabled={!canEditThis}
+                        onChange={e => setMemoryNotesDraft(e.target.value)}
+                        placeholder="e.g. Client never wants the word 'cheap' used. Must comply with HIPAA. Prefers formal tone in all emails."
+                      />
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: 'var(--text-primary)', cursor: canEditThis ? 'pointer' : 'default', marginTop: '12px' }}>
+                        <input type="checkbox" checked={memoryNotesEnabledDraft} disabled={!canEditThis} onChange={e => setMemoryNotesEnabledDraft(e.target.checked)} />
+                        Include in AI Context
+                      </label>
+                      {canEditThis && (
+                        <button disabled={savingMemoryNotes} onClick={async () => { setSavingMemoryNotes(true); await saveMemoryNotes(activeProject.id, memoryNotesDraft, memoryNotesEnabledDraft); setSavingMemoryNotes(false); }}
+                          style={{ marginTop: '12px', padding: '8px 18px', fontSize: '13px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: savingMemoryNotes ? 'not-allowed' : 'pointer', opacity: savingMemoryNotes ? 0.6 : 1 }}>
+                          {savingMemoryNotes ? 'Saving…' : 'Save Notes'}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ background: 'var(--card-bg, #f9fafb)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', padding: '24px', marginBottom: '24px' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 16px' }}>Deliverables ({allDeliverables.length})</h3>
                   {allDeliverables.length > 0 && (
@@ -5286,7 +5820,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                         </button>
                       ))}
                       <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', alignSelf: 'center', margin: '0 4px' }}>Status:</span>
-                      {(['all', 'draft', 'approved'] as const).map(s => (
+                      {(['all', 'draft', 'in-review', 'approved', 'archived'] as const).map(s => (
                         <button key={s} onClick={() => setDeliverableStatusFilter(s)} style={chipStyle(deliverableStatusFilter === s)}>
                           {s === 'all' ? `All (${allDeliverables.length})` : `${s.charAt(0).toUpperCase() + s.slice(1)} (${allDeliverables.filter(o => (o.status || 'draft') === s).length})`}
                         </button>
@@ -5317,7 +5851,23 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                 <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Client: {o.clientName}</span>
                               )}
                               <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Pinned {new Date(o.pinnedAt).toLocaleDateString()}</span>
+                              {o.status === 'approved' && (
+                                <span style={{ fontSize: '11px', fontWeight: 600, color: '#008080', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.check} Approved{o.approvedBy ? ` by ${o.approvedBy}` : ''}</span>
+                              )}
                             </div>
+                            {allowedNextStatuses(o.status || 'draft').length > 0 && (
+                              <div style={{ marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>Status:</label>
+                                <select
+                                  value={o.status || 'draft'}
+                                  onChange={e => updateDeliverableStatus(activeProject.id, o.id, e.target.value as PinnedOutput['status'])}
+                                  style={{ padding: '4px 8px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: '#ffffff', color: 'var(--text-primary)', textTransform: 'capitalize' }}>
+                                  {allowedNextStatuses(o.status || 'draft').map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
                             {o.tags && o.tags.length > 0 && (
                               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '8px' }}>
                                 {o.tags.map((tag, i) => (
@@ -5334,12 +5884,21 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                               {canEditThis && (
                                 <button onClick={() => unpinOutput(activeProject.id, o.id)} style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.unpin} Unpin</button>
                               )}
-                              {o.type !== 'image' && canExport && (canAdmin || activeProject.createdBy === user?.uid) && (<>
-                                <button onClick={() => { const pw = window.open('', '_blank'); if (pw) { pw.document.write('<html><head><title>' + o.title + '</title><style>body{font-family:system-ui,sans-serif;padding:40px;max-width:800px;margin:0 auto;line-height:1.6}</style></head><body>' + renderMarkdown(o.content) + '</body></html>'); pw.document.close(); pw.print(); } }}
-                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export PDF</button>
-                                <button onClick={() => { const html = '<html><head><meta charset="utf-8"><title>' + o.title + '</title></head><body>' + renderMarkdown(o.content) + '</body></html>'; const blob = new Blob([html], { type: 'application/msword' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = o.title.replace(/[^a-z0-9]+/gi, '-') + '.doc'; a.click(); URL.revokeObjectURL(url); }}
-                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>Export Word</button>
-                              </>)}
+                              <button onClick={() => setExpandedReviewNotesFor(expandedReviewNotesFor === o.id ? null : o.id)}
+                                style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer' }}>
+                                Review Notes{o.reviewNotes && o.reviewNotes.length > 0 ? ` (${o.reviewNotes.length})` : ''}
+                              </button>
+                              {isTeamPlan ? (
+                                <button onClick={() => { setShowShareModal(o.id); setShareScope('workspace'); setShareSpecificUsers([]); }}
+                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.share} Share</button>
+                              ) : (
+                                <button title="Upgrade to Team Hub to share deliverables" onClick={() => setShowUpgradeModal(true)}
+                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', opacity: 0.7, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>{ICONS.lock} Share</button>
+                              )}
+                              {o.type !== 'image' && canExport && (canAdmin || activeProject.createdBy === user?.uid) && (
+                                <button onClick={() => { setShowExportModal(o.id); setExportEmailTo(''); setShowExportLedger(null); }}
+                                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>Export</button>
+                              )}
                               {canEditThis && (
                                 versioningOutputId === o.id ? (
                                   <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
@@ -5380,6 +5939,33 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                                 ))}
                               </div>
                             )}
+                            {expandedReviewNotesFor === o.id && (
+                              <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-color, #e5e7eb)' }}>
+                                {!canViewOnly && (
+                                  <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                                    <textarea
+                                      value={reviewNoteDrafts[o.id] || ''}
+                                      onChange={e => setReviewNoteDrafts(d => ({ ...d, [o.id]: e.target.value }))}
+                                      placeholder="Add a review note…"
+                                      style={{ flex: 1, minHeight: '60px', resize: 'vertical', padding: '8px 10px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color, #e5e7eb)', background: '#ffffff', color: 'var(--text-primary)' }} />
+                                    <button onClick={() => { const text = reviewNoteDrafts[o.id] || ''; if (!text.trim()) return; addReviewNote(activeProject.id, o.id, text); setReviewNoteDrafts(d => ({ ...d, [o.id]: '' })); }}
+                                      style={{ padding: '8px 16px', fontSize: '12px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', alignSelf: 'flex-start' }}>Add Note</button>
+                                  </div>
+                                )}
+                                {o.reviewNotes && o.reviewNotes.length > 0 ? (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {[...o.reviewNotes].sort((a, b) => b.timestamp - a.timestamp).map((n, i) => (
+                                      <div key={i} style={{ padding: '8px 12px', borderRadius: '4px', background: 'rgba(0,128,128,0.04)', border: '1px solid var(--border-color, #e5e7eb)' }}>
+                                        <div style={{ fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>{n.text}</div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>{n.author} · {new Date(n.timestamp).toLocaleString()}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: 0 }}>No review notes yet.</p>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
@@ -5397,6 +5983,9 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                     if (contextSettings.deliverables && allDeliverables.length > 0) {
                       contextPrefix += `\nExisting deliverables:\n`;
                       allDeliverables.forEach(d => { contextPrefix += `- ${d.title} (${d.type}): ${d.content.slice(0, 200)}\n`; });
+                    }
+                    if (activeProject.memoryNotesEnabled && (activeProject.memoryNotes || '').trim()) {
+                      contextPrefix += `Project Memory Notes: ${activeProject.memoryNotes}\n`;
                     }
                     switchTab('create');
                     setPrompt(`${contextPrefix}\n`);
@@ -5417,7 +6006,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 <h2 style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Projects</h2>
                 <span style={{ fontSize: '12px', fontWeight: 600, padding: '2px 10px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080' }}>{projects.length}</span>
                 {!canViewOnly && (
-                  <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '' }); setShowProjectForm(true); }}
+                  <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '', assignedTo: '', initialNotes: '' }); setShowProjectForm(true); }}
                     style={{ marginLeft: 'auto', padding: '10px 18px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
                     {ICONS.plus} New Project
                   </button>
@@ -5451,7 +6040,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                   </h3>
                   <p style={{ fontSize: '13px', margin: '0 0 20px' }}>Organize your briefs, targets, and deliverables in one place.</p>
                   {projects.length === 0 && !canViewOnly && (
-                    <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '' }); setShowProjectForm(true); }}
+                    <button onClick={() => { setBrandVoiceMode('workspace'); setEditingProject(null); setProjectFormData({ name: '', objective: '', targetAudience: '', constraints: '', brandVoice: businessProfile?.brandVoice || '', assignedTo: '', initialNotes: '' }); setShowProjectForm(true); }}
                       style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(16,24,40,0.06)' }}>
                       New Project
                     </button>
@@ -5473,7 +6062,7 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                           )}
                           {canEditThis && projectMenuOpenId === p.id && (
                             <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '40px', right: '16px', background: '#ffffff', border: '1px solid var(--border-color, #e5e7eb)', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', zIndex: 20, minWidth: '150px', overflow: 'hidden' }}>
-                              <button onClick={() => { setProjectMenuOpenId(null); setBrandVoiceMode('custom'); setEditingProject(p); setProjectFormData({ name: p.name, objective: p.objective, targetAudience: p.targetAudience, constraints: p.constraints, brandVoice: p.brandVoice }); setShowProjectForm(true); }}
+                              <button onClick={() => { setProjectMenuOpenId(null); setBrandVoiceMode('custom'); setEditingProject(p); setProjectFormData({ name: p.name, objective: p.objective, targetAudience: p.targetAudience, constraints: p.constraints, brandVoice: p.brandVoice, assignedTo: p.assignedTo || '', initialNotes: '' }); setShowProjectForm(true); }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{ICONS.edit} Edit</button>
                               <button onClick={() => { setProjectMenuOpenId(null); updateProject(p.id, { status: p.status === 'archived' ? 'active' : 'archived' }); }}
                                 style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', textAlign: 'left', padding: '10px 14px', fontSize: '13px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}>{ICONS.archive} {p.status === 'archived' ? 'Unarchive' : 'Archive'}</button>
@@ -5499,6 +6088,231 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
             </div>
           );
         })()}
+
+        {/* ===== Share Modal (workspace / specific people / public link) ===== */}
+        {showShareModal && activeProject && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={() => setShowShareModal(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '480px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#101828', margin: '0 0 4px' }}>
+                Share {showShareModal === 'project' ? activeProject.name : (activeProject.pinnedOutputs || []).find(o => o.id === showShareModal)?.title || 'Deliverable'}
+              </h3>
+              <p style={{ fontSize: '12px', color: '#667085', margin: '0 0 20px' }}>Control who can view this {showShareModal === 'project' ? 'project' : 'deliverable'}.</p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '18px' }}>
+                {([
+                  ['workspace', 'Workspace members only'],
+                  ['specific', 'Specific people'],
+                  ['public', 'Public link (view-only)'],
+                ] as const).map(([val, label]) => (
+                  <label key={val} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#101828', cursor: 'pointer' }}>
+                    <input type="radio" checked={shareScope === val} onChange={() => setShareScope(val)} />
+                    {label}
+                  </label>
+                ))}
+              </div>
+
+              {shareScope === 'specific' && (
+                <div style={{ marginBottom: '18px', border: '1px solid #e5e7eb', borderRadius: '4px', padding: '12px', maxHeight: '160px', overflowY: 'auto' }}>
+                  {teamMembers.length === 0 ? (
+                    <p style={{ fontSize: '12px', color: '#667085', margin: 0 }}>No team members yet. Invite teammates from Team Hub.</p>
+                  ) : teamMembers.map(m => (
+                    <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#101828', cursor: 'pointer', padding: '4px 0' }}>
+                      <input type="checkbox" checked={shareSpecificUsers.includes(m.id)}
+                        onChange={e => setShareSpecificUsers(prev => e.target.checked ? [...prev, m.id] : prev.filter(id => id !== m.id))} />
+                      {m.displayName || m.email}
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              {/* Permission level */}
+              <div style={{ marginBottom: '18px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600, color: '#667085', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: '8px' }}>Permission Level</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(['view', 'edit'] as const).map(perm => (
+                    <button key={perm} onClick={() => setSharePermission(perm)}
+                      style={{ flex: 1, padding: '8px 16px', fontSize: '13px', fontWeight: 600, borderRadius: '4px', cursor: 'pointer', border: sharePermission === perm ? '2px solid #008080' : '1px solid #e5e7eb', background: sharePermission === perm ? 'rgba(0,128,128,0.04)' : '#fff', color: sharePermission === perm ? '#008080' : '#344054' }}>
+                      {perm === 'view' ? 'View Only' : 'Can Edit'}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ fontSize: '11px', color: '#98a2b3', margin: '6px 0 0' }}>
+                  {sharePermission === 'view' ? 'Recipients can view but cannot modify.' : 'Recipients can view and edit this resource.'}
+                </p>
+              </div>
+
+              <button onClick={() => {
+                const resType = showShareModal === 'project' ? 'project' as const : 'deliverable' as const;
+                createShareLink(activeProject.id, shareScope, shareScope === 'specific' ? shareSpecificUsers : undefined, resType, showShareModal === 'project' ? activeProject.id : showShareModal);
+              }}
+                style={{ width: '100%', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '20px' }}>
+                Create Share Link
+              </button>
+
+              {(activeProject.shareLinks || []).length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '12px', fontWeight: 700, color: '#667085', textTransform: 'uppercase', letterSpacing: '0.04em', margin: '0 0 10px' }}>Active Share Links</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {(activeProject.shareLinks || []).map(link => (
+                      <div key={link.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', padding: '8px 12px', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#101828', textTransform: 'capitalize' }}>{link.scope === 'specific' ? `${(link.allowedUsers || []).length} people` : link.scope}</div>
+                          <div style={{ fontSize: '11px', color: '#98a2b3' }}>Created {new Date(link.createdAt).toLocaleDateString()} by {link.createdBy}</div>
+                          <div style={{ fontSize: '11px', color: link.permission === 'edit' ? '#008080' : '#98a2b3' }}>
+                            {link.permission === 'edit' ? 'Can Edit' : 'View Only'}
+                            {link.resourceType === 'deliverable' ? ' · Deliverable' : ' · Project'}
+                          </div>
+                        </div>
+                        <button onClick={() => revokeShareLink(activeProject.id, link.id)}
+                          style={{ padding: '6px 12px', fontSize: '12px', fontWeight: 600, background: 'transparent', color: '#d92d20', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>Revoke</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button onClick={() => setShowShareModal(null)}
+                style={{ marginTop: '20px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: '#101828', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ===== Export Destinations Modal ===== */}
+        {showExportModal && activeProject && (() => {
+          const deliverable = (activeProject.pinnedOutputs || []).find(o => o.id === showExportModal);
+          if (!deliverable) return null;
+          return (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={() => { setShowExportModal(null); setExportEmailTo(''); }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '520px', padding: '24px', maxHeight: '90vh', overflowY: 'auto' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#101828', margin: '0 0 4px' }}>Export: {deliverable.title}</h3>
+                <p style={{ fontSize: '12px', color: '#667085', margin: '0 0 24px' }}>Choose a destination for this deliverable.</p>
+
+                {/* Download Section */}
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#344054', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(0,128,128,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>↓</span>
+                    Download
+                  </h4>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => { exportToDownload(deliverable, activeProject, 'pdf'); setShowExportModal(null); }}
+                      style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 600, background: '#fff', color: '#344054', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>
+                      Export PDF
+                    </button>
+                    <button onClick={() => { exportToDownload(deliverable, activeProject, 'docx'); setShowExportModal(null); }}
+                      style={{ flex: 1, padding: '10px', fontSize: '13px', fontWeight: 600, background: '#fff', color: '#344054', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>
+                      Export Word
+                    </button>
+                  </div>
+                </div>
+
+                {/* Email Section */}
+                {workspaceSettings.allowEmailExport && (
+                  <div style={{ marginBottom: '20px', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
+                    <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#344054', margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(0,128,128,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>✉</span>
+                      Send via Email
+                    </h4>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <select value={exportEmailTo} onChange={e => setExportEmailTo(e.target.value)}
+                        style={{ flex: 1, padding: '8px 12px', fontSize: '13px', border: '1px solid #e5e7eb', borderRadius: '4px', background: '#fff', color: '#101828' }}>
+                        <option value="">Select recipient...</option>
+                        {teamMembers.filter(m => m.status === 'active').map(m => (
+                          <option key={m.id} value={m.email}>{m.displayName || m.email}</option>
+                        ))}
+                        {user && <option value={user.email || ''}>{user.displayName || user.email} (You)</option>}
+                      </select>
+                      <button onClick={() => exportToEmail(deliverable, activeProject)} disabled={!exportEmailTo.trim() || exportSending}
+                        style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, background: exportEmailTo.trim() && !exportSending ? '#008080' : '#e5e7eb', color: exportEmailTo.trim() && !exportSending ? '#fff' : '#98a2b3', border: 'none', borderRadius: '4px', cursor: exportEmailTo.trim() && !exportSending ? 'pointer' : 'default' }}>
+                        {exportSending ? 'Sending...' : 'Send'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cloud Drive Section — Coming Soon */}
+                <div style={{ marginBottom: '20px', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '4px', opacity: 0.5 }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#344054', margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ width: '24px', height: '24px', borderRadius: '4px', background: 'rgba(0,128,128,0.06)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>☁</span>
+                    Cloud Drive
+                    <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '999px', background: 'rgba(0,128,128,0.08)', color: '#008080' }}>Coming Soon</span>
+                  </h4>
+                  <p style={{ fontSize: '12px', color: '#98a2b3', margin: '4px 0 0' }}>Google Drive and OneDrive integration coming in a future update.</p>
+                </div>
+
+                {/* Export History */}
+                <div>
+                  <button onClick={() => { if (showExportLedger === deliverable.id) { setShowExportLedger(null); } else { setShowExportLedger(deliverable.id); loadExportHistory(deliverable.id); } }}
+                    style={{ width: '100%', padding: '10px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#667085', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer', marginBottom: showExportLedger === deliverable.id ? '12px' : '0' }}>
+                    {showExportLedger === deliverable.id ? 'Hide' : 'Show'} Export History
+                  </button>
+                  {showExportLedger === deliverable.id && (
+                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                      {exportHistory.length === 0 ? (
+                        <p style={{ fontSize: '12px', color: '#98a2b3', textAlign: 'center', padding: '16px 0', margin: 0 }}>No exports yet.</p>
+                      ) : exportHistory.map(rec => (
+                        <div key={rec.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', borderBottom: '1px solid #f2f4f7', fontSize: '12px' }}>
+                          <div>
+                            <span style={{ fontWeight: 600, color: '#344054', textTransform: 'capitalize' }}>{rec.destination}</span>
+                            <span style={{ color: '#98a2b3' }}> · {rec.fileType.toUpperCase()}</span>
+                            {rec.recipientEmail && <span style={{ color: '#667085' }}> → {rec.recipientEmail}</span>}
+                          </div>
+                          <div style={{ color: '#98a2b3', whiteSpace: 'nowrap' }}>
+                            {new Date(rec.exportedAt).toLocaleDateString()} · {rec.exportedBy.split(' ')[0]}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <button onClick={() => { setShowExportModal(null); setExportEmailTo(''); }}
+                  style={{ marginTop: '20px', padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: '#101828', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>
+                  Close
+                </button>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* ===== Workspace Settings Modal (Admin/Owner only) ===== */}
+        {showWorkspaceSettingsModal && canAdmin && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: '16px' }} onClick={() => setShowWorkspaceSettingsModal(false)}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#ffffff', borderRadius: '4px', boxShadow: '0 1px 2px rgba(16,24,40,0.06)', width: '100%', maxWidth: '480px', padding: '24px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#101828', margin: '0 0 4px' }}>Workspace Settings</h3>
+              <p style={{ fontSize: '12px', color: '#667085', margin: '0 0 24px' }}>Control data export and sharing policies for this workspace.</p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                {([
+                  { key: 'allowExternalExport' as const, label: 'Allow External Exports', desc: 'Members can download deliverables as PDF/Word files.' },
+                  { key: 'allowEmailExport' as const, label: 'Allow Email Exports', desc: 'Members can send deliverables via email to workspace members.' },
+                  { key: 'allowCloudExport' as const, label: 'Allow Cloud Drive Exports', desc: 'Members can export to connected cloud storage (when available).' },
+                ] as const).map(({ key, label, desc }) => (
+                  <label key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={workspaceSettings[key]} onChange={e => setWorkspaceSettings(prev => ({ ...prev, [key]: e.target.checked }))}
+                      style={{ marginTop: '2px' }} />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#101828' }}>{label}</div>
+                      <div style={{ fontSize: '12px', color: '#667085' }}>{desc}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => { saveWorkspaceSettings(workspaceSettings); setShowWorkspaceSettingsModal(false); }}
+                  style={{ flex: 1, padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: '#008080', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  Save Settings
+                </button>
+                <button onClick={() => setShowWorkspaceSettingsModal(false)}
+                  style={{ padding: '10px 20px', fontSize: '14px', fontWeight: 600, background: 'transparent', color: '#101828', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ===== Pin to Project Modal (structured deliverable metadata) ===== */}
         {showPinModal && (
@@ -5618,8 +6432,18 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
       </div>
         {tab === 'admin' && canAdmin && (
           <div style={{ padding: '24px', maxWidth: '1000px', margin: '0 auto' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-primary)' }}>🔐 Admin Panel</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>Manage roles, permissions, and review the audit trail.</p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+              <div>
+                <h2 style={{ fontSize: '24px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-primary)' }}>🔐 Admin Panel</h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>Manage roles, permissions, and review the audit trail.</p>
+              </div>
+              {canAdmin && (
+                <button onClick={() => setShowWorkspaceSettingsModal(true)}
+                  style={{ padding: '8px 16px', fontSize: '13px', fontWeight: 600, background: 'transparent', color: '#344054', border: '1px solid #e5e7eb', borderRadius: '4px', cursor: 'pointer' }}>
+                  Workspace Settings
+                </button>
+              )}
+            </div>
 
             {/* RBAC Section */}
             <div style={{ background: 'var(--card-bg, #f8f9fa)', borderRadius: '12px', padding: '20px', marginBottom: '20px', border: '1px solid var(--border-color, #e5e7eb)' }}>
@@ -6132,7 +6956,21 @@ Be the expert advisor they can't afford to hire — specific, actionable, and im
                 </>
               )}
 
-              {profileTab === 'team' && (
+              {profileTab === 'team' && isSoloPlan && (
+                <div style={{ textAlign: 'center', padding: '32px 16px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '4px', background: 'rgba(0,128,128,0.08)', color: '#008080', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                  </div>
+                  <h2 style={{ margin: '0 0 8px', fontSize: '1.2rem', color: 'var(--text-primary)' }}>Team Hub is a Team plan feature</h2>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '0 0 20px', maxWidth: '380px', marginLeft: 'auto', marginRight: 'auto' }}>
+                    Invite teammates, assign projects, and collaborate with shared permissions. Upgrade to Team Hub to unlock full team management.
+                  </p>
+                  <button className="generate-btn" onClick={() => { setShowProfileModal(false); setShowUpgradeModal(true); }} style={{ width: 'auto', padding: '10px 24px', margin: '0 auto' }}>
+                    Upgrade to Team Hub
+                  </button>
+                </div>
+              )}
+              {profileTab === 'team' && !isSoloPlan && (
                 <>
                   <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                     <div style={{ fontSize: '40px', marginBottom: '8px' }}>👥</div>
